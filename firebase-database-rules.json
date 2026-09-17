@@ -18,6 +18,7 @@
           "name":         { ".validate": "newData.isString() && newData.val().length <= 80" },
           "unit":         { ".validate": "newData.isString() && newData.val().length <= 24" },
           "scope":        { ".validate": "newData.isString() && newData.val().length <= 200" },
+          "url":          { ".validate": "newData.isString() && newData.val().length <= 200" },
           "done":         { ".validate": "newData.isNumber() && newData.val() >= 0" },
           "total":        { ".validate": "newData.isNumber() && newData.val() >= 0" },
           "weekRate":     { ".validate": "newData.isNumber() && newData.val() >= 0" },
