@@ -1,99 +1,109 @@
 /* ─────────────────────────────────────────────────────────────────────────
-   AF Hub 上报 — 每个 tracker 加这一个文件就够,界面一行不用改。
+   AF Hub reporter — the only file a tracker adds. No UI changes.
 
-   index.html 里在 app.js 之后加两行:
-     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>  ← 已有则跳过
+   In index.html, after app.js:
+     <script src="af-hub-config.js?v=1"></script>
      <script src="hub-report.js?v=1"></script>
 
-   并在 project-config.js 里加:
-     window.PROJECT.hubId   = 'ac3';                 // hub 上的项目 key
-     window.PROJECT.hubUnit = '樘';                  // 计量单位:樘 / 件 / 延米
-     window.PROJECT.hubScope= 'Storefront / CW';     // 一行 scope 描述
+   In project-config.js:
+     hubId:    'ac3',                  // key on the hub: ac3 / cp2 / lex
+     hubUnit:  'openings',             // openings / pieces / linear ft
+     hubScope: 'Storefront / Curtain Wall',
 
-   契约只有四组数字。老板屏比的是 % 和预计完工日,不是绝对数量,
-   所以各项目单位不同也能同屏排。
+   The contract is four groups of numbers. The overview compares percent and
+   estimated completion, never raw counts, so projects measured in different
+   units still share one list.
+
+   This writes one node — projects/{hubId}/summary — using its own Firebase
+   app instance named 'afhub'. It never touches the tracker's own Firebase
+   connection, and a failed push cannot affect the tracker.
    ───────────────────────────────────────────────────────────────────────── */
 (function () {
   'use strict';
 
-  var HUB = window.AF_HUB_FIREBASE;                 // 见 af-hub-config.js
+  var HUB = window.AF_HUB_FIREBASE;
   var P   = window.PROJECT || {};
   if (!HUB || !P.hubId || typeof firebase === 'undefined') return;
 
-  var DAY = 864e5, app = null;
+  var DAY = 864e5, app = null, signedIn = false;
 
   function hubApp() {
     if (app) return app;
-    try { app = firebase.apps.filter(function (a) { return a.name === 'afhub'; })[0]
-               || firebase.initializeApp(HUB, 'afhub'); } catch (e) { return null; }
+    try {
+      app = firebase.apps.filter(function (a) { return a.name === 'afhub'; })[0]
+         || firebase.initializeApp(HUB, 'afhub');
+    } catch (e) { return null; }
     return app;
   }
 
-  // installed 的判定跟主看板保持一致:status === 'installed'
+  // Matches the main dashboard's definition of installed.
   function isDone(u) { return u && u.status === 'installed'; }
 
   function daysAgo(dateStr) {
     if (!dateStr) return null;
     var t = Date.parse(dateStr);
-    if (isNaN(t)) return null;
-    return (Date.now() - t) / DAY;
+    return isNaN(t) ? null : (Date.now() - t) / DAY;
   }
 
   function summarize(state) {
     var units = (state && state.units) || [];
-    var done = 0, w0 = 0, w1 = 0, w4 = 0;
+    var done = 0, thisWeek = 0, lastWeek = 0, fourWeeks = 0;
 
     units.forEach(function (u) {
       if (!isDone(u)) return;
       done++;
       var d = daysAgo(u.date);
       if (d === null || d < 0) return;
-      if (d < 7)  w0++;                              // 本周
-      if (d >= 7 && d < 14) w1++;                    // 上周
-      if (d < 28) w4++;                              // 近四周
+      if (d < 7) thisWeek++;
+      if (d >= 7 && d < 14) lastWeek++;
+      if (d < 28) fourWeeks++;
     });
 
-    // 损坏 / CO:第 2 步上线前恒为 0,字段先占位,接上时不用改 hub
+    // Damage / change orders land in step 2. The fields are reserved now so
+    // the hub needs no change when they go live.
     var dmg = (state && state.damage) || [];
     var openDamage = dmg.filter(function (x) { return x && !x.closed; }).length;
     var pendingCO  = dmg.filter(function (x) { return x && x.co === 'pending'; }).length;
 
     return {
-      name: P.displayName || P.name || P.hubId,
-      unit: P.hubUnit || '樘',
+      name:  P.displayName || P.name || P.hubId,
+      unit:  P.hubUnit  || 'openings',
       scope: P.hubScope || '',
-      done: done,
+      done:  done,
       total: units.length,
-      weekRate: w0,
-      prevWeekRate: w1,
-      avg4w: Math.round(w4 / 4),
+      weekRate: thisWeek,
+      prevWeekRate: lastWeek,
+      avg4w: Math.round(fourWeeks / 4),
       openDamage: openDamage,
       pendingCO: pendingCO,
       ts: Date.now()
     };
   }
 
-  var last = '', timer = null;
+  var lastSig = '', timer = null;
 
   function push() {
-    var a = hubApp(); if (!a) return;
+    var a = hubApp();
+    if (!a || !signedIn) return;
     var s = summarize(window.state);
-    if (!s.total) return;                            // 还没载入数据,别推空的
-    var sig = JSON.stringify(s); sig = sig.replace(/"ts":\d+/, '');
-    if (sig === last) return;                        // 没变化就不写
-    last = sig;
+    if (!s.total) return;                               // nothing loaded yet
+    var sig = JSON.stringify(s).replace(/"ts":\d+/, '');
+    if (sig === lastSig) return;                        // unchanged — skip the write
+    lastSig = sig;
     a.database().ref('projects/' + P.hubId + '/summary').set(s).catch(function () {});
   }
 
   function schedule() { clearTimeout(timer); timer = setTimeout(push, 3000); }
 
-  // 登录后开推:状态每次变化推一次(去抖 3 秒),另外每 10 分钟保一次底
-  try {
-    hubApp().auth().signInAnonymously().catch(function () {});
-  } catch (e) {}
+  var a0 = hubApp();
+  if (a0) {
+    a0.auth().signInAnonymously()
+      .then(function () { signedIn = true; schedule(); })
+      .catch(function () {});
+  }
 
-  window.addEventListener('af-state-changed', schedule);   // 主 app 若有事件则用
+  window.addEventListener('af-state-changed', schedule);   // if the app emits one
   document.addEventListener('DOMContentLoaded', schedule);
-  setInterval(push, 10 * 60 * 1000);
-  setTimeout(schedule, 8000);                              // 首次载入兜底
+  setInterval(push, 10 * 60 * 1000);                       // safety net
+  setTimeout(schedule, 8000);                              // first load
 })();

@@ -3,35 +3,50 @@
     ".read": false,
     ".write": false,
 
-    // 项目摘要:任何登录用户可读(老板屏);写入只允许该项目自己的 summary 节点。
-    // tracker 用匿名登录推数,所以这里不按 uid 限制,而是靠字段校验 + 只能写 summary。
-    // 摘要里没有任何敏感数据(四个数字 + 名称),这个信任模型对内部够用。
+    // Project summaries.
+    // READ  — real accounts only. Trackers sign in anonymously to push, so an
+    //         anonymous session must not be able to read the whole portfolio.
+    // WRITE — any signed-in client, but only the summary node, and only if the
+    //         payload validates. A summary is four numbers and a name; there is
+    //         nothing sensitive in it, which is what makes this trade acceptable.
     "projects": {
-      ".read": "auth != null",
+      ".read": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous'",
       "$projectId": {
         "summary": {
           ".write": "auth != null",
           ".validate": "newData.hasChildren(['name','done','total','ts'])",
-          "done":  { ".validate": "newData.isNumber() && newData.val() >= 0" },
-          "total": { ".validate": "newData.isNumber() && newData.val() >= 0" },
-          "ts":    { ".validate": "newData.isNumber()" },
-          "$other": { ".validate": true }
+          "name":         { ".validate": "newData.isString() && newData.val().length <= 80" },
+          "unit":         { ".validate": "newData.isString() && newData.val().length <= 24" },
+          "scope":        { ".validate": "newData.isString() && newData.val().length <= 200" },
+          "done":         { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "total":        { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "weekRate":     { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "prevWeekRate": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "avg4w":        { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "openDamage":   { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "pendingCO":    { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "ts":           { ".validate": "newData.isNumber()" },
+          "$other":       { ".validate": false }
         }
       }
     },
 
-    // 第 2 步用:损坏台账。建在 Hub 里,各 tracker 不用改自己的界面。
-    // 创建:任何登录用户(工头报损坏)。改 co 状态:只有 admins(老板/PM)。
+    // Step 2 — damage ledger. Kept on the hub so no tracker has to change its UI.
+    // Anyone signed in with a real account can file one; only admins can edit an
+    // existing record, which is what makes the change-order decision auditable.
     "damage": {
-      ".read": "auth != null",
+      ".read": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous'",
       "$projectId": {
         "$damageId": {
-          ".write": "auth != null && (!data.exists() || root.child('admins').child(auth.uid).exists())",
+          ".write": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (!data.exists() || root.child('admins').child(auth.uid).exists())",
           ".validate": "newData.hasChildren(['type','by','ts'])"
         }
       }
     },
 
-    "admins": { ".read": "auth != null", ".write": false }
+    "admins": {
+      ".read": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous'",
+      ".write": false
+    }
   }
 }
