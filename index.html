@@ -139,6 +139,27 @@
   .gate input:focus { outline: none; border-color: var(--accent); }
   .gate button { width: 100%; justify-content: center; padding: 12px; font-size: 15px; }
   .gate .err { color: var(--red); font-size: 12.5px; margin-top: 12px; min-height: 16px; }
+  .linkbtn { background: none; border: 0; color: var(--accent-2); font: inherit; font-size: 12.5px;
+             cursor: pointer; padding: 0; text-decoration: underline; width: auto; }
+
+  /* account panel */
+  .veil { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 200;
+          display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .modal { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+           width: 100%; max-width: 380px; padding: 22px; }
+  .modal h3 { margin: 0 0 4px; font-size: 17px; font-weight: 600; }
+  .modal .who2 { color: var(--text-dim); font-size: 12.5px; margin: 0 0 18px; }
+  .modal label { display: block; font-size: 11px; color: var(--text-dim);
+                 text-transform: uppercase; letter-spacing: .04em; margin: 0 0 4px; }
+  .modal input { width: 100%; background: var(--bg); color: var(--text);
+                 border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px;
+                 font-size: 16px; font-family: inherit; margin-bottom: 12px; }
+  .modal input:focus { outline: none; border-color: var(--accent); }
+  .modal .msg { font-size: 12.5px; min-height: 17px; margin: 2px 0 12px; }
+  .modal .msg.bad { color: var(--red); }
+  .modal .msg.good { color: var(--green); }
+  .modal .actions { display: flex; gap: 8px; }
+  .modal .actions .btn { flex: 1; justify-content: center; }
 
   @media (max-width: 720px) {
     header { padding: 12px 14px; padding-top: max(12px, env(safe-area-inset-top)); }
@@ -167,7 +188,8 @@
         <p id="sub">Loading…</p>
       </div>
       <div class="header-actions">
-        <span style="font-size:12px;color:var(--text-dim)" id="me"></span>
+        <button class="btn" type="button" id="acct" title="Account — change password"
+                style="font-size:12px"><span id="me"></span></button>
         <button class="btn" type="button" id="theme" title="Day / night">☀️</button>
         <button class="btn" type="button" id="out">Sign out</button>
       </div>
@@ -186,7 +208,30 @@
   <input type="password" id="pw" placeholder="Password" autocomplete="current-password" required>
   <button class="btn btn-primary" type="submit" id="go">Sign in</button>
   <div class="err" id="err"></div>
+  <button class="linkbtn" type="button" id="forgot" style="margin-top:14px">Forgot password</button>
 </form>
+
+<div class="veil" id="acctPanel" hidden>
+  <form class="modal" id="pwForm">
+    <h3>Change password</h3>
+    <p class="who2" id="acctWho"></p>
+
+    <label for="curPw">Current password</label>
+    <input type="password" id="curPw" autocomplete="current-password" required>
+
+    <label for="newPw">New password</label>
+    <input type="password" id="newPw" autocomplete="new-password" minlength="8" required>
+
+    <label for="newPw2">Confirm new password</label>
+    <input type="password" id="newPw2" autocomplete="new-password" minlength="8" required>
+
+    <div class="msg" id="pwMsg">At least 8 characters.</div>
+    <div class="actions">
+      <button class="btn" type="button" id="pwCancel">Cancel</button>
+      <button class="btn btn-primary" type="submit" id="pwSave">Save</button>
+    </div>
+  </form>
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -319,7 +364,10 @@ function render(list){
 function showGate(msg){
   document.getElementById('app').hidden  = true;
   document.getElementById('gate').hidden = false;
-  document.getElementById('err').textContent = msg || '';
+  document.getElementById('acctPanel').hidden = true;
+  const err = document.getElementById('err');
+  err.style.color = '';                  // the reset-sent notice turns this green
+  err.textContent = msg || '';
 }
 
 /* theme — same affordance and default as the trackers (dark unless told otherwise) */
@@ -363,6 +411,88 @@ function showGate(msg){
   document.getElementById('out').addEventListener('click', () => {
     document.getElementById('pw').value = '';
     auth.signOut();
+  });
+
+  /* ── Account: change password ──────────────────────────────────────────
+     Firebase refuses updatePassword() on a session that has been open a
+     while, so ask for the current password and reauthenticate first. That
+     also means a borrowed unlocked laptop cannot change the password. */
+  const panel  = document.getElementById('acctPanel');
+  const pwMsg  = document.getElementById('pwMsg');
+  const fields = ['curPw','newPw','newPw2'];
+
+  function setMsg(text, kind){
+    pwMsg.textContent = text;
+    pwMsg.className = 'msg' + (kind ? ' ' + kind : '');
+  }
+  function closePanel(){
+    fields.forEach(id => { document.getElementById(id).value = ''; });
+    panel.hidden = true;
+  }
+
+  document.getElementById('acct').addEventListener('click', () => {
+    const u = auth.currentUser;
+    if (!u) return;
+    document.getElementById('acctWho').textContent = u.email || '';
+    setMsg('At least 8 characters.');
+    panel.hidden = false;
+    document.getElementById('curPw').focus();
+  });
+
+  document.getElementById('pwCancel').addEventListener('click', closePanel);
+  panel.addEventListener('click', ev => { if (ev.target === panel) closePanel(); });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !panel.hidden) closePanel(); });
+
+  document.getElementById('pwForm').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const u = auth.currentUser;
+    if (!u) return;
+
+    const cur  = document.getElementById('curPw').value;
+    const next = document.getElementById('newPw').value;
+    const two  = document.getElementById('newPw2').value;
+
+    if (next !== two)       return setMsg('The two new passwords do not match.', 'bad');
+    if (next.length < 8)    return setMsg('Use at least 8 characters.', 'bad');
+    if (next === cur)       return setMsg('That is your current password.', 'bad');
+
+    const btn = document.getElementById('pwSave');
+    btn.disabled = true;
+    setMsg('Saving…');
+    try {
+      const cred = firebase.auth.EmailAuthProvider.credential(u.email, cur);
+      await u.reauthenticateWithCredential(cred);
+      await u.updatePassword(next);
+      setMsg('Password changed.', 'good');
+      setTimeout(closePanel, 1200);
+    } catch (e) {
+      const c = String(e && e.code || '');
+      setMsg(
+        /wrong-password|invalid-credential|invalid-login/.test(c) ? 'Current password is wrong.'
+        : /weak-password/.test(c)     ? 'Firebase rejected that as too weak — try a longer one.'
+        : /requires-recent-login/.test(c) ? 'Session too old. Sign out, sign in, and try again.'
+        : /too-many-requests/.test(c) ? 'Too many attempts — try again shortly.'
+        : 'Could not change the password. Check your connection.', 'bad');
+    }
+    btn.disabled = false;
+  });
+
+  /* Forgot password — the boss will need this before he needs anything else. */
+  document.getElementById('forgot').addEventListener('click', async () => {
+    const email = document.getElementById('email').value.trim();
+    const err = document.getElementById('err');
+    if (!email) { err.textContent = 'Enter your email address first.'; return; }
+    try {
+      await auth.sendPasswordResetEmail(email);
+      err.style.color = 'var(--green)';
+      err.textContent = 'Reset link sent. Check your inbox.';
+    } catch (e) {
+      err.style.color = '';
+      const c = String(e && e.code || '');
+      err.textContent = /user-not-found/.test(c) ? 'No account with that email.'
+                      : /invalid-email/.test(c)  ? 'That is not a valid email address.'
+                      : 'Could not send the reset email.';
+    }
   });
 
   document.getElementById('gate').addEventListener('submit', async ev => {
