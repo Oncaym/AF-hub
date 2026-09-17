@@ -104,6 +104,15 @@ function summarize(state, cfg) {
         if (prev.val()) s.url = prev.val();
       }
 
+      /* Same reasoning for the per-scope breakdown, for a different reason: it is
+         computed from isDoor() / isInterior() / doorTypeOf(), which live in the
+         tracker's app.js and only exist in a browser. Duplicating them here would
+         mean two copies of the classification rules drifting apart — exactly what
+         the four-numbers contract exists to avoid. So this job never produces a
+         breakdown and never destroys one: the browser reporter owns that field. */
+      const prevBd = await hub.database().ref(`projects/${cfg.id}/summary/breakdown`).once('value');
+      if (prevBd.val()) s.breakdown = prevBd.val();
+
       await hub.database().ref(`projects/${cfg.id}/summary`).set(s);
       console.log(`${cfg.id}: ${s.done}/${s.total} installed, ${s.weekRate} this week`);
     } catch (e) {
