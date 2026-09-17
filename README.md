@@ -24,9 +24,22 @@ af-hub/
 | `weekRate` / `prevWeekRate` / `avg4w` | This week / last week / 4-week mean |
 | `openDamage` | Unresolved damage events (step 2 — currently always 0) |
 | `pendingCO` | Change orders awaiting a decision (same) |
+| `breakdown` | **Optional.** `[{scope, done, total}]` — the per-scope split, biggest first |
+
+`breakdown` is computed inside `hub-report.js` from classifiers that already exist in
+each tracker's `app.js` (`isDoor` / `isInterior` / `doorTypeOf`, plus `u.type`), so it
+costs no tracker UI change and no core change. A tracker still on `?v=4` simply sends
+nothing and its card shows no scope rows. The scheduled reporter runs on firebase-admin
+where those classifiers do not exist, so it never writes this field and never wipes it.
 
 **The overview compares percent and estimated completion, never raw counts** — which
-is why 355 Lexington in *pieces* and AC3 in *openings* sort in one list.
+is why 355 Lexington in *pieces* and AC3 in *openings* sort in one list. A **Completion
+by project** chart sits above the cards for the same reason: one measure, one hue, bars
+sorted, a project with no report greyed and labelled rather than shown as zero.
+
+Each card then opens that number up by scope — *Storefront · exterior*, *Door ·
+fire-rated*, *Shower Door* — showing **what is left**, which is the question actually
+being asked. Caulking and beauty cap are deliberately absent: crew workflow, not scope.
 
 `Est. complete = remaining ÷ (4-week average ÷ 7)`. Earliest finish sorts to the top.
 

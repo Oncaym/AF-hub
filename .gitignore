@@ -1,0 +1,11 @@
+# Service-account private keys. These grant full read/write to a Firebase
+# project — they belong in GitHub Secrets, never in the repo.
+hub secrets/
+*firebase-adminsdk*.json
+*service-account*.json
+*-adminsdk-*.json
+
+node_modules/
+.vercel
+.DS_Store
+Thumbs.db

@@ -60,10 +60,20 @@ the scheduled job guarantees the boss never opens a cold hub and sees stale numb
 ### The contract — `/projects/{id}/summary`
 
 `name` · `unit` · `scope` · `url` · `done` · `total` · `weekRate` · `prevWeekRate` ·
-`avg4w` · `openDamage` · `pendingCO` · `ts`
+`avg4w` · `openDamage` · `pendingCO` · `breakdown` · `ts`
 
 `Est. complete = remaining ÷ (avg4w ÷ 7)`. `openDamage` / `pendingCO` are reserved — always 0
 until step 2 ships, so the hub needs no change when they go live.
+
+`breakdown` (2026-09-17, optional) is `[{scope, done, total}]`, biggest first. It is computed
+**inside `hub-report.js`** from classifiers already in each tracker's `app.js` — no core change,
+no tracker UI change. Order matters in `scopeOf()`: `type` is consulted **before** `isDoor()`,
+because `isDoor()` matches any type containing "door" and would otherwise file Lexington's 159
+shower doors as exterior doors. `report/report.js` cannot compute it (no browser, no classifiers)
+so it preserves whatever is there, the same way it preserves `url`.
+
+Test: `node _tests/test-breakdown.cjs <folder-holding-the-trackers>` — runs the real `scopeOf`
+over each tracker's real seed units and checks Lexington's split against its own CLAUDE.md.
 
 ### Auth model
 
@@ -81,8 +91,8 @@ until step 2 ships, so the hub needs no change when they go live.
 
 | File | md5 | Role |
 |---|---|---|
-| `index.html` | `7586c3d9af` | The overview. Sign-in gate, roster merge, theme toggle, change password, reset password, per-project **Open ↗**. |
-| `hub-report.js` | `ba639add4b` | Reporter. **Identical copy in all three trackers** — treat as a CORE file under SYNC.md. |
+| `index.html` | `9e851ce7ed` | The overview. Sign-in gate, roster merge, theme toggle, change password, reset password, per-project **Open ↗**. |
+| `hub-report.js` | `cf96897754` | Reporter. **Identical copy in all three trackers** — treat as a CORE file under SYNC.md. Now also sends `breakdown`. |
 | `af-hub-config.js` | `a3e947c333` | Hub Firebase config. Same file in the hub and every tracker. |
 | `firebase-database-rules.json` | `cc8177ccd4` | RTDB rules. Includes the reserved `damage` subtree for step 2. |
 | `report/report.js` | `7c539b6d39` | Scheduled reporter (firebase-admin). Mirrors `hub-report.js` maths — **change both together**. |
@@ -151,11 +161,32 @@ Leo was given instructions to create a private `af-hub` repo, push, and add five
 appeared on the hub, so at least some of this is done. Check before re-explaining it.
 
 ### 5.5 Not yet redeployed / repushed
-- `index.html` — change-password + reset-password dialogs, and the `[hidden]` fix
-  below. **Redeploy this one first** — the live build at af-hub-two.vercel.app still
-  shows the account dialog nailed over the sign-in screen for every visitor.
+- `index.html` — change-password + reset-password dialogs, the `[hidden]` fix below,
+  plus the **Completion by project** chart, the per-scope rows on each card, and the
+  `#u=` email handoff on Open ↗. **Redeploy this one first** — the live build at
+  af-hub-two.vercel.app still shows the account dialog nailed over the sign-in screen
+  for every visitor.
+- `hub-report.js` v5 — into all three trackers (`?v=5` already bumped in each
+  `index.html`). Until a tracker ships v5 its card simply has no scope rows.
+- **All three trackers: `cloud-sync.js` (core, F-058) + `firebase-database-rules.json`.**
+  See 5.7.
 - `report/report.js` — the url-preservation fix
 - three trackers — `hub-report.js` v4
+
+### 5.7 ⛔ F-058 needs two things done in the Firebase Console, per project
+Until step ② is done the hole is still open — the code ships fail-open on purpose so it
+can go out ahead of the Console work.
+
+1. **Publish the updated `firebase-database-rules.json`** (each tracker's own project).
+   `/state`'s `.read` was `auth != null` — *any* signed-in account in that Firebase
+   project could read the whole job. It is now allowlist ∪ gcList.
+2. **Create `/gcList`** and put the real GC's email in it. Key = email with **every**
+   `.` replaced by `,`:
+   ```json
+   { "gcList": { "pm@broadwaybuilder,com": true } }
+   ```
+3. Sign in once with an account on neither list — it should hit the "No access to this
+   project" wall instead of being handed the GC view.
 
 ### 5.6 Password reset email comes from `noreply@af-hub-8f188.firebaseapp.com`
 It will land in spam the first time. Customizing the sender needs domain verification in
@@ -184,7 +215,16 @@ Firebase Console → Authentication → Templates. Worth doing before handing th
 5. **Service-account JSONs live inside the folder that becomes a git repo.** `.gitignore` is in
    place; still verify `git status` before the first `git add`.
 6. Remote tools cannot write anything under `.github`.
-7. **`[hidden]` loses the cascade to any rule that sets `display`.** `.veil` set
+7. **A tracker's own `index.html` is where the plan-asset pair gets forgotten.** AC3
+   shipped `2-white.png` on 2026-09-03 but never wired `data-plan-light` /
+   `data-plan-dark`, and because its `project-config.js` has no `floors`, `setLevel()` —
+   the only thing that pins `PLAN_GF_SRC` — never ran. `_planLightSrc()` therefore
+   returned the live `src`, which after one runtime inversion *is* the inverted data
+   URL, so every save inverted the previous output and the plan alternated black/white
+   forever. Fixed 2026-09-17 by wiring the pair. Lesson: when a floor has no shipped
+   twin, the runtime inversion's input must never be a value that the inversion itself
+   can overwrite.
+8. **`[hidden]` loses the cascade to any rule that sets `display`.** `.veil` set
    `display: flex`, which outranks the UA sheet's `[hidden] { display: none }`, so
    `acctPanel.hidden = true` set the attribute and changed nothing: the change-password
    dialog rendered over the sign-in screen from first paint, and Cancel / Esc / backdrop
@@ -192,7 +232,7 @@ Firebase Console → Authentication → Templates. Worth doing before handing th
    globally, with `[hidden] { display: none !important; }` near the top of the sheet —
    which also immunises every future element that carries the attribute. Verified in
    headless Chromium: 28 assertions over both dialogs, both themes, signed in and out.
-8. **A person who forgot their password cannot type their current one.** Reset and
+9. **A person who forgot their password cannot type their current one.** Reset and
    change are two different flows and must never share a dialog. `#resetPanel` (email
    only, no session needed) vs `#acctPanel` (reauthenticate, session required).
 

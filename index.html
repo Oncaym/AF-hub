@@ -123,6 +123,42 @@
   .stat.eta.late .v { color: var(--yellow); }
   .stat.eta.none .v { color: var(--text-dim); font-size: 15px; }
 
+  /* Per-scope split. One measure (percent complete), so ONE hue — a categorical
+     palette here would imply the scopes are unrelated series, which they are not.
+     Identity is carried by the direct label on every row, never by colour. */
+  .scopes { display: grid; grid-template-columns: minmax(0,auto) 1fr max-content;
+            gap: 5px 12px; align-items: center; margin-top: 14px;
+            padding-top: 12px; border-top: 1px solid var(--border); }
+  .sname { font-size: 12.5px; color: var(--text-dim); white-space: nowrap;
+           overflow: hidden; text-overflow: ellipsis; }
+  .sbar  { height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; }
+  .sbar i { display: block; height: 100%; background: var(--accent); opacity: .75;
+            border-radius: 0 3px 3px 0; transition: width .5s cubic-bezier(.2,.7,.3,1); }
+  .sbar i.done { opacity: 1; background: var(--green); }
+  .sval  { font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .sval small { color: var(--text-dim); font-size: 11px; }
+
+  /* Portfolio comparison. Horizontal bars: magnitude across a handful of named
+     entities, sorted, zero baseline, every bar direct-labelled (n=3, so labelling
+     all of them IS the point rather than clutter). A project with no report is
+     grey and says so in words — never colour alone. */
+  .chart { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+           padding: 16px 22px 18px; margin-bottom: 14px; }
+  .chart h2 { margin: 0 0 14px; font-size: 11px; font-weight: 600; letter-spacing: .06em;
+              text-transform: uppercase; color: var(--text-dim); }
+  .crows { display: grid; grid-template-columns: minmax(0,auto) 1fr max-content;
+           gap: 9px 14px; align-items: center; }
+  .cname { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cbar  { height: 10px; background: var(--panel-2); border: 1px solid var(--border);
+           border-radius: 5px; overflow: hidden; }
+  .cbar i { display: block; height: 100%; background: var(--accent);
+            border-radius: 0 4px 4px 0; transition: width .6s cubic-bezier(.2,.7,.3,1); }
+  .cval  { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 42px;
+           text-align: right; }
+  .cval.absent { font-size: 11px; font-weight: 500; letter-spacing: .02em; }
+  .cbar.absent i { background: var(--text-dim); }
+  .cname.absent, .cval.absent { color: var(--text-dim); }
+
   .detail { display: none; margin-top: 15px; padding-top: 14px; border-top: 1px solid var(--border); }
   .section.open .detail { display: block; }
   .drow { display: flex; justify-content: space-between; gap: 14px; padding: 5px 0; font-size: 13px; }
@@ -188,6 +224,9 @@
     .section { padding: 14px 13px 13px; border-radius: 8px; margin-bottom: 11px; }
     .name { font-size: 15.5px; }
     .stat .v { font-size: 17px; }
+    .chart { padding: 14px 13px 15px; border-radius: 8px; }
+    .crows, .scopes { column-gap: 10px; }
+    .cname, .sname { max-width: 40vw; }
   }
   @media (max-width: 380px) {
     .stats { grid-template-columns: repeat(2, 1fr); }
@@ -213,6 +252,7 @@
     </div>
   </header>
   <main>
+    <section class="chart" id="chart" hidden></section>
     <div id="list"></div>
     <p class="foot" id="foot"></p>
   </main>
@@ -315,6 +355,11 @@ function merge(live){
   return [...byId.values()];
 }
 
+/* The signed-in email, carried to a tracker on Open ↗ so its own sign-in box is
+   already filled in. In the hash, not the query string: a fragment is never sent
+   to the server and never lands in a referrer or a server log. */
+let ME = '';
+
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtDate = d => d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
 
@@ -326,6 +371,52 @@ function eta(p){
   if (perDay <= 0) return { text:'No data',  cls:'none', days:null };
   const days = Math.ceil(remain / perDay);
   return { text: fmtDate(new Date(Date.now() + days*DAY)), cls: days > 270 ? 'late' : '', days };
+}
+
+/* Hand the tracker the email we are already signed in with. Fragment, not query —
+   see the note on ME. The tracker strips it from the address bar once it has read it. */
+function openUrl(url){
+  if (!url || !ME) return url || '';
+  return url.replace(/#.*$/, '') + '#u=' + encodeURIComponent(ME);
+}
+
+/* Per-scope rows (Leo, 2026-09-17): "he wants to know how many doors (ex, in,
+   fire-rated) & storefronts (ex & in) left". The reporter sends the split; a
+   tracker still on v4 sends nothing and the card simply has no scope section.
+   Caulking and beauty cap are not here on purpose — crew workflow, not scope. */
+function scopeRows(p){
+  const bd = Array.isArray(p.breakdown) ? p.breakdown.filter(b => b && b.total) : [];
+  if (bd.length < 2) return '';        // one bucket says nothing the headline has not
+  return `<div class="scopes">` + bd.map(b => {
+    const done = b.done || 0, total = b.total, left = total - done;
+    const pc = Math.round(100 * done / total);
+    return `<span class="sname" title="${esc(b.scope)}">${esc(b.scope)}</span>`
+         + `<span class="sbar" title="${done} of ${total} installed"><i class="${left ? '' : 'done'}" style="width:${pc}%"></i></span>`
+         + `<span class="sval">${left ? left : '✓'}<small>${left ? ' left' : ' done'}</small></span>`;
+  }).join('') + `</div>`;
+}
+
+/* Completion by project. One measure across three named entities → horizontal bars,
+   sorted, zero baseline, one hue. Not a categorical palette: these are not unrelated
+   series, they are the same number measured three times. */
+function renderChart(list){
+  const box = document.getElementById('chart');
+  const rows = list.map(p => ({
+    name: p.name,
+    reported: p.reported && !!p.total,
+    pct: p.total ? Math.round(100 * (p.done||0) / p.total) : 0,
+    done: p.done||0, total: p.total||0,
+  })).sort((a,b) => (b.reported - a.reported) || (b.pct - a.pct));
+
+  if (!rows.length) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = `<h2>Completion by project</h2><div class="crows">` + rows.map(r => {
+    const off = r.reported ? '' : ' absent';
+    return `<span class="cname${off}">${esc(r.name)}</span>`
+         + `<span class="cbar${off}" title="${r.reported ? r.done + ' of ' + r.total + ' installed' : 'no report yet'}">`
+         +   `<i style="width:${r.reported ? r.pct : 0}%"></i></span>`
+         + `<span class="cval${off}">${r.reported ? r.pct + '%' : 'no report'}</span>`;
+  }).join('') + `</div>`;
 }
 
 function card(p){
@@ -344,7 +435,7 @@ function card(p){
       ${!p.reported ? `<div class="chip idle">not reporting</div>` : ''}
       ${p.openDamage ? `<div class="chip dmg">⚠ ${p.openDamage}</div>` : ''}
       ${p.pendingCO  ? `<div class="chip co">CO ${p.pendingCO}</div>`  : ''}
-      ${p.url ? `<a class="btn open-btn" href="${esc(p.url)}" target="_blank" rel="noopener"
+      ${p.url ? `<a class="btn open-btn" href="${esc(openUrl(p.url))}" target="_blank" rel="noopener"
                     title="Open the tracker">Open ↗</a>` : ''}
     </div>
     <div class="bar"><i style="width:${pct}%"></i></div>
@@ -356,6 +447,7 @@ function card(p){
       <div class="stat eta ${e.cls}"><div class="k">Est. complete</div>
         <div class="v">${e.text}</div></div>
     </div>
+    ${scopeRows(p)}
     <div class="detail">
       <div class="drow"><span>Scope</span><span>${esc(p.scope || '—')}</span></div>
       <div class="drow"><span>Remaining</span><span>${p.total ? `${p.total - (p.done||0)} ${esc(p.unit||'')}` : '—'}</span></div>
@@ -378,6 +470,8 @@ function card(p){
 function render(list){
   document.getElementById('gate').hidden = true;
   document.getElementById('app').hidden  = false;
+
+  renderChart(list);
 
   const wrap = document.getElementById('list');
   wrap.innerHTML = '';
@@ -439,11 +533,13 @@ function showGate(msg){
   auth.onAuthStateChanged(user => {
     if (!user || user.isAnonymous) {
       if (ref) { ref.off(); ref = null; }
+      ME = '';
       document.getElementById('me').textContent = '';
       showGate();
       return;
     }
-    document.getElementById('me').textContent = user.email || '';
+    ME = user.email || '';
+    document.getElementById('me').textContent = ME;
     ref = firebase.database().ref('projects');
     ref.on('value', snap => render(merge(snap.val())), () => render(merge(null)));
   });

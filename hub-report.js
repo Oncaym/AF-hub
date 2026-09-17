@@ -67,6 +67,54 @@
 
   function isDone(u) { return u && u.status === 'installed'; }   // matches the dashboard
 
+  /* ── Per-scope split (Leo, 2026-09-17) ────────────────────────────────
+     "Boss doesn't need to know how many caulking, beauty cap left, but he wants
+     to know how many doors (ex, in, fire-rated) & storefronts (ex & in) left."
+
+     Every classifier used here already exists in the tracker's own app.js and is
+     byte-identical across all three, so this file stays the ONLY thing a tracker
+     adds — no core change, no UI change. Caulking / beauty cap are deliberately
+     absent: they are crew workflow on a unit, not a scope of work.
+
+     `typeof` guards throughout: a tracker that predates a classifier, or a future
+     fork that drops one, degrades to a coarser split instead of throwing. */
+  function scopeOf(u) {
+    var t = String((u && u.type) || '').trim();
+
+    /* `type` first, and this order matters. Lexington already carries the real scope
+       there (Guardrail / Terrace Divider / Equipment Screen / Shower Door), and its 159
+       shower doors would otherwise be swallowed by isDoor() — which matches ANY type
+       containing "door" — and reported as exterior doors on a curtain-wall split that
+       does not apply to that job at all. If the tracker has already named the scope,
+       believe it. */
+    if (t && !/^storefront$/i.test(t)) return t;
+
+    /* Left here: AC3 and CP2, where every single unit sits in one bucket literally
+       called "Storefront". That is the bucket the boss wants opened up. */
+    try {
+      if (typeof isDoor === 'function' && isDoor(u)) {
+        var dt = '';
+        try { dt = (typeof doorTypeOf === 'function' && doorTypeOf(u)) || ''; } catch (e) {}
+        return dt ? 'Door \u00b7 ' + dt : 'Door';
+      }
+    } catch (e) {}
+    try { if (typeof isInterior === 'function' && isInterior(u)) return 'Storefront \u00b7 interior'; } catch (e) {}
+    return t ? 'Storefront \u00b7 exterior' : 'Other';
+  }
+
+  function breakdownOf(units) {
+    var by = {};
+    units.forEach(function (u) {
+      var k = scopeOf(u);
+      if (!by[k]) by[k] = { scope: k, done: 0, total: 0 };
+      by[k].total++;
+      if (isDone(u)) by[k].done++;
+    });
+    var out = Object.keys(by).map(function (k) { return by[k]; });
+    out.sort(function (a, b) { return (b.total - a.total) || (a.scope < b.scope ? -1 : 1); });
+    return out.slice(0, 12);            // a boss screen, not a report
+  }
+
   function daysAgo(d) {
     if (!d) return null;
     var t = Date.parse(d);
@@ -107,6 +155,7 @@
       avg4w: Math.round(fourWeeks / 4),
       openDamage: openDamage,
       pendingCO: pendingCO,
+      breakdown: breakdownOf(units),   // optional: older hubs simply ignore it
       ts: Date.now()
     };
   }
@@ -157,6 +206,7 @@
       stateFound: !!st,
       units: (st && st.units && st.units.length) || 0,
       installedWithDate: s._dated,
+      scopes: (s.breakdown || []).map(function (b) { return b.scope + ' ' + b.done + '/' + b.total; }),
       hubSignedIn: signedIn,
       trackerSignedIn: trackerReady(),
       wouldSend: s
