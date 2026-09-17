@@ -1,0 +1,29 @@
+[
+  {
+    "id": "ac3",
+    "name": "Atlantic-Chestnut Building 3",
+    "unit": "openings",
+    "scope": "Storefront / Curtain Wall",
+    "url": "https://atlantic-chestnut-3-tracking.vercel.app",
+    "databaseURL": "https://atlantic-chestnut-3-default-rtdb.firebaseio.com",
+    "secret": "AC3_SERVICE_ACCOUNT"
+  },
+  {
+    "id": "cp2",
+    "name": "Cooper Park 2",
+    "unit": "openings",
+    "scope": "Storefront - GF 71 / L2 6 / L13 5",
+    "url": "",
+    "databaseURL": "https://copper-park-2---monitor-default-rtdb.firebaseio.com",
+    "secret": "CP2_SERVICE_ACCOUNT"
+  },
+  {
+    "id": "lex",
+    "name": "355 Lexington Avenue",
+    "unit": "pieces",
+    "scope": "Shower Door 159 / Terrace Divider 33 / Guardrail 8 / Equipment Screen 2",
+    "url": "",
+    "databaseURL": "https://lexington-avenue-93a52-default-rtdb.firebaseio.com",
+    "secret": "LEX_SERVICE_ACCOUNT"
+  }
+]
