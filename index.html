@@ -43,6 +43,14 @@
   }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  /* The browser's own sheet says [hidden]{display:none}, but that is a plain
+     attribute selector and ANY class that sets display outranks it. .veil below
+     sets display:flex, so `acctPanel.hidden = true` set the attribute and changed
+     nothing — the account dialog rendered over the sign-in screen from first paint
+     and Cancel / Esc / backdrop all "worked" while the box stayed put. Win the
+     cascade back once, here, for every element that will ever carry [hidden]. */
+  [hidden] { display: none !important; }
   html, body { margin: 0; padding: 0; }
   body {
     background: var(--bg);
@@ -143,10 +151,19 @@
              cursor: pointer; padding: 0; text-decoration: underline; width: auto; }
 
   /* account panel */
-  .veil { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 200;
-          display: flex; align-items: center; justify-content: center; padding: 20px; }
+  /* Dark theme on a dark backdrop: .55 black over #0f1419 is almost no change at
+     all, so a dialog read as part of the page rather than on top of it. Deeper
+     scrim + a little blur, and the modal is a lifted surface, not a flat panel. */
+  .veil { position: fixed; inset: 0; background: rgba(0,0,0,.68); z-index: 200;
+          -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+          display: flex; align-items: flex-start; justify-content: center;
+          padding: 20px; overflow-y: auto; }
+  /* margin:auto centres it when there is room and simply scrolls when there is
+     not — flex `align-items:center` would clip the top of a tall dialog on a
+     short phone in landscape. */
   .modal { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-           width: 100%; max-width: 380px; padding: 22px; }
+           width: 100%; max-width: 380px; padding: 22px; margin: auto;
+           box-shadow: 0 16px 40px rgba(0,0,0,.45); }
   .modal h3 { margin: 0 0 4px; font-size: 17px; font-weight: 600; }
   .modal .who2 { color: var(--text-dim); font-size: 12.5px; margin: 0 0 18px; }
   .modal label { display: block; font-size: 11px; color: var(--text-dim);
@@ -229,6 +246,24 @@
     <div class="actions">
       <button class="btn" type="button" id="pwCancel">Cancel</button>
       <button class="btn btn-primary" type="submit" id="pwSave">Save</button>
+    </div>
+  </form>
+</div>
+
+<!-- Reset password. Deliberately NOT the dialog above: someone who has forgotten
+     their password cannot type a current one, so the two flows never share a box. -->
+<div class="veil" id="resetPanel" hidden>
+  <form class="modal" id="resetForm">
+    <h3>Reset password</h3>
+    <p class="who2">We will email you a link to set a new one.</p>
+
+    <label for="resetEmail">Email</label>
+    <input type="email" id="resetEmail" placeholder="you@advfacade.com" autocomplete="email" required>
+
+    <div class="msg" id="resetMsg">The link is good for one hour.</div>
+    <div class="actions">
+      <button class="btn" type="button" id="resetCancel">Cancel</button>
+      <button class="btn btn-primary" type="submit" id="resetSend">Send link</button>
     </div>
   </form>
 </div>
@@ -364,7 +399,12 @@ function render(list){
 function showGate(msg){
   document.getElementById('app').hidden  = true;
   document.getElementById('gate').hidden = false;
+  /* The account dialog belongs to a session. Never let it outlive one, and never
+     leave a typed password sitting in a field behind a sign-out. */
   document.getElementById('acctPanel').hidden = true;
+  ['curPw','newPw','newPw2'].forEach(id => {
+    const f = document.getElementById(id); if (f) f.value = '';
+  });
   const err = document.getElementById('err');
   err.style.color = '';                  // the reset-sent notice turns this green
   err.textContent = msg || '';
@@ -432,7 +472,7 @@ function showGate(msg){
 
   document.getElementById('acct').addEventListener('click', () => {
     const u = auth.currentUser;
-    if (!u) return;
+    if (!u || u.isAnonymous) return;   // nothing to reauthenticate against
     document.getElementById('acctWho').textContent = u.email || '';
     setMsg('At least 8 characters.');
     panel.hidden = false;
@@ -441,7 +481,11 @@ function showGate(msg){
 
   document.getElementById('pwCancel').addEventListener('click', closePanel);
   panel.addEventListener('click', ev => { if (ev.target === panel) closePanel(); });
-  document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !panel.hidden) closePanel(); });
+  document.addEventListener('keydown', ev => {
+    if (ev.key !== 'Escape') return;
+    if (!panel.hidden)      closePanel();
+    else if (!reset.hidden) closeReset();
+  });
 
   document.getElementById('pwForm').addEventListener('submit', async ev => {
     ev.preventDefault();
@@ -477,21 +521,56 @@ function showGate(msg){
     btn.disabled = false;
   });
 
-  /* Forgot password — the boss will need this before he needs anything else. */
-  document.getElementById('forgot').addEventListener('click', async () => {
-    const email = document.getElementById('email').value.trim();
-    const err = document.getElementById('err');
-    if (!email) { err.textContent = 'Enter your email address first.'; return; }
+  /* ── Forgot password ───────────────────────────────────────────────────
+     Opens on click and only on click. Needs no signed-in user, which is the
+     whole reason it is a separate dialog from the one above. */
+  const reset    = document.getElementById('resetPanel');
+  const resetMsg = document.getElementById('resetMsg');
+  const forgotBtn = document.getElementById('forgot');
+
+  function setResetMsg(text, kind){
+    resetMsg.textContent = text;
+    resetMsg.className = 'msg' + (kind ? ' ' + kind : '');
+  }
+  function closeReset(){
+    reset.hidden = true;
+    forgotBtn.focus();
+  }
+
+  forgotBtn.addEventListener('click', () => {
+    const box = document.getElementById('resetEmail');
+    box.value = document.getElementById('email').value.trim();
+    setResetMsg('The link is good for one hour.');
+    document.getElementById('resetSend').disabled = false;
+    reset.hidden = false;
+    box.focus();
+    if (box.value) box.select();
+  });
+
+  document.getElementById('resetCancel').addEventListener('click', closeReset);
+  reset.addEventListener('click', ev => { if (ev.target === reset) closeReset(); });
+
+  document.getElementById('resetForm').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const email = document.getElementById('resetEmail').value.trim();
+    if (!email) return setResetMsg('Enter your email address.', 'bad');
+
+    const btn = document.getElementById('resetSend');
+    btn.disabled = true;
+    setResetMsg('Sending…');
     try {
       await auth.sendPasswordResetEmail(email);
-      err.style.color = 'var(--green)';
-      err.textContent = 'Reset link sent. Check your inbox.';
+      setResetMsg('Link sent to ' + email + '. It arrives from firebaseapp.com — '
+                + 'check spam the first time.', 'good');
+      setTimeout(closeReset, 3000);
     } catch (e) {
-      err.style.color = '';
       const c = String(e && e.code || '');
-      err.textContent = /user-not-found/.test(c) ? 'No account with that email.'
-                      : /invalid-email/.test(c)  ? 'That is not a valid email address.'
-                      : 'Could not send the reset email.';
+      setResetMsg(
+        /user-not-found/.test(c)      ? 'No account with that email.'
+        : /invalid-email/.test(c)     ? 'That is not a valid email address.'
+        : /too-many-requests/.test(c) ? 'Too many attempts — try again shortly.'
+        : 'Could not send the reset email. Check your connection.', 'bad');
+      btn.disabled = false;
     }
   });
 
