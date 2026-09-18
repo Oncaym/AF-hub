@@ -27,6 +27,30 @@
           "openDamage":   { ".validate": "newData.isNumber() && newData.val() >= 0" },
           "pendingCO":    { ".validate": "newData.isNumber() && newData.val() >= 0" },
           "ts":           { ".validate": "newData.isNumber()" },
+
+          // The project's percentage. Each scope is measured in its own unit and the
+          // scopes are averaged weighted by row count, so this is NOT done/total.
+          "pct":          { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+
+          // Per-scope split: unit class x sub-scope, e.g. "Storefront · exterior — Glass".
+          // An array arrives in RTDB as an object keyed "0","1",… so $i matches the index.
+          // NOTE the trap this whole block exists for: `$other: false` below rejects ANY
+          // field that is not named here, and a rejected field fails the ENTIRE set().
+          // Add a field to hub-report.js and you must add it here, or every tracker
+          // silently stops reporting — which is exactly what happened on 2026-09-17.
+          "breakdown": {
+            "$i": {
+              ".validate": "newData.hasChildren(['scope'])",
+              "scope":    { ".validate": "newData.isString() && newData.val().length <= 80" },
+              "done":     { ".validate": "newData.isNumber() && newData.val() >= 0" },
+              "total":    { ".validate": "newData.isNumber() && newData.val() >= 0" },
+              "qtyDone":  { ".validate": "newData.isNumber() && newData.val() >= 0" },
+              "qtyTotal": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+              "unit":     { ".validate": "newData.isString() && newData.val().length <= 24" },
+              "$other":   { ".validate": false }
+            }
+          },
+
           "$other":       { ".validate": false }
         }
       }

@@ -359,9 +359,35 @@
     if (!force && sig === lastSig) return;
     lastSig = sig;
 
-    a.database().ref('projects/' + P.hubId + '/summary').set(s)
+    var ref = a.database().ref('projects/' + P.hubId + '/summary');
+    ref.set(s)
       .then(function () { console.info(TAG, 'pushed', P.hubId, s.done + '/' + s.total); })
-      .catch(function (e) { console.warn(TAG, 'push rejected —', e && e.message); });
+      .catch(function (e) {
+        /* The hub's rules end every summary child list with `$other: {".validate": false}`,
+           so ONE unrecognised field rejects the WHOLE write and the project silently stops
+           reporting altogether. That is what happened when `breakdown` was added on
+           2026-09-17 and the rules were not updated with it — the boss's overview froze
+           for a day and looked like a deployment problem.
+
+           So: never let the rich fields take the plain ones down with them. Retry once
+           with just the numbers, and say plainly what needs publishing. */
+        var denied = /permission|denied/i.test((e && (e.code || e.message)) || '');
+        if (!denied || !s.breakdown) {
+          console.warn(TAG, 'push rejected —', e && e.message);
+          lastSig = '';                       // don't let the signature suppress a retry
+          return;
+        }
+        var plain = {};
+        Object.keys(s).forEach(function (k) { if (k !== 'breakdown' && k !== 'pct') plain[k] = s[k]; });
+        return ref.set(plain).then(function () {
+          console.warn(TAG, 'the hub rejected the scope breakdown, so only the headline '
+            + 'numbers were sent. Publish af-hub/firebase-database-rules.json in the '
+            + 'Firebase Console (project af-hub-8f188) and the scope cards will fill in.');
+        }).catch(function (e2) {
+          console.warn(TAG, 'push rejected —', e2 && e2.message);
+          lastSig = '';
+        });
+      });
   }
 
   function schedule() { clearTimeout(timer); timer = setTimeout(push, 2500); }
