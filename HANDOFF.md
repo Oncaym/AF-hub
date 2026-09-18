@@ -92,7 +92,7 @@ over each tracker's real seed units and checks Lexington's split against its own
 | File | md5 | Role |
 |---|---|---|
 | `index.html` | `9e851ce7ed` | The overview. Sign-in gate, roster merge, theme toggle, change password, reset password, per-project **Open ↗**. |
-| `hub-report.js` | `cf96897754` | Reporter. **Identical copy in all three trackers** — treat as a CORE file under SYNC.md. Now also sends `breakdown`. |
+| `hub-report.js` | `cf96897754` | Reporter. **Served from here to every tracker (F-059)** — **Identical copy in all three trackers** — treat as a CORE file under SYNC.md. Now also sends `breakdown`. |
 | `af-hub-config.js` | `a3e947c333` | Hub Firebase config. Same file in the hub and every tracker. |
 | `firebase-database-rules.json` | `cc8177ccd4` | RTDB rules. Includes the reserved `damage` subtree for step 2. |
 | `report/report.js` | `7c539b6d39` | Scheduled reporter (firebase-admin). Mirrors `hub-report.js` maths — **change both together**. |
@@ -103,8 +103,11 @@ over each tracker's real seed units and checks Lexington's split against its own
 
 ### Tracker wiring (all three identical)
 
-- `af-hub-config.js` + `hub-report.js` copied into the tracker root
-- two `<script>` tags before `</body>`, currently `?v=4`
+- **F-059 (2026-09-18): nothing is copied any more.** Both files are loaded from
+  `https://af-hub-two.vercel.app/` — one copy, one deploy, no `?v=` to keep in step.
+  The local copies were deleted from all three trackers; leaving them would have been a
+  trap, since editing one would look like it should work and would change nothing.
+- two `<script>` tags before `</body>`, absolute URLs
 - `project-config.js` gained `hubId` / `hubUnit` / `hubScope`
 
 | Tracker | hubId | unit | Firebase RTDB |

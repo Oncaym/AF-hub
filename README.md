@@ -67,13 +67,27 @@ A tracker deployed on a public URL therefore cannot be used to read every projec
 
 ### 4. Wire each tracker
 
-Copy `af-hub-config.js` and `hub-report.js` into the tracker root, then in `index.html`
-after `app.js`:
+**Do not copy these two files any more (F-059, 2026-09-18).** Point the tracker at the
+hub's single copy — in `index.html`, after `app.js`:
 
 ```html
-<script src="af-hub-config.js?v=1"></script>
-<script src="hub-report.js?v=1"></script>
+<script src="https://af-hub-two.vercel.app/af-hub-config.js"></script>
+<script src="https://af-hub-two.vercel.app/hub-report.js"></script>
 ```
+
+They used to be copied into every tracker, so changing the reporter meant deploying four
+projects and bumping four `?v=` numbers — and missing one left that tracker silently
+reporting with old code. Now it is one file and one deploy, with no version numbers to
+keep in step. `vercel.json` pins `max-age=0, must-revalidate` on both so a hub deploy
+reaches every tracker on its next page load.
+
+A cross-origin classic script still shares the page's global scope, so the reporter reads
+`state` and calls `isDoor()` / `doorTypeOf()` exactly as before — verified in a real
+browser, `_tests/` has the fixture. If the hub is unreachable the scripts simply do not
+load: the tracker is unaffected and just does not report that session.
+
+The trade: the hub's domain is now a dependency of all three trackers. Changing it means
+one more pass over their `index.html`.
 
 and in `project-config.js`:
 

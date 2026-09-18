@@ -9,3 +9,9 @@ node_modules/
 .vercel
 .DS_Store
 Thumbs.db
+
+# Things Claude wrote for you to look at / hand-upload — not part of the site.
+# (A real `git add` honours this file. The GitHub web UI's drag-and-drop does NOT —
+#  it uploads whatever you drop, .gitignore and all. That is how a commit containing
+#  the service-account keys gets attempted, and rejected.)
+Claude outputs/
