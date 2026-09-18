@@ -358,9 +358,15 @@ function merge(live){
     const s = live[id] && live[id].summary;
     if (!s || !s.name) return;
     const base = byId.get(id) || { id, url:'' };
-    // A reported url wins; an empty one must not wipe the roster fallback.
+    /* Capture the roster's url BEFORE the merge, because Object.assign mutates `base`.
+       The ROSTER wins (Leo, 2026-09-18): it is hand-maintained and checked, while a
+       reported url is just whatever location.origin the tracker happened to be served
+       from — Lexington had reported an address that no longer resolves, and because the
+       reported one used to win, its Open button led nowhere while the other two worked.
+       A reported url is now only a self-heal for a roster row that has none yet. */
+    const rosterUrl = base.url || '';
     const merged = Object.assign(base, s, { reported: !!s.ts });
-    if (!s.url) merged.url = base.url || '';
+    merged.url = rosterUrl || s.url || '';
     byId.set(id, merged);
   });
   return [...byId.values()];
@@ -524,7 +530,10 @@ function card(p){
         p.ts ? new Date(p.ts).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})
              : 'Never'}</span></div>
       ${!p.reported ? `<div class="warn">No report yet. The scheduled reporter fills this in `
-        + `automatically; opening the tracker while signed in also reports within seconds.</div>` : ''}
+        + `automatically; opening the tracker while signed in also reports within seconds.</div>`
+       : (!bdAll.length ? `<div class="warn">Reporting, but without a scope breakdown — this `
+        + `tracker last reported with an older reporter. Open it once while signed in and the `
+        + `scope cards fill in within seconds.</div>` : '')}
     </div>`;
   el.addEventListener('click', ev => {
     if (ev.target.closest('a')) return;          // the Open button is not a toggle
