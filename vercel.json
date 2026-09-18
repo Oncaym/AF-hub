@@ -1,8 +1,6 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
   "headers": [
     {
-      "//": "F-059: the three trackers load these two files from here instead of keeping their own copies. Vercel's default for static files already revalidates, but this makes it explicit and permanent — if either of these is ever served as immutable, a hub deploy would stop reaching the trackers and the whole point of the change is lost.",
       "source": "/(hub-report.js|af-hub-config.js)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
