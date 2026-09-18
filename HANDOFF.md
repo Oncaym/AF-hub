@@ -60,7 +60,7 @@ the scheduled job guarantees the boss never opens a cold hub and sees stale numb
 ### The contract — `/projects/{id}/summary`
 
 `name` · `unit` · `scope` · `url` · `done` · `total` · `weekRate` · `prevWeekRate` ·
-`avg4w` · `openDamage` · `pendingCO` · `breakdown` · `ts`
+`avg4w` · `openDamage` · `pendingCO` · `breakdown` · `pct` · `ts`
 
 `Est. complete = remaining ÷ (avg4w ÷ 7)`. `openDamage` / `pendingCO` are reserved — always 0
 until step 2 ships, so the hub needs no change when they go live.
@@ -72,8 +72,15 @@ because `isDoor()` matches any type containing "door" and would otherwise file L
 shower doors as exterior doors. `report/report.js` cannot compute it (no browser, no classifiers)
 so it preserves whatever is there, the same way it preserves `url`.
 
+Each scope also carries `qtyDone` / `qtyTotal` / `unit` (2026-09-18). `done` / `total` stay
+ROW counts; the quantities are the real work. A row with `runs` is measured in feet (the
+tracker's own test — `lf.js` asks `isRun()` for exactly this), everything else is one piece.
+`pct` is the project figure: per-scope percentages in their own units, row-weighted. The
+card shows `N scopes` instead of a blended `x / y` when a project mixes units.
+
 Test: `node _tests/test-breakdown.cjs <folder-holding-the-trackers>` — runs the real `scopeOf`
-over each tracker's real seed units and checks Lexington's split against its own CLAUDE.md.
+over each tracker's real seed units and checks Lexington's split AND its quantities
+(1201.52 LF guardrail, 182.33 LF screen, 159 doors, 33 panels) against its own CLAUDE.md.
 
 ### Auth model
 
@@ -181,15 +188,18 @@ Until step ② is done the hole is still open — the code ships fail-open on pu
 can go out ahead of the Console work.
 
 1. **Publish the updated `firebase-database-rules.json`** (each tracker's own project).
-   `/state`'s `.read` was `auth != null` — *any* signed-in account in that Firebase
-   project could read the whole job. It is now allowlist ∪ gcList.
+   The only change is the new `/gcList` node. `/state`'s `.read` stays `auth != null`:
+   accounts are created by hand in the Console with no self-signup, so being able to
+   sign in *is* the authorisation.
 2. **Create `/gcList`** and put the real GC's email in it. Key = email with **every**
-   `.` replaced by `,`:
+   `.` replaced by `,` (the rules' `replace` is global; swapping only the first dot
+   silently misses `leo.sun@…`, which is the shape of most of these addresses):
    ```json
    { "gcList": { "pm@broadwaybuilder,com": true } }
    ```
-3. Sign in once with an account on neither list — it should hit the "No access to this
-   project" wall instead of being handed the GC view.
+3. Sign in with the GC account → the narrowed view. Sign in with an account on neither
+   list → **the full internal board, read-only**. `/allowlist` is editor permission;
+   not holding it makes you a viewer, not an outsider (Leo, 2026-09-18).
 
 ### 5.6 Password reset email comes from `noreply@af-hub-8f188.firebaseapp.com`
 It will land in spam the first time. Customizing the sender needs domain verification in

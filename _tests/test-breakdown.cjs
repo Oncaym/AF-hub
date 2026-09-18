@@ -18,7 +18,7 @@ function slice(src, startRe, endMark, what) {
   return src.slice(i, j + endMark.length);
 }
 const REPORTER = slice(HUB, /function scopeOf\(u\) \{/,
-  'return out.slice(0, 12);            // a boss screen, not a report\n  }', 'scopeOf/breakdownOf');
+  'return den ? Math.round(100 * num / den) : null;\n  }', 'scopeOf/qtyOf/breakdownOf/pctOf');
 
 /* Expected splits come from each tracker's own CLAUDE.md, not from this code. */
 const TRACKERS = [
@@ -26,7 +26,10 @@ const TRACKERS = [
   { label: 'CP2',       dirs: ['cp2-tracker-deploy', 'CP2 Installation Tracking/cp2-tracker-deploy'],
     expect: {} },
   { label: 'Lexington', dirs: ['355-lexington-tracker', 'Lexington/355-lexington-tracker'],
-    expect: { 'Shower Door': 159, 'Terrace Divider': 33, 'Guardrail': 8, 'Equipment Screen': 2 } },
+    expect: { 'Shower Door': 159, 'Terrace Divider': 33, 'Guardrail': 8, 'Equipment Screen': 2 },
+    /* Feet for the two scopes you drag along, pieces for the two you tap. */
+    qty: [['Guardrail', 'LF', 1201.52], ['Equipment Screen', 'LF', 182.33],
+          ['Shower Door', 'pieces', 159], ['Terrace Divider', 'pieces', 33]] },
 ];
 
 let fails = 0, ran = 0;
@@ -49,13 +52,18 @@ for (const t of TRACKERS) {
   vm.runInContext(cfg, ctx);
   const PROJECT = ctx.window.PROJECT || ctx.PROJECT;
   vm.runInContext('const PROJECT = window.PROJECT || globalThis.PROJECT;\n' + classifiers, ctx);
-  vm.runInContext("function isDone(u){ return u && u.status === 'installed'; }\n" + REPORTER, ctx);
+  // qtyOf() reads P.hubUnit, the reporter's alias for window.PROJECT.
+  vm.runInContext("var P = window.PROJECT || globalThis.PROJECT;\n"
+                + "function isDone(u){ return u && u.status === 'installed'; }\n" + REPORTER, ctx);
 
   const units = PROJECT.seedUnits || [];
   const bd = vm.runInContext('breakdownOf(' + JSON.stringify(units) + ')', ctx);
 
   console.log('\n=== ' + t.label + ' — ' + units.length + ' seed units');
-  bd.forEach(b => console.log('    ' + b.scope.padEnd(24) + String(b.done).padStart(4) + ' / ' + b.total));
+  bd.forEach(b => console.log('    ' + b.scope.padEnd(24)
+    + String(b.qtyDone).padStart(7) + ' / ' + String(b.qtyTotal).padEnd(9) + (b.unit || '')
+    + '   (' + b.done + '/' + b.total + ' rows)'));
+  console.log('    project percentage: ' + vm.runInContext('pctOf(' + JSON.stringify(bd) + ')', ctx) + '%');
 
   const sum = bd.reduce((a, b) => a + b.total, 0);
   ck(t.label + ': every unit lands in exactly one scope', sum === units.length, sum + ' vs ' + units.length);
@@ -68,6 +76,16 @@ for (const t of TRACKERS) {
     const got = bd.find(b => b.scope === scope);
     ck(t.label + ': ' + scope + ' = ' + total, !!got && got.total === total, got ? got.total : 'missing');
   }
+  /* Quantities, not row counts (Leo, 2026-09-18). A guardrail row is ~150 ft of work
+     and a shower door row is one door; the hub used to weigh them the same, and called
+     a half-finished run 0. Figures are from this tracker's own CLAUDE.md. */
+  for (const [scope, unit, qty] of (t.qty || [])) {
+    const got = bd.find(b => b.scope === scope);
+    ck(t.label + ': ' + scope + ' = ' + qty + ' ' + unit,
+       !!got && got.unit === unit && Math.abs(got.qtyTotal - qty) < 0.6,
+       got && (got.qtyTotal + ' ' + got.unit));
+  }
+
   /* The trap this test exists for: isDoor() matches ANY type containing "door", so
      Lexington's 159 shower doors used to be reported as exterior doors. */
   if (t.label === 'Lexington')

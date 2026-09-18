@@ -102,17 +102,60 @@
     return t ? 'Storefront \u00b7 exterior' : 'Other';
   }
 
+  /* ── How much work a row actually IS (Leo, 2026-09-18) ───────────────────
+     Lexington measures a guardrail run and an equipment-screen face in FEET —
+     those rows carry the drag-to-set geometry in `runs` plus lf / lfDone — while
+     an opening, a divider panel and a shower door are each one piece. That is the
+     tracker's OWN distinction (lf.js asks isRun() for exactly this), not a guess
+     made here.
+
+     Without it the hub was wrong twice over: a 196 ft run half installed counted
+     as 0, and one guardrail row counted as the same amount of work as one shower
+     door — so "18 / 202" told the boss nothing true. */
+  function qtyOf(u) {
+    if (u && Array.isArray(u.runs) && u.runs.length) {
+      var t = Number(u.lf), d = Number(u.lfDone);
+      if (isFinite(t) && t > 0)
+        return { unit: 'LF', total: t, done: Math.max(0, Math.min(isFinite(d) ? d : 0, t)) };
+    }
+    return { unit: P.hubUnit || 'units', total: 1, done: isDone(u) ? 1 : 0 };
+  }
+
   function breakdownOf(units) {
     var by = {};
     units.forEach(function (u) {
-      var k = scopeOf(u);
-      if (!by[k]) by[k] = { scope: k, done: 0, total: 0 };
-      by[k].total++;
-      if (isDone(u)) by[k].done++;
+      var k = scopeOf(u), q = qtyOf(u);
+      if (!by[k]) by[k] = { scope: k, done: 0, total: 0, qtyDone: 0, qtyTotal: 0, unit: q.unit };
+      var b = by[k];
+      b.total++;                        // rows — kept so an older hub still renders
+      if (isDone(u)) b.done++;
+      b.qtyDone  += q.done;
+      b.qtyTotal += q.total;
+      if (b.unit !== q.unit) b.unit = P.hubUnit || 'units';   // mixed scope → fall back
     });
-    var out = Object.keys(by).map(function (k) { return by[k]; });
+    var out = Object.keys(by).map(function (k) {
+      var b = by[k];
+      b.qtyDone  = Math.round(b.qtyDone  * 10) / 10;
+      b.qtyTotal = Math.round(b.qtyTotal * 10) / 10;
+      return b;
+    });
     out.sort(function (a, b) { return (b.total - a.total) || (a.scope < b.scope ? -1 : 1); });
     return out.slice(0, 12);            // a boss screen, not a report
+  }
+
+  /* One percentage for the project. Each scope's own percentage is measured in its
+     own unit (feet for a railing, doors for a door), and those are averaged weighted
+     by ROW COUNT. Rows are the weight because there is no honest conversion between
+     a foot of railing and a shower door; if a truer weight is ever wanted, put one on
+     the scope in project-config.js and use it here instead of b.total. */
+  function pctOf(bd) {
+    var num = 0, den = 0;
+    bd.forEach(function (b) {
+      if (!b.qtyTotal || !b.total) return;
+      num += b.total * (b.qtyDone / b.qtyTotal);
+      den += b.total;
+    });
+    return den ? Math.round(100 * num / den) : null;
   }
 
   function daysAgo(d) {
@@ -137,6 +180,8 @@
       if (d < 28) fourWeeks++;
     });
 
+    var bd = breakdownOf(units);
+
     // Damage / change orders arrive in step 2; reserved so the hub needs no change.
     var dmg = (st && st.damage) || [];
     var openDamage = dmg.filter(function (x) { return x && !x.closed; }).length;
@@ -155,7 +200,8 @@
       avg4w: Math.round(fourWeeks / 4),
       openDamage: openDamage,
       pendingCO: pendingCO,
-      breakdown: breakdownOf(units),   // optional: older hubs simply ignore it
+      breakdown: bd,                   // optional: older hubs simply ignore it
+      pct: pctOf(bd),                  // authoritative % — done/total is rows only
       ts: Date.now()
     };
   }

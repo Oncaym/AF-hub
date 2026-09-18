@@ -24,7 +24,20 @@ af-hub/
 | `weekRate` / `prevWeekRate` / `avg4w` | This week / last week / 4-week mean |
 | `openDamage` | Unresolved damage events (step 2 — currently always 0) |
 | `pendingCO` | Change orders awaiting a decision (same) |
-| `breakdown` | **Optional.** `[{scope, done, total}]` — the per-scope split, biggest first |
+| `breakdown` | **Optional.** `[{scope, done, total, qtyDone, qtyTotal, unit}]`, biggest first |
+| `pct` | **Optional.** The project's percentage. Use this, not `done/total` |
+
+`done` / `total` are ROW counts. For a project whose scopes share one unit that is also
+the answer, but Lexington measures a guardrail run in feet and a shower door in doors —
+"18 / 202" counted a 196 ft run as one item, the same as one door, and called it 0%
+until the last foot went in. So each scope also reports `qtyDone` / `qtyTotal` in its own
+`unit` (`LF`, or the project's own `hubUnit`), taken from the tracker's own distinction:
+a row with `runs` is dragged along in feet, everything else is one piece.
+
+`pct` is the project figure: each scope's percentage measured in its own unit, averaged
+weighted by row count. Rows are the weight because there is no honest conversion between
+a foot of railing and a shower door — if a truer weight is ever wanted, put one on the
+scope in `project-config.js` and use it in `pctOf()`.
 
 `breakdown` is computed inside `hub-report.js` from classifiers that already exist in
 each tracker's `app.js` (`isDoor` / `isInterior` / `doorTypeOf`, plus `u.type`), so it

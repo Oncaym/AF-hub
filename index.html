@@ -336,9 +336,11 @@ const ROSTER = [
     scope:'Storefront / Curtain Wall',
     url:'https://atlantic-chestnut-3-tracking.vercel.app' },
   { id:'cp2', name:'Cooper Park 2', unit:'openings',
-    scope:'Storefront — GF 71 · L2 6 · L13 5', url:'' },
+    scope:'Storefront — GF 71 · L2 6 · L13 5',
+    url:'https://copper-park-2-install-progress-trac.vercel.app' },
   { id:'lex', name:'355 Lexington Avenue', unit:'pieces',
-    scope:'Shower Door 159 · Terrace Divider 33 · Guardrail 8 · Equipment Screen 2', url:'' },
+    scope:'Shower Door 159 · Terrace Divider 33 · Guardrail 8 · Equipment Screen 2',
+    url:'https://355-lexington-dashboard.vercel.app' },
 ];
 
 function merge(live){
@@ -362,6 +364,19 @@ let ME = '';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtDate = d => d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+
+/* The project's percentage. `pct` comes from the reporter, where each scope is
+   measured in its own unit (feet for a railing, doors for a door) — done/total is a
+   ROW count and is only a fallback for a tracker still sending the old payload. */
+function pctOf(p){
+  if (typeof p.pct === 'number' && isFinite(p.pct)) return p.pct;
+  return p.total ? Math.round(100 * (p.done||0) / p.total) : 0;
+}
+/* 412 / 1202 LF, or 12 / 159 — whole numbers; nobody reads a decimal on a wall board. */
+const qfmt = (n, unit) => {
+  const v = Math.round(Number(n) || 0);
+  return unit && unit !== 'units' && !/^(openings|pieces)$/.test(unit) ? v + ' ' + unit : String(v);
+};
 
 function eta(p){
   const remain = (p.total || 0) - (p.done || 0);
@@ -388,11 +403,20 @@ function scopeRows(p){
   const bd = Array.isArray(p.breakdown) ? p.breakdown.filter(b => b && b.total) : [];
   if (bd.length < 2) return '';        // one bucket says nothing the headline has not
   return `<div class="scopes">` + bd.map(b => {
-    const done = b.done || 0, total = b.total, left = total - done;
-    const pc = Math.round(100 * done / total);
+    /* Quantities when the reporter sends them (feet for a railing), row counts when
+       it is an older payload. A guardrail half installed now reads as half, not 0. */
+    const hasQty = typeof b.qtyTotal === 'number' && b.qtyTotal > 0;
+    const done   = hasQty ? b.qtyDone : (b.done || 0);
+    const total  = hasQty ? b.qtyTotal : b.total;
+    const unit   = hasQty ? b.unit : '';
+    const left   = Math.max(0, total - done);
+    const pc     = Math.round(100 * done / total);
+    const shown  = qfmt(left, unit);
     return `<span class="sname" title="${esc(b.scope)}">${esc(b.scope)}</span>`
-         + `<span class="sbar" title="${done} of ${total} installed"><i class="${left ? '' : 'done'}" style="width:${pc}%"></i></span>`
-         + `<span class="sval">${left ? left : '✓'}<small>${left ? ' left' : ' done'}</small></span>`;
+         + `<span class="sbar" title="${qfmt(done, unit)} of ${qfmt(total, unit)} installed">`
+         +   `<i class="${pc >= 100 ? 'done' : ''}" style="width:${pc}%"></i></span>`
+         + `<span class="sval">${pc >= 100 ? '✓' : esc(shown)}`
+         +   `<small>${pc >= 100 ? ' done' : ' left'}</small></span>`;
   }).join('') + `</div>`;
 }
 
@@ -404,7 +428,7 @@ function renderChart(list){
   const rows = list.map(p => ({
     name: p.name,
     reported: p.reported && !!p.total,
-    pct: p.total ? Math.round(100 * (p.done||0) / p.total) : 0,
+    pct: pctOf(p),
     done: p.done||0, total: p.total||0,
   })).sort((a,b) => (b.reported - a.reported) || (b.pct - a.pct));
 
@@ -420,7 +444,13 @@ function renderChart(list){
 }
 
 function card(p){
-  const pct = p.total ? Math.round(100 * (p.done||0) / p.total) : 0;
+  const pct = pctOf(p);
+  /* A project whose scopes are measured in different units (Lexington: feet of
+     railing AND shower doors) has no honest single "x / y" — that was the "18 / 202"
+     that started this. Say how many scopes instead and let the rows below carry it. */
+  const bdAll  = Array.isArray(p.breakdown) ? p.breakdown.filter(b => b && b.total) : [];
+  const units  = [...new Set(bdAll.map(b => b.unit).filter(Boolean))];
+  const mixed  = units.length > 1;
   const e = eta(p);
   const dw = (p.weekRate||0) - (p.prevWeekRate||0);
   const arrow = !p.prevWeekRate ? '' : dw > 0 ? ` ▲${dw}` : dw < 0 ? ` ▼${Math.abs(dw)}` : '';
@@ -441,7 +471,9 @@ function card(p){
     <div class="bar"><i style="width:${pct}%"></i></div>
     <div class="stats">
       <div class="stat"><div class="k">Progress</div>
-        <div class="v">${pct}%<small>${p.done||0}${p.total ? '/'+p.total : ''}</small></div></div>
+        <div class="v">${pct}%<small>${mixed
+            ? `${bdAll.length} scopes`
+            : `${p.done||0}${p.total ? '/'+p.total : ''}`}</small></div></div>
       <div class="stat"><div class="k">This week</div>
         <div class="v">${p.weekRate||0}<small>${arrow}</small></div></div>
       <div class="stat eta ${e.cls}"><div class="k">Est. complete</div>
@@ -450,7 +482,9 @@ function card(p){
     ${scopeRows(p)}
     <div class="detail">
       <div class="drow"><span>Scope</span><span>${esc(p.scope || '—')}</span></div>
-      <div class="drow"><span>Remaining</span><span>${p.total ? `${p.total - (p.done||0)} ${esc(p.unit||'')}` : '—'}</span></div>
+      <div class="drow"><span>Remaining</span><span>${
+        mixed ? 'by scope, above'
+              : (p.total ? `${p.total - (p.done||0)} ${esc(p.unit||'')}` : '—')}</span></div>
       <div class="drow"><span>4-week average</span><span>${p.avg4w||0} ${esc(p.unit||'')} / wk</span></div>
       <div class="drow"><span>Last week</span><span>${p.prevWeekRate||0} ${esc(p.unit||'')}</span></div>
       <div class="drow"><span>Open damage / pending CO</span><span>${p.openDamage||0} / ${p.pendingCO||0}</span></div>
