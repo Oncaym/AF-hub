@@ -123,20 +123,27 @@
   .stat.eta.late .v { color: var(--yellow); }
   .stat.eta.none .v { color: var(--text-dim); font-size: 15px; }
 
-  /* Per-scope split. One measure (percent complete), so ONE hue — a categorical
-     palette here would imply the scopes are unrelated series, which they are not.
-     Identity is carried by the direct label on every row, never by colour. */
-  .scopes { display: grid; grid-template-columns: minmax(0,auto) 1fr max-content;
-            gap: 5px 12px; align-items: center; margin-top: 14px;
-            padding-top: 12px; border-top: 1px solid var(--border); }
-  .sname { font-size: 12.5px; color: var(--text-dim); white-space: nowrap;
-           overflow: hidden; text-overflow: ellipsis; }
-  .sbar  { height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; }
-  .sbar i { display: block; height: 100%; background: var(--accent); opacity: .75;
-            border-radius: 0 3px 3px 0; transition: width .5s cubic-bezier(.2,.7,.3,1); }
-  .sbar i.done { opacity: 1; background: var(--green); }
-  .sval  { font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .sval small { color: var(--text-dim); font-size: 11px; }
+  /* Per-scope cards — the same shape as a tracker's top banner, because that is
+     what the boss already reads there. One measure (percent complete), so ONE hue:
+     a categorical palette would imply the scopes are unrelated series. Identity is
+     carried by the label on every card, never by colour. */
+  .sgroup { font-size: 11px; color: var(--text-dim); letter-spacing: .04em;
+            text-transform: uppercase; margin: 14px 0 7px; }
+  .sgroup:first-child { margin-top: 0; }
+  .scopes { margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--border); }
+  .scards { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 8px; }
+  .scard  { background: var(--panel-2); border: 1px solid var(--border);
+            border-radius: 8px; padding: 9px 11px 10px; min-width: 0; }
+  .scard .sk { font-size: 11.5px; color: var(--text-dim); margin-bottom: 4px;
+               white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .scard .sv { font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums;
+               line-height: 1.15; margin-bottom: 7px; }
+  .scard .sv small { font-size: 11.5px; font-weight: 500; color: var(--text-dim); margin-left: 5px; }
+  .scard .sbar { height: 4px; background: var(--bg); border-radius: 2px; overflow: hidden; }
+  .scard .sbar i { display: block; height: 100%; background: var(--accent);
+                   border-radius: 0 2px 2px 0; transition: width .5s cubic-bezier(.2,.7,.3,1); }
+  .scard.full .sv { color: var(--green); }
+  .scard.full .sbar i { background: var(--green); }
 
   /* Portfolio comparison. Horizontal bars: magnitude across a handful of named
      entities, sorted, zero baseline, every bar direct-labelled (n=3, so labelling
@@ -225,8 +232,10 @@
     .name { font-size: 15.5px; }
     .stat .v { font-size: 17px; }
     .chart { padding: 14px 13px 15px; border-radius: 8px; }
-    .crows, .scopes { column-gap: 10px; }
-    .cname, .sname { max-width: 40vw; }
+    .crows { column-gap: 10px; }
+    .cname { max-width: 40vw; }
+    .scards { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 7px; }
+    .scard .sv { font-size: 17px; }
   }
   @media (max-width: 380px) {
     .stats { grid-template-columns: repeat(2, 1fr); }
@@ -395,29 +404,48 @@ function openUrl(url){
   return url.replace(/#.*$/, '') + '#u=' + encodeURIComponent(ME);
 }
 
-/* Per-scope rows (Leo, 2026-09-17): "he wants to know how many doors (ex, in,
-   fire-rated) & storefronts (ex & in) left". The reporter sends the split; a
-   tracker still on v4 sends nothing and the card simply has no scope section.
-   Caulking and beauty cap are not here on purpose — crew workflow, not scope. */
-function scopeRows(p){
-  const bd = Array.isArray(p.breakdown) ? p.breakdown.filter(b => b && b.total) : [];
-  if (bd.length < 2) return '';        // one bucket says nothing the headline has not
-  return `<div class="scopes">` + bd.map(b => {
-    /* Quantities when the reporter sends them (feet for a railing), row counts when
-       it is an older payload. A guardrail half installed now reads as half, not 0. */
-    const hasQty = typeof b.qtyTotal === 'number' && b.qtyTotal > 0;
-    const done   = hasQty ? b.qtyDone : (b.done || 0);
-    const total  = hasQty ? b.qtyTotal : b.total;
-    const unit   = hasQty ? b.unit : '';
-    const left   = Math.max(0, total - done);
-    const pc     = Math.round(100 * done / total);
-    const shown  = qfmt(left, unit);
-    return `<span class="sname" title="${esc(b.scope)}">${esc(b.scope)}</span>`
-         + `<span class="sbar" title="${qfmt(done, unit)} of ${qfmt(total, unit)} installed">`
-         +   `<i class="${pc >= 100 ? 'done' : ''}" style="width:${pc}%"></i></span>`
-         + `<span class="sval">${pc >= 100 ? '✓' : esc(shown)}`
-         +   `<small>${pc >= 100 ? ' done' : ' left'}</small></span>`;
-  }).join('') + `</div>`;
+/* Per-scope cards (Leo, 2026-09-18): "每一个项目的小 scope 要列出来，用 card
+   形式，就像每个 tracker 的 top banner". The reporter sends a scope per
+   unit-class x sub-scope — "Storefront · exterior — Glass" — so the cards are grouped
+   by the part before the dash; five cards all starting with the same eleven
+   characters is a wall, and the group heading says it once.
+
+   A tracker still on the old payload sends no breakdown and simply gets no cards.
+   Caulking and beauty cap are excluded in the reporter, not here. */
+function scopeCards(p){
+  const bd = Array.isArray(p.breakdown) ? p.breakdown.filter(b => b && b.qtyTotal > 0) : [];
+  if (!bd.length) return '';
+
+  /* Group on the em-dash first ("Storefront \u00b7 exterior \u2014 Glass"), and when there
+     isn't one, on the middle dot ("Door \u00b7 fire-rated"). Without that second split the
+     three door cards had no heading of their own and read as part of whichever group
+     happened to be above them. Lexington's scopes have neither separator, so they stay
+     flat with no invented heading. */
+  const groups = new Map();
+  bd.forEach(b => {
+    let g = '', n = b.scope;
+    const em = b.scope.indexOf(' \u2014 ');
+    const md = b.scope.indexOf(' \u00b7 ');
+    if (em > 0)      { g = b.scope.slice(0, em); n = b.scope.slice(em + 3); }
+    else if (md > 0) { g = b.scope.slice(0, md); n = b.scope.slice(md + 3); }
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push({ b, n });
+  });
+
+  const card = ({ b, n }) => {
+    const done = b.qtyDone, total = b.qtyTotal, unit = b.unit || '';
+    const pc = Math.min(100, Math.round(100 * done / total));
+    return `<div class="scard${pc >= 100 ? ' full' : ''}">
+        <div class="sk" title="${esc(b.scope)}">${esc(n)}</div>
+        <div class="sv">${pc}%<small>${Math.round(done)} / ${esc(qfmt(total, unit))}</small></div>
+        <div class="sbar"><i style="width:${pc}%"></i></div>
+      </div>`;
+  };
+
+  return `<div class="scopes">` + [...groups].map(([g, items]) =>
+      (g ? `<div class="sgroup">${esc(g)}</div>` : '')
+      + `<div class="scards">${items.map(card).join('')}</div>`
+    ).join('') + `</div>`;
 }
 
 /* Completion by project. One measure across three named entities → horizontal bars,
@@ -449,7 +477,11 @@ function card(p){
      railing AND shower doors) has no honest single "x / y" — that was the "18 / 202"
      that started this. Say how many scopes instead and let the rows below carry it. */
   const bdAll  = Array.isArray(p.breakdown) ? p.breakdown.filter(b => b && b.total) : [];
-  const units  = [...new Set(bdAll.map(b => b.unit).filter(Boolean))];
+  /* Ignore the element sub-scopes (glass, metal panel — always 'pcs'): they sit BELOW
+     the row, so they say nothing about whether "54 / 119 openings" is an honest
+     sentence. Only a project whose ROWS are measured differently — Lexington's feet of
+     railing next to its shower doors — has no honest x / y. */
+  const units  = [...new Set(bdAll.filter(b => b.unit !== 'pcs').map(b => b.unit).filter(Boolean))];
   const mixed  = units.length > 1;
   const e = eta(p);
   const dw = (p.weekRate||0) - (p.prevWeekRate||0);
@@ -479,7 +511,7 @@ function card(p){
       <div class="stat eta ${e.cls}"><div class="k">Est. complete</div>
         <div class="v">${e.text}</div></div>
     </div>
-    ${scopeRows(p)}
+    ${scopeCards(p)}
     <div class="detail">
       <div class="drow"><span>Scope</span><span>${esc(p.scope || '—')}</span></div>
       <div class="drow"><span>Remaining</span><span>${

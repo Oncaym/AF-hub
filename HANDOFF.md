@@ -62,6 +62,19 @@ the scheduled job guarantees the boss never opens a cold hub and sees stale numb
 `name` · `unit` · `scope` · `url` · `done` · `total` · `weekRate` · `prevWeekRate` ·
 `avg4w` · `openDamage` · `pendingCO` · `breakdown` · `pct` · `ts`
 
+**`hub-report.js` is now two halves.** The top half is `AF_HUB_RULES`: pure functions of
+`(state, PROJECT, ELEVATIONS)` with no DOM, exported on `window` and on `module.exports`,
+so `require('hub-report.js')` in Node gets the maths. The bottom half is the browser
+reporter and bails immediately when there is no `window`. That is what lets the scheduled
+job reuse the identical code instead of keeping a second copy — the next step for it is to
+fetch each tracker's `project-config.js` + `elevations.js` over HTTP, read `/state`, and
+call `RULES.breakdown()`. Until that lands the Action still cannot produce a breakdown, so
+a tracker must be opened signed-in once for its scopes to appear.
+
+The rules re-implement `isDoor` / `isInterior` / `doorTypeOf` because `app.js` needs a DOM.
+That duplication is pinned by `_tests/test-breakdown.cjs`, which runs BOTH versions over
+every tracker's seed units and fails on any disagreement (301 units today).
+
 `Est. complete = remaining ÷ (avg4w ÷ 7)`. `openDamage` / `pendingCO` are reserved — always 0
 until step 2 ships, so the hub needs no change when they go live.
 

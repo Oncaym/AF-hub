@@ -25,6 +25,24 @@ af-hub/
 | `openDamage` | Unresolved damage events (step 2 — currently always 0) |
 | `pendingCO` | Change orders awaiting a decision (same) |
 | `breakdown` | **Optional.** `[{scope, done, total, qtyDone, qtyTotal, unit}]`, biggest first |
+
+A scope is **unit class × sub-scope** — `Storefront · exterior — Glass`,
+`Door · fire-rated`. The hub renders each as a card grouped by the part before the
+separator, the same shape as a tracker's own top banner.
+
+Where a sub-scope's numbers come from differs by project, and the rules read both:
+
+| Sub-scope | AC3 | Cooper Park 2 | Lexington |
+|---|---|---|---|
+| Frame / Door | `u.scopes.frame`, else `u.status` | same | the unit itself |
+| Glass | elevation elements | `u.glassPanels[]` | — |
+| Metal Panel / Louver | elevation elements | louver only, from `u.louver` | — |
+
+AC3's M3 moved glass onto elevation elements; CP2 kept it on the unit. **CP2 has no
+`window.ELEVATIONS` at all** (its `elevations.js` defines `ELEV_BAYS`, the F-055 bay
+drawing, which is a different thing), so CP2 has no metal-panel count anywhere —
+`metal-panel` exists there only as a log category. Caulking and beauty cap are
+excluded everywhere: crew workflow, not scope.
 | `pct` | **Optional.** The project's percentage. Use this, not `done/total` |
 
 `done` / `total` are ROW counts. For a project whose scopes share one unit that is also

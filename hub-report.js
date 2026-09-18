@@ -25,13 +25,9 @@
 (function () {
   'use strict';
 
-  var HUB = window.AF_HUB_FIREBASE;
-  var P   = window.PROJECT || {};
+  var HUB = (typeof window !== 'undefined' && window.AF_HUB_FIREBASE) || null;
+  var P   = (typeof window !== 'undefined' && window.PROJECT) || {};
   var TAG = '[af-hub]';
-
-  if (!HUB)     { console.warn(TAG, 'no AF_HUB_FIREBASE — af-hub-config.js missing or empty'); return; }
-  if (!P.hubId) { console.warn(TAG, 'no PROJECT.hubId — add hubId/hubUnit/hubScope to project-config.js'); return; }
-  if (typeof firebase === 'undefined') { console.warn(TAG, 'firebase SDK not loaded'); return; }
 
   var DAY = 864e5, app = null, signedIn = false, lastSig = '', timer = null;
 
@@ -67,96 +63,236 @@
 
   function isDone(u) { return u && u.status === 'installed'; }   // matches the dashboard
 
-  /* ── Per-scope split (Leo, 2026-09-17) ────────────────────────────────
-     "Boss doesn't need to know how many caulking, beauty cap left, but he wants
-     to know how many doors (ex, in, fire-rated) & storefronts (ex & in) left."
+  /* ── The rules, as a pure function of data ───────────────────────────────
+     No DOM, no globals: everything below takes (state, PROJECT, ELEVATIONS) and
+     returns numbers. It is exposed on window.AF_HUB_RULES so the scheduled
+     reporter can fetch THIS file and run the identical maths in Node — one copy,
+     so the browser and the two-hourly job can never drift apart.
 
-     Every classifier used here already exists in the tracker's own app.js and is
-     byte-identical across all three, so this file stays the ONLY thing a tracker
-     adds — no core change, no UI change. Caulking / beauty cap are deliberately
-     absent: they are crew workflow on a unit, not a scope of work.
+     The classifiers are re-implemented here rather than borrowed from the
+     tracker's app.js, because app.js needs a DOM and the job has none. That
+     duplication is real, so _tests/test-breakdown.cjs runs BOTH versions over
+     every tracker's seed data and fails if they ever disagree.                */
+  var RULES = (function () {
 
-     `typeof` guards throughout: a tracker that predates a classifier, or a future
-     fork that drops one, degrades to a coarser split instead of throwing. */
-  function scopeOf(u) {
-    var t = String((u && u.type) || '').trim();
-
-    /* `type` first, and this order matters. Lexington already carries the real scope
-       there (Guardrail / Terrace Divider / Equipment Screen / Shower Door), and its 159
-       shower doors would otherwise be swallowed by isDoor() — which matches ANY type
-       containing "door" — and reported as exterior doors on a curtain-wall split that
-       does not apply to that job at all. If the tracker has already named the scope,
-       believe it. */
-    if (t && !/^storefront$/i.test(t)) return t;
-
-    /* Left here: AC3 and CP2, where every single unit sits in one bucket literally
-       called "Storefront". That is the bucket the boss wants opened up. */
-    try {
-      if (typeof isDoor === 'function' && isDoor(u)) {
-        var dt = '';
-        try { dt = (typeof doorTypeOf === 'function' && doorTypeOf(u)) || ''; } catch (e) {}
-        return dt ? 'Door \u00b7 ' + dt : 'Door';
-      }
-    } catch (e) {}
-    try { if (typeof isInterior === 'function' && isInterior(u)) return 'Storefront \u00b7 interior'; } catch (e) {}
-    return t ? 'Storefront \u00b7 exterior' : 'Other';
-  }
-
-  /* ── How much work a row actually IS (Leo, 2026-09-18) ───────────────────
-     Lexington measures a guardrail run and an equipment-screen face in FEET —
-     those rows carry the drag-to-set geometry in `runs` plus lf / lfDone — while
-     an opening, a divider panel and a shower door are each one piece. That is the
-     tracker's OWN distinction (lf.js asks isRun() for exactly this), not a guess
-     made here.
-
-     Without it the hub was wrong twice over: a 196 ft run half installed counted
-     as 0, and one guardrail row counted as the same amount of work as one shower
-     door — so "18 / 202" told the boss nothing true. */
-  function qtyOf(u) {
-    if (u && Array.isArray(u.runs) && u.runs.length) {
-      var t = Number(u.lf), d = Number(u.lfDone);
-      if (isFinite(t) && t > 0)
-        return { unit: 'LF', total: t, done: Math.max(0, Math.min(isFinite(d) ? d : 0, t)) };
+    function rxs(list) {
+      return (list || []).map(function (p) { try { return new RegExp(p, 'i'); } catch (e) { return null; } })
+                         .filter(Boolean);
     }
-    return { unit: P.hubUnit || 'units', total: 1, done: isDone(u) ? 1 : 0 };
-  }
+    function isDoor(u, cfg) {
+      if (!u) return false;
+      if (u.type === 'Door' || /door/i.test(u.type || '')) return true;
+      return rxs((cfg.doorPatterns && cfg.doorPatterns.length) ? cfg.doorPatterns : ['^SD'])
+             .some(function (r) { return r.test(u.id || ''); });
+    }
+    function isInterior(u, cfg) {
+      if (!u) return false;
+      if (u.interior === 'yes') return true;
+      if (u.interior === 'no') return false;
+      if (/interior/i.test(u.type || '')) return true;
+      return rxs(cfg.interiorPatterns).some(function (r) { return r.test(u.id || ''); });
+    }
+    function doorTypeOf(u, cfg) {
+      if (!isDoor(u, cfg)) return '';
+      var v = String(u.doorType || '').trim();
+      if (['exterior', 'interior', 'fire-rated'].indexOf(v) !== -1) return v;
+      return isInterior(u, cfg) ? 'interior' : 'exterior';
+    }
 
-  function breakdownOf(units) {
-    var by = {};
-    units.forEach(function (u) {
-      var k = scopeOf(u), q = qtyOf(u);
-      if (!by[k]) by[k] = { scope: k, done: 0, total: 0, qtyDone: 0, qtyTotal: 0, unit: q.unit };
-      var b = by[k];
-      b.total++;                        // rows — kept so an older hub still renders
-      if (isDone(u)) b.done++;
-      b.qtyDone  += q.done;
-      b.qtyTotal += q.total;
-      if (b.unit !== q.unit) b.unit = P.hubUnit || 'units';   // mixed scope → fall back
-    });
-    var out = Object.keys(by).map(function (k) {
-      var b = by[k];
-      b.qtyDone  = Math.round(b.qtyDone  * 10) / 10;
-      b.qtyTotal = Math.round(b.qtyTotal * 10) / 10;
-      return b;
-    });
-    out.sort(function (a, b) { return (b.total - a.total) || (a.scope < b.scope ? -1 : 1); });
-    return out.slice(0, 12);            // a boss screen, not a report
-  }
+    /* What KIND of thing this unit is — the first half of a scope name.
+       `type` first: Lexington already names its scope there (Guardrail, Shower
+       Door, …) and isDoor() matches anything containing "door", which would
+       otherwise file its 159 shower doors as exterior doors. */
+    function classOf(u, cfg) {
+      var t = String((u && u.type) || '').trim();
+      if (t && !/^storefront$/i.test(t)) return t;
+      if (isDoor(u, cfg)) {
+        var dt = doorTypeOf(u, cfg);
+        return dt ? 'Door · ' + dt : 'Door';
+      }
+      return isInterior(u, cfg) ? 'Storefront · interior' : 'Storefront · exterior';
+    }
 
-  /* One percentage for the project. Each scope's own percentage is measured in its
-     own unit (feet for a railing, doors for a door), and those are averaged weighted
-     by ROW COUNT. Rows are the weight because there is no honest conversion between
-     a foot of railing and a shower door; if a truer weight is ever wanted, put one on
-     the scope in project-config.js and use it here instead of b.total. */
-  function pctOf(bd) {
-    var num = 0, den = 0;
-    bd.forEach(function (b) {
-      if (!b.qtyTotal || !b.total) return;
-      num += b.total * (b.qtyDone / b.qtyTotal);
-      den += b.total;
-    });
-    return den ? Math.round(100 * num / den) : null;
-  }
+    /* Elevation-backed element counts. `state.elevations[key].el[id].status` is the
+       progress; `ELEVATIONS[key].elements` is the shipped part list. A key can serve
+       SEVERAL units (SF04 appears on the plan more than once), so callers must count
+       each key ONCE — sum per unit and the glass is counted twice. */
+    function elementCounts(key, state, ELEV) {
+      var out = {};
+      var E = (ELEV || {})[key];
+      if (!E || !Array.isArray(E.elements)) return out;
+      var S = ((state || {}).elevations || {})[key] || {};
+      var el = S.el || {}, gone = S.deleted || [];
+      var parts = E.elements.map(function (e) { return { id: e.id, t0: e.t0 }; })
+        .concat((S.custom || []).map(function (c) { return { id: c.id, t0: c.type }; }))
+        .filter(function (p) { return gone.indexOf(p.id) === -1; });
+      parts.forEach(function (p) {
+        var r = el[p.id] || {}, type = r.type || p.t0;
+        if (!type || type === 'hidden') return;
+        if (!out[type]) out[type] = [0, 0];
+        out[type][1]++;
+        if ((r.status || 'pending') === 'installed') out[type][0]++;
+      });
+      return out;
+    }
+
+    /* Which elevation a unit reads from. Mirrors the tracker's _elevKey(): its own
+       id when it has one, otherwise the parent it shares. */
+    function elevKeyOf(u, ELEV) {
+      if (!u || !u.id) return null;
+      if ((ELEV || {})[u.id]) return u.id;
+      var base = String(u.id).replace(/__\d+$/, '');       // SF04__2 -> SF04
+      return (ELEV || {})[base] ? base : null;
+    }
+
+    /* Sub-scopes the boss does not want. Crew workflow on a unit, not scope of work. */
+    var HIDE = { caulking: 1, beautycap: 1, facecover: 1 };
+    var LABEL = { frame: 'Frame', glass: 'Glass', panel: 'Metal Panel', metalpanel: 'Metal Panel',
+                  louver: 'Louver', door: 'Door', doors: 'Door', sunshade: 'Sun Shade' };
+    function label(k) { return LABEL[String(k).toLowerCase()] || (String(k).charAt(0).toUpperCase() + String(k).slice(1)); }
+
+    function isDone(u) { return !!u && u.status === 'installed'; }
+
+    /* Glass is tracked in TWO different places, because the two projects went
+       different ways: Cooper Park 2 keeps it on the unit as
+       glassPanels[{panel,status}] (with a pre-F-012 fallback of u.glass + u.panels),
+       while AC3's M3 moved it onto elevation elements. Same scope of work, two
+       storages — read whichever this unit actually has, elements first, since a unit
+       with an elevation has its glass there. */
+    function panelsOn(u) {
+      var gp = Array.isArray(u && u.glassPanels)
+        ? u.glassPanels.filter(function (g) { return g && (g.panel || g.status); }) : [];
+      if (!gp.length && u && u.glass) gp = [{ panel: u.panels || '', status: u.glass }];
+      return gp;
+    }
+
+    /* Scopes that live on the unit itself rather than on an elevation. Returns
+       {name: [done, total]}. */
+    function unitScopes(u, hasElev) {
+      var out = {};
+      if (!hasElev) {
+        var gp = panelsOn(u);
+        if (gp.length) out.glass = [gp.filter(function (g) { return g.status === 'installed'; }).length, gp.length];
+        /* CP2 records a louver as a yes/no on the unit, not as a counted element —
+           so it contributes one item, not a piece count. */
+        if (u && u.louver === 'yes') out.louver = [isDone(u) ? 1 : 0, 1];
+      }
+      return out;
+    }
+
+    /* Feet, or pieces. Lexington drags a guardrail run and an equipment-screen face
+       along in FEET — those rows carry `runs` plus lf / lfDone. Everything else is one
+       piece. The tracker's own test (lf.js asks isRun()), not a guess. */
+    function qtyOf(u, cfg) {
+      if (u && Array.isArray(u.runs) && u.runs.length) {
+        var t = Number(u.lf), d = Number(u.lfDone);
+        if (isFinite(t) && t > 0)
+          return { unit: 'LF', total: t, done: Math.max(0, Math.min(isFinite(d) ? d : 0, t)) };
+      }
+      return { unit: cfg.hubUnit || 'units', total: 1, done: isDone(u) ? 1 : 0 };
+    }
+
+    function breakdown(state, cfg, ELEV) {
+      var units = (state && state.units) || [], by = {}, seenKey = {};
+
+      /* Does this project track anything BELOW the unit? Decided once for the whole
+         project, not per unit — deciding per unit split AC3 into "Storefront · exterior"
+         for the nine openings with no elevation drawn yet and "Storefront · exterior —
+         Frame" for the eight that had one. That is how far the drawings got, not a
+         scope of work. Lexington tracks nothing below the unit, so its scopes stay
+         plain "Guardrail", "Shower Door". */
+      var splitSub = Object.keys(ELEV || {}).length > 0
+                  || units.some(function (u) { return panelsOn(u).length > 0; });
+      function bucket(name, unit) {
+        if (!by[name]) by[name] = { scope: name, done: 0, total: 0, qtyDone: 0, qtyTotal: 0, unit: unit };
+        return by[name];
+      }
+
+      units.forEach(function (u) {
+        var cls = classOf(u, cfg);
+
+        /* The frame — or the door leaf itself, which is what `frame` means on a door
+           row in the tracker's Calendar tab. A project with no elevations (Lexington)
+           has only this, and it IS the unit, so it keeps the unit's own quantity. */
+        var q = qtyOf(u, cfg);
+        var sc = (u.scopes && u.scopes.frame) || null;
+        var frameDone = sc ? sc.status === 'installed' : isDone(u);
+        var hasElev = !!elevKeyOf(u, ELEV);
+        var fname = splitSub ? cls + ' — ' + (isDoor(u, cfg) ? 'Door' : 'Frame') : cls;
+        var b = bucket(fname, q.unit);
+        b.total++;
+        if (frameDone) b.done++;
+        b.qtyTotal += q.total;
+        b.qtyDone  += (q.unit === 'LF') ? q.done : (frameDone ? 1 : 0);
+
+        /* Glass / metal panel / louver / doors come off the elevation, and an elevation
+           can be shared, so each key is counted once and filed under the class of the
+           first unit that reads it. */
+        /* Unit-level scopes first — these are per unit, never shared, so no dedupe. */
+        var us = unitScopes(u, hasElev);
+        Object.keys(us).forEach(function (k) {
+          if (HIDE[String(k).toLowerCase()]) return;
+          var n = us[k];
+          var ub = bucket(cls + ' \u2014 ' + label(k), 'pcs');
+          ub.total += n[1]; ub.done += n[0];
+          ub.qtyTotal += n[1]; ub.qtyDone += n[0];
+        });
+
+        var key = elevKeyOf(u, ELEV);
+        if (!key || seenKey[key]) return;
+        seenKey[key] = 1;
+        var counts = elementCounts(key, state, ELEV);
+        Object.keys(counts).forEach(function (k) {
+          if (HIDE[String(k).toLowerCase()]) return;
+          var n = counts[k];
+          if (!n[1]) return;
+          var eb = bucket(cls + ' — ' + label(k), 'pcs');
+          eb.total += n[1]; eb.done += n[0];
+          eb.qtyTotal += n[1]; eb.qtyDone += n[0];
+        });
+      });
+
+      var out = Object.keys(by).map(function (k) {
+        var b = by[k];
+        b.qtyDone  = Math.round(b.qtyDone  * 10) / 10;
+        b.qtyTotal = Math.round(b.qtyTotal * 10) / 10;
+        return b;
+      }).filter(function (b) { return b.qtyTotal > 0; });
+
+      out.sort(function (a, b) { return (b.qtyTotal - a.qtyTotal) || (a.scope < b.scope ? -1 : 1); });
+      return out.slice(0, 16);
+    }
+
+    /* One percentage for the project: each scope measured in its own unit, averaged
+       weighted by row count. Rows are the weight because there is no honest conversion
+       between a foot of railing and a shower door — put a real weight on the scope in
+       project-config.js and use it here instead of b.total when one exists. */
+    function pct(bd) {
+      var num = 0, den = 0;
+      bd.forEach(function (b) {
+        if (!b.qtyTotal || !b.total) return;
+        num += b.total * (b.qtyDone / b.qtyTotal);
+        den += b.total;
+      });
+      return den ? Math.round(100 * num / den) : null;
+    }
+
+    return { classOf: classOf, isDoor: isDoor, isInterior: isInterior, doorTypeOf: doorTypeOf,
+             qtyOf: qtyOf, elementCounts: elementCounts, elevKeyOf: elevKeyOf,
+             panelsOn: panelsOn, unitScopes: unitScopes,
+             breakdown: breakdown, pct: pct, isDone: isDone };
+  })();
+
+  try { window.AF_HUB_RULES = RULES; } catch (e) {}
+  try { if (typeof module !== 'undefined' && module.exports) module.exports = RULES; } catch (e) {}
+
+  /* Everything above is pure and runs anywhere. Everything below needs a browser,
+     so bail here when there isn't one — that is what lets the scheduled job load
+     this same file and reuse the maths instead of keeping a second copy. */
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  if (!HUB)     { console.warn(TAG, 'no AF_HUB_FIREBASE — af-hub-config.js missing or empty'); return; }
+  if (!P.hubId) { console.warn(TAG, 'no PROJECT.hubId — add hubId/hubUnit/hubScope to project-config.js'); return; }
+  if (typeof firebase === 'undefined') { console.warn(TAG, 'firebase SDK not loaded'); return; }
 
   function daysAgo(d) {
     if (!d) return null;
@@ -180,7 +316,10 @@
       if (d < 28) fourWeeks++;
     });
 
-    var bd = breakdownOf(units);
+    /* ELEVATIONS is a file the tracker ships (elevations.js); the per-element progress
+       lives in cloud state. Glass and metal panel counts need both. A tracker without
+       one (Lexington) just gets no element scopes, which is correct for it. */
+    var bd = RULES.breakdown(st, P, (typeof ELEVATIONS !== 'undefined' && ELEVATIONS) || window.ELEVATIONS || {});
 
     // Damage / change orders arrive in step 2; reserved so the hub needs no change.
     var dmg = (st && st.damage) || [];
@@ -201,7 +340,7 @@
       openDamage: openDamage,
       pendingCO: pendingCO,
       breakdown: bd,                   // optional: older hubs simply ignore it
-      pct: pctOf(bd),                  // authoritative % — done/total is rows only
+      pct: RULES.pct(bd),              // authoritative % — done/total is rows only
       ts: Date.now()
     };
   }
