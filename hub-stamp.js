@@ -14,7 +14,10 @@
 (function () {
   'use strict';
 
-  var STALE_MS = 4 * 60 * 60 * 1000;   // past this, the number stops being "now"
+  /* Past this, the number stops being "now". The scheduled report runs every 2 h and
+     GitHub starts it up to ~15 min late, so 5 h lets ONE skipped run pass quietly and
+     turns the card amber on the second — 4 h went amber on a single miss. */
+  var STALE_MS = 5 * 60 * 60 * 1000;
   var TICK_MS  = 60 * 1000;            // iPad left open all day must not lie
   var MOUNTED  = [];                   // [el, ts, opts]
 

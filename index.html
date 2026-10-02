@@ -407,7 +407,9 @@ function eta(p){
   if (!p.total)    return { text:'—',        cls:'none', days:null };
   if (remain <= 0) return { text:'Complete', cls:'',     days:0 };
   const perDay = (p.avg4w || 0) / 7;
-  if (perDay <= 0) return { text:'No data',  cls:'none', days:null };
+  /* Nothing installed yet is a fact about the site, not a gap in the data — AC3 and
+     Lexington on 2 Oct. "No data" read as broken to someone opening the hub cold. */
+  if (perDay <= 0) return { text: (p.done || 0) ? 'No data' : 'Not started', cls:'none', days:null };
   const days = Math.ceil(remain / perDay);
   return { text: fmtDate(new Date(Date.now() + days*DAY)), cls: days > 270 ? 'late' : '', days };
 }
