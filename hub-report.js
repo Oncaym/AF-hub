@@ -376,7 +376,9 @@
       total: units.length,
       weekRate: thisWeek,
       prevWeekRate: lastWeek,
-      avg4w: Math.round(fourWeeks / 4),
+      /* Not rounded (2 Oct): a whole number moved Est. complete by ~10 days either way
+         (3.6/wk and 4.4/wk both read as 4). Quarter steps, so this is exact. */
+      avg4w: fourWeeks / 4,
       openDamage: openDamage,
       pendingCO: pendingCO,
       breakdown: bd,                   // optional: older hubs simply ignore it

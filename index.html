@@ -587,7 +587,7 @@ function card(p){
       <div class="drow"><span>Remaining</span><span>${
         mixed ? 'by scope, above'
               : (p.total ? `${p.total - (p.done||0)} ${esc(p.unit||'')}` : '—')}</span></div>
-      <div class="drow"><span>4-week average</span><span>${p.avg4w||0} ${esc(p.unit||'')} / wk</span></div>
+      <div class="drow"><span>4-week average</span><span>${Math.round((p.avg4w||0)*10)/10} ${esc(p.unit||'')} / wk</span></div>
       <div class="drow"><span>Last week</span><span>${p.prevWeekRate||0} ${esc(p.unit||'')}</span></div>
       <div class="drow"><span>Open damage / pending CO</span><span>${p.openDamage||0} / ${p.pendingCO||0}</span></div>
       <div class="drow"><span>Last report</span><span class="${stale?'stale':''}">${
