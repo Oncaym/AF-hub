@@ -100,7 +100,7 @@ function summarize(state, P, ELEV, url, now) {
     total: units.length,
     weekRate: thisWeek,
     prevWeekRate: lastWeek,
-    avg4w: Math.round(fourWeeks / 4),
+    avg4w: fourWeeks / 4,            // unrounded, same as hub-report.js
     openDamage: dmg.filter(x => x && !x.closed).length,
     pendingCO:  dmg.filter(x => x && x.co === 'pending').length,
     breakdown: bd,
