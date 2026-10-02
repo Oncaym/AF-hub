@@ -99,8 +99,16 @@
   .section.offline .bar i { background: var(--text-dim); }
 
   .row1 { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-  .name { font-size: 17px; font-weight: 600; flex: 1; min-width: 0;
+  .title { flex: 1; min-width: 0; }
+  .name { font-size: 17px; font-weight: 600; min-width: 0;
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Freshness stamp from hub-stamp.js, on its own line under the name — beside it,
+     a phone's row1 left the name ~50px once the tag and Open ↗ were in. The script
+     paints fixed colours that are neither theme's tokens; two classes outrank its
+     injected one-class sheet, so the tokens win without !important. */
+  .when { line-height: 1; margin-top: 4px; }
+  .when .af-stamp { margin-left: 0; color: var(--text-dim); }
+  .when .af-stamp--stale, .when .af-stamp--never { color: var(--yellow); }
   .tag { font-size: 11px; color: var(--text-dim); border: 1px solid var(--border);
          border-radius: 5px; padding: 2px 7px; white-space: nowrap; flex: none; }
   .chip { font-size: 11px; font-weight: 600; border-radius: 5px; padding: 3px 8px; white-space: nowrap; }
@@ -321,6 +329,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="af-hub-config.js"></script>
+<script src="hub-stamp.js"></script>
 <script>
 /* ────────────────────────────────────────────────────────────────────────
    AF Hub — executive overview
@@ -496,9 +505,13 @@ function card(p){
 
   const el = document.createElement('div');
   el.className = 'section' + (p.reported ? '' : ' offline');
+  el.dataset.project = p.id;                     // hub-stamp.js dims this card when stale
   el.innerHTML = `
     <div class="row1">
-      <div class="name">${esc(p.name)}</div>
+      <div class="title">
+        <div class="name">${esc(p.name)}</div>
+        <div class="when"></div>
+      </div>
       <div class="tag">${esc(p.unit || '')}</div>
       ${!p.reported ? `<div class="chip idle">not reporting</div>` : ''}
       ${p.openDamage ? `<div class="chip dmg">⚠ ${p.openDamage}</div>` : ''}
@@ -551,7 +564,13 @@ function render(list){
   const wrap = document.getElementById('list');
   wrap.innerHTML = '';
   list.sort((a,b) => (b.reported - a.reported) || ((eta(a).days ?? 9e9) - (eta(b).days ?? 9e9)));
-  list.forEach(p => wrap.appendChild(card(p)));
+  list.forEach(p => {
+    const el = wrap.appendChild(card(p));
+    /* After the append, never inside card(): hub-stamp.js skips a node that is not in
+       the document yet, and the stamp would sit blank until its next one-minute tick.
+       Guarded so a hub-stamp.js missing from a deploy costs the stamp, not the page. */
+    if (window.afHubStamp) afHubStamp(el.querySelector('.when'), p.ts);
+  });
 
   const silent = list.filter(p => !p.reported).length;
   document.getElementById('sub').textContent =
