@@ -131,6 +131,32 @@ hubScope: 'Storefront / Curtain Wall',
 The reporter runs on its own Firebase app instance (`afhub`) and writes a single node.
 It cannot disturb the tracker's own sync, and a failed push is silent.
 
+### 5. Scheduled report — `.github/workflows/report.yml`
+
+Every hour GitHub reads each tracker's cloud `/state` and writes the **same**
+summary the browser reporter writes — breakdown and `pct` included — so the overview
+is current even when nobody has opened a tracker.
+
+It also writes `/projects/{id}/week`: installs in the last 7 days for **every** scope
+(glass, frame, door, louver, metal panel, feet of guardrail), read off the install
+dates in the tracker, plus how many installed items have no date. Only this job
+writes it — the browser's summary and the hub's rules are untouched — so the card's
+**This week** moves on the hourly run (or Actions → Run workflow), not the instant a
+crew saves.
+
+- `report/fetch-configs.js` (no secrets) fetches each tracker's `project-config.js` /
+  `elevations.js` from its live site, the files its `index.html` actually loads.
+- `report/report.js` reads `/state` with the service accounts and computes the summary
+  with `RULES` from `hub-report.js` — not a copy of the maths, the same file.
+- A project it cannot compute fully is skipped and its card's stamp ages; any failure
+  turns the run red, which is what makes GitHub email the owner.
+- Run it by hand: Actions → Hub report → Run workflow. **Dry run** (ticked by default)
+  writes nothing and prints, per project, how its result compares with what is on the
+  hub now — `MATCH` means the job and the browser agree.
+
+Secrets (Settings → Secrets and variables → Actions): `HUB_SERVICE_ACCOUNT`,
+`HUB_DATABASE_URL`, `AC3_SERVICE_ACCOUNT`, `CP2_SERVICE_ACCOUNT`, `LEX_SERVICE_ACCOUNT`.
+
 ---
 
 ## Projects as of 2026-09-17

@@ -130,6 +130,13 @@
   .stat.eta .v { color: var(--accent-2); }
   .stat.eta.late .v { color: var(--yellow); }
   .stat.eta.none .v { color: var(--text-dim); font-size: 15px; }
+  /* This week, by scope: "24 Glass · 6 Frame · 3 Louver". */
+  .stat .wk { display: flex; flex-wrap: wrap; gap: 0 12px; font-size: 12.5px; color: var(--text-dim);
+              line-height: 1.5; }
+  .stat .wk b { font-size: 19px; font-weight: 600; color: var(--text); margin-right: 4px;
+                font-variant-numeric: tabular-nums; }
+  .stat .wku { font-size: 11.5px; color: var(--yellow); margin-top: 2px; }
+  .scard .swk { font-size: 11.5px; color: var(--green); margin-top: 6px; font-variant-numeric: tabular-nums; }
 
   /* Per-scope cards — the same shape as a tracker's top banner, because that is
      what the boss already reads there. One measure (percent complete), so ONE hue:
@@ -376,6 +383,11 @@ function merge(live){
     const rosterUrl = base.url || '';
     const merged = Object.assign(base, s, { reported: !!s.ts });
     merged.url = rosterUrl || s.url || '';
+    /* /week is written only by the scheduled report: installs in the last 7 days for
+       every scope, not just frames. Until that job has run once the card falls back to
+       weekRate (openings only). */
+    const wk = live[id].week;
+    merged.week = wk && Array.isArray(wk.scopes) ? wk : null;
     byId.set(id, merged);
   });
   return [...byId.values()];
@@ -429,9 +441,44 @@ function openUrl(url){
 
    A tracker still on the old payload sends no breakdown and simply gets no cards.
    Caulking and beauty cap are excluded in the reporter, not here. */
+/* The part of a scope name a person reads — "Storefront · exterior — Glass" is
+   "Glass". Same split as the scope cards' grouping below. */
+function subName(scope){
+  const em = scope.indexOf(' \u2014 '), md = scope.indexOf(' \u00b7 ');
+  return em > 0 ? scope.slice(em + 3) : md > 0 ? scope.slice(md + 3) : scope;
+}
+function weekByScope(p){
+  const m = new Map();
+  if (p.week) p.week.scopes.forEach(w => { if (w && w.scope) m.set(w.scope, w); });
+  return m;
+}
+/* "This week", every scope that moved — summed across classes, so exterior and
+   interior frames are one "Frame" — biggest first. Installs entered without a date
+   cannot be placed in any week; say how many rather than let the number look low. */
+function weekStat(p){
+  const by = new Map(); let undated = 0;
+  p.week.scopes.forEach(w => {
+    if (!w || !w.scope) return;
+    undated += w.undated || 0;
+    if (!w.week) return;
+    const lf = w.unit === 'LF', n = subName(w.scope), k = n + (lf ? '|LF' : '');
+    const e = by.get(k) || { n, lf, v: 0 };
+    e.v += w.week; by.set(k, e);
+  });
+  const items = [...by.values()].sort((a, b) => b.v - a.v);
+  return (items.length
+      ? `<div class="wk">${items.map(e =>
+          `<span><b>${Math.round(e.v)}${e.lf ? ' LF' : ''}</b>${esc(e.n)}</span>`).join('')}</div>`
+      : `<div class="v">0</div>`)
+    + (undated ? `<div class="wku" title="Marked installed in the tracker with no install date, `
+        + `so they cannot be placed in a week. Add the date in the tracker and they count.">`
+        + `${undated} installed with no date</div>` : '');
+}
+
 function scopeCards(p){
   const bd = Array.isArray(p.breakdown) ? p.breakdown.filter(b => b && b.qtyTotal > 0) : [];
   if (!bd.length) return '';
+  const wmap = weekByScope(p);
 
   /* Group on the em-dash first ("Storefront \u00b7 exterior \u2014 Glass"), and when there
      isn't one, on the middle dot ("Door \u00b7 fire-rated"). Without that second split the
@@ -452,10 +499,12 @@ function scopeCards(p){
   const card = ({ b, n }) => {
     const done = b.qtyDone, total = b.qtyTotal, unit = b.unit || '';
     const pc = Math.min(100, Math.round(100 * done / total));
+    const w = wmap.get(b.scope), wk = w && w.week ? w.week : 0;
     return `<div class="scard${pc >= 100 ? ' full' : ''}">
         <div class="sk" title="${esc(b.scope)}">${esc(n)}</div>
         <div class="sv">${pc}%<small>${Math.round(done)} / ${esc(qfmt(total, unit))}</small></div>
         <div class="sbar"><i style="width:${pc}%"></i></div>
+        ${wk ? `<div class="swk">+${esc(qfmt(wk, unit))} this week</div>` : ''}
       </div>`;
   };
 
@@ -528,7 +577,7 @@ function card(p){
             ? `${bdAll.length} scopes`
             : `${p.done||0}${p.total ? '/'+p.total : ''}`}</small></div></div>
       <div class="stat"><div class="k">This week</div>
-        <div class="v">${p.weekRate||0}<small>${arrow}</small></div></div>
+        ${p.week ? weekStat(p) : `<div class="v">${p.weekRate||0}<small>${arrow}</small></div>`}</div>
       <div class="stat eta ${e.cls}"><div class="k">Est. complete</div>
         <div class="v">${e.text}</div></div>
     </div>

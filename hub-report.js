@@ -113,11 +113,22 @@
       return isInterior(u, cfg) ? 'Storefront · interior' : 'Storefront · exterior';
     }
 
+    /* Installed in the last seven days? The same rolling window as weekRate, read off
+       the install date the crew entered. null = installed, but no date on record —
+       which must be counted as such, not quietly folded into "not this week". */
+    var WEEK_MS = 7 * 864e5;
+    function weekOf(date, now) {
+      var t = date ? Date.parse(date) : NaN;
+      if (isNaN(t)) return null;
+      var a = now - t;
+      return a >= 0 && a < WEEK_MS;
+    }
+
     /* Elevation-backed element counts. `state.elevations[key].el[id].status` is the
        progress; `ELEVATIONS[key].elements` is the shipped part list. A key can serve
        SEVERAL units (SF04 appears on the plan more than once), so callers must count
        each key ONCE — sum per unit and the glass is counted twice. */
-    function elementCounts(key, state, ELEV) {
+    function elementCounts(key, state, ELEV, now) {
       var out = {};
       var E = (ELEV || {})[key];
       if (!E || !Array.isArray(E.elements)) return out;
@@ -129,9 +140,12 @@
       parts.forEach(function (p) {
         var r = el[p.id] || {}, type = r.type || p.t0;
         if (!type || type === 'hidden') return;
-        if (!out[type]) out[type] = [0, 0];
+        if (!out[type]) out[type] = now ? [0, 0, 0, 0] : [0, 0];   // [done, total, week, undated]
         out[type][1]++;
-        if ((r.status || 'pending') === 'installed') out[type][0]++;
+        if ((r.status || 'pending') === 'installed') {
+          out[type][0]++;
+          if (now) { var w = weekOf(r.date, now); if (w === null) out[type][3]++; else if (w) out[type][2]++; }
+        }
       });
       return out;
     }
@@ -168,14 +182,24 @@
 
     /* Scopes that live on the unit itself rather than on an elevation. Returns
        {name: [done, total]}. */
-    function unitScopes(u, hasElev) {
+    function unitScopes(u, hasElev, now) {
       var out = {};
       if (!hasElev) {
         var gp = panelsOn(u);
-        if (gp.length) out.glass = [gp.filter(function (g) { return g.status === 'installed'; }).length, gp.length];
+        if (gp.length) {
+          var gi = gp.filter(function (g) { return g.status === 'installed'; });
+          out.glass = [gi.length, gp.length];
+          if (now) out.glass.push(
+            gi.filter(function (g) { return weekOf(g.date, now) === true; }).length,
+            gi.filter(function (g) { return weekOf(g.date, now) === null; }).length);
+        }
         /* CP2 records a louver as a yes/no on the unit, not as a counted element —
            so it contributes one item, not a piece count. */
-        if (u && u.louver === 'yes') out.louver = [isDone(u) ? 1 : 0, 1];
+        if (u && u.louver === 'yes') {
+          out.louver = [isDone(u) ? 1 : 0, 1];
+          if (now) { var lw = isDone(u) ? weekOf(u.date, now) : false;   // dated with its frame
+                     out.louver.push(lw === true ? 1 : 0, lw === null ? 1 : 0); }
+        }
       }
       return out;
     }
@@ -192,8 +216,13 @@
       return { unit: cfg.hubUnit || 'units', total: 1, done: isDone(u) ? 1 : 0 };
     }
 
-    function breakdown(state, cfg, ELEV) {
+    /* opts.now (ms) — the scheduled job only. Adds `week` (installed in the last 7 days,
+       in the scope's own unit) and `undated` (installed, no date) to every scope. The
+       browser never passes it, so what trackers send — and what the hub's rules accept —
+       is unchanged. */
+    function breakdown(state, cfg, ELEV, opts) {
       var units = (state && state.units) || [], by = {}, seenKey = {};
+      var now = (opts && opts.now) || 0;
 
       /* Does this project track anything BELOW the unit? Decided once for the whole
          project, not per unit — deciding per unit split AC3 into "Storefront · exterior"
@@ -204,7 +233,10 @@
       var splitSub = Object.keys(ELEV || {}).length > 0
                   || units.some(function (u) { return panelsOn(u).length > 0; });
       function bucket(name, unit) {
-        if (!by[name]) by[name] = { scope: name, done: 0, total: 0, qtyDone: 0, qtyTotal: 0, unit: unit };
+        if (!by[name]) {
+          by[name] = { scope: name, done: 0, total: 0, qtyDone: 0, qtyTotal: 0, unit: unit };
+          if (now) { by[name].week = 0; by[name].undated = 0; }
+        }
         return by[name];
       }
 
@@ -224,24 +256,30 @@
         if (frameDone) b.done++;
         b.qtyTotal += q.total;
         b.qtyDone  += (q.unit === 'LF') ? q.done : (frameDone ? 1 : 0);
+        if (now && frameDone) {
+          var fw = weekOf((sc && sc.date) || u.date, now);
+          if (fw === null) b.undated++;
+          else if (fw) b.week += (q.unit === 'LF') ? q.total : 1;   // a run counts once it is finished
+        }
 
         /* Glass / metal panel / louver / doors come off the elevation, and an elevation
            can be shared, so each key is counted once and filed under the class of the
            first unit that reads it. */
         /* Unit-level scopes first — these are per unit, never shared, so no dedupe. */
-        var us = unitScopes(u, hasElev);
+        var us = unitScopes(u, hasElev, now);
         Object.keys(us).forEach(function (k) {
           if (HIDE[String(k).toLowerCase()]) return;
           var n = us[k];
           var ub = bucket(cls + ' \u2014 ' + label(k), 'pcs');
           ub.total += n[1]; ub.done += n[0];
           ub.qtyTotal += n[1]; ub.qtyDone += n[0];
+          if (now) { ub.week += n[2]; ub.undated += n[3]; }
         });
 
         var key = elevKeyOf(u, ELEV);
         if (!key || seenKey[key]) return;
         seenKey[key] = 1;
-        var counts = elementCounts(key, state, ELEV);
+        var counts = elementCounts(key, state, ELEV, now);
         Object.keys(counts).forEach(function (k) {
           if (HIDE[String(k).toLowerCase()]) return;
           var n = counts[k];
@@ -249,6 +287,7 @@
           var eb = bucket(cls + ' — ' + label(k), 'pcs');
           eb.total += n[1]; eb.done += n[0];
           eb.qtyTotal += n[1]; eb.qtyDone += n[0];
+          if (now) { eb.week += n[2]; eb.undated += n[3]; }
         });
       });
 
@@ -256,6 +295,7 @@
         var b = by[k];
         b.qtyDone  = Math.round(b.qtyDone  * 10) / 10;
         b.qtyTotal = Math.round(b.qtyTotal * 10) / 10;
+        if (now) b.week = Math.round(b.week * 10) / 10;
         return b;
       }).filter(function (b) { return b.qtyTotal > 0; });
 
@@ -280,7 +320,7 @@
     return { classOf: classOf, isDoor: isDoor, isInterior: isInterior, doorTypeOf: doorTypeOf,
              qtyOf: qtyOf, elementCounts: elementCounts, elevKeyOf: elevKeyOf,
              panelsOn: panelsOn, unitScopes: unitScopes,
-             breakdown: breakdown, pct: pct, isDone: isDone };
+             breakdown: breakdown, pct: pct, isDone: isDone, weekOf: weekOf };
   })();
 
   try { window.AF_HUB_RULES = RULES; } catch (e) {}
