@@ -13,7 +13,7 @@
     "name": "Cooper Park 2",
     "unit": "openings",
     "scope": "Storefront - GF 71 / L2 6 / L13 5",
-    "url": "",
+    "url": "https://copper-park-2-install-progress-trac.vercel.app",
     "databaseURL": "https://copper-park-2---monitor-default-rtdb.firebaseio.com",
     "secret": "CP2_SERVICE_ACCOUNT"
   },
@@ -22,7 +22,7 @@
     "name": "355 Lexington Avenue",
     "unit": "pieces",
     "scope": "Shower Door 159 / Terrace Divider 33 / Guardrail 8 / Equipment Screen 2",
-    "url": "",
+    "url": "https://355-lexington-dashboard.vercel.app",
     "databaseURL": "https://lexington-avenue-93a52-default-rtdb.firebaseio.com",
     "secret": "LEX_SERVICE_ACCOUNT"
   }
