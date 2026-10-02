@@ -1,5 +1,5 @@
 # AF Hub — scheduled report.
-# Every two hours, read each tracker's cloud /state and write the same summary
+# Every hour, read each tracker's cloud /state and write the same summary
 # the browser reporter would, so the hub is current even when nobody has opened
 # a tracker. Code: report/fetch-configs.js (step 1) and report/report.js (step 2).
 
@@ -7,7 +7,7 @@ name: Hub report
 
 on:
   schedule:
-    - cron: '17 */2 * * *'   # every 2 h (UTC). GitHub often starts it 10–15 min late — normal.
+    - cron: '17 * * * *'     # hourly at :17 (UTC). GitHub often starts it 10–15 min late — normal.
   workflow_dispatch:
     inputs:
       dry_run:
