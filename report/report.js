@@ -24,6 +24,12 @@
    unreadable) is SKIPPED, its last report untouched: the stamp then ages and
    turns amber on its own, which is the honest outcome.
 
+   It also writes /projects/{id}/week — installs in the last seven days for EVERY
+   scope (glass, frame, door, louver, metal panel…), plus how many installed items
+   carry no install date. That lives beside the summary, not in it, because only
+   this job writes it: the summary must stay byte-identical to what the browser
+   sends, and the hub's rules reject any summary field they do not name.
+
    DRY_RUN=1 computes everything, prints how it compares with what is on the
    hub now, and writes nothing.
    ───────────────────────────────────────────────────────────────────────── */
@@ -68,7 +74,7 @@ function daysAgo(d) {
 /* Field for field, the payload hub-report.js summarize() sends. Only `url`
    differs in source: the browser reads location.origin, this takes the origin of
    the url in projects.json. */
-function summarize(state, P, ELEV, url) {
+function summarize(state, P, ELEV, url, now) {
   const units = state.units;
   let done = 0, thisWeek = 0, lastWeek = 0, fourWeeks = 0;
 
@@ -99,9 +105,26 @@ function summarize(state, P, ELEV, url) {
     pendingCO:  dmg.filter(x => x && x.co === 'pending').length,
     breakdown: bd,
     pct: RULES.pct(bd),
-    ts: Date.now()
+    ts: now
   };
 }
+
+/* Installs in the last 7 days, per scope, in each scope's own unit. Same rules,
+   same scope names as the breakdown — the hub matches the two up by name. */
+function weekly(state, P, ELEV, now) {
+  const bd = RULES.breakdown(state, P, ELEV || {}, { now });
+  return {
+    ts: now,
+    days: 7,
+    scopes: bd.map(b => ({ scope: b.scope, unit: b.unit || '', week: b.week || 0, undated: b.undated || 0 }))
+  };
+}
+const weekLine = w => {
+  const on = w.scopes.filter(x => x.week);
+  const und = w.scopes.reduce((n, x) => n + x.undated, 0);
+  return (on.length ? on.map(x => `${x.scope} ${x.week}${x.unit === 'LF' ? ' LF' : ''}`).join(' · ') : 'nothing')
+       + (und ? `  (+${und} installed with no date)` : '');
+};
 
 /* Dry run: what is on the hub now (usually the browser's last push) against what
    this run computed. Identical apart from ts means the two writers agree. */
@@ -154,7 +177,9 @@ function compare(id, now, next) {
         continue;
       }
 
-      const s = summarize(state, conf.PROJECT, conf.ELEVATIONS, cfg.url ? new URL(cfg.url).origin : '');
+      const now = Date.now();
+      const s = summarize(state, conf.PROJECT, conf.ELEVATIONS, cfg.url ? new URL(cfg.url).origin : '', now);
+      const wk = weekly(state, conf.PROJECT, conf.ELEVATIONS, now);
       const ref = hub.database().ref(`projects/${cfg.id}/summary`);
 
       /* projects.json may not know a tracker's address; the browser reporter does.
@@ -162,12 +187,13 @@ function compare(id, now, next) {
       if (!s.url || DRY) {
         const prev = (await ref.once('value')).val();
         if (!s.url && prev && prev.url) s.url = prev.url;
-        if (DRY) { compare(cfg.id, prev, s); continue; }
+        if (DRY) { compare(cfg.id, prev, s); console.log('  this week: ' + weekLine(wk)); continue; }
       }
 
       await ref.set(s);
+      await hub.database().ref(`projects/${cfg.id}/week`).set(wk);
       console.log(`${cfg.id}: ${s.pct ?? Math.round(100 * s.done / s.total)}% · ${s.done}/${s.total} rows · `
-        + `${s.breakdown.length} scopes · ${s.weekRate} this week`);
+        + `${s.breakdown.length} scopes\n      this week: ${weekLine(wk)}`);
     } catch (e) {
       failed.push(cfg.id);
       console.error(`${cfg.id}: FAILED — ${e.message}`);
