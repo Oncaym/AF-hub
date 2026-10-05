@@ -1,0 +1,122 @@
+{
+  // ======================================================================
+  //  AF Hub - rules for ONE PROJECT DATABASE (af-hub-8f188-<project>).
+  //  The same file goes on every project database; nothing in it names a
+  //  project. Which project a database belongs to is written once, by the
+  //  migration / new-project workflow, at /meta/project, and only the Admin
+  //  SDK can write /meta.
+  //
+  //  Who is who (the email key is the email with every '.' turned into ','):
+  //    signed in   = a real account with a VERIFIED email. Anonymous sessions
+  //                  (the hub summary writer) and unverified accounts get nothing.
+  //    editor      = on /allowlist                   -> can change this project
+  //    gc          = on /gcList                      -> reads; can post to /gcItems
+  //    viewer      = on /viewers                     -> reads only
+  //    staff       = verified @advfacade.com address -> reads EVERY project
+  //    anyone else -> nothing, not even the project's name.
+  //
+  //  Why /state checks _project: a tracker page stamps its own project id on
+  //  every save. If a page is ever pointed at the wrong database (a copied
+  //  firebase-config.js), the ids differ and the save is refused here, by
+  //  the server, before anything is overwritten.
+  //
+  //  Tests: platform/tests/rules.local.test.cjs (fast, local) and
+  //  platform/tests/rules.emulator.test.mjs (the real emulator, in CI).
+  // ======================================================================
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    // Which project this database is. Written by the Admin SDK only.
+    "meta": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".write": false
+    },
+
+    // The whole tracker state, saved in one piece by the page (last write wins).
+    "state": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      // newData.exists(): no page can wipe the project. Clearing it is a console job.
+      ".write": "auth != null && auth.token.email_verified == true && newData.exists() && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+      ".validate": "newData.hasChildren(['_clientId', '_ts', '_by', '_project']) && root.child('meta/project').isString() && newData.child('_project').val() == root.child('meta/project').val() && newData.child('_by').val() == auth.token.email"
+    },
+
+    // Edit history - append only, each row signed by its author.
+    "history": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      "$pushId": {
+        ".write": "auth != null && auth.token.email_verified == true && !data.exists() && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+        ".validate": "newData.hasChildren(['ts', 'user', 'desc']) && newData.child('user').val() == auth.token.email"
+      }
+    },
+
+    // Who's online - editors write only their own row.
+    "presence": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      "$uid": {
+        ".write": "auth != null && auth.token.email_verified == true && auth.uid == $uid && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+        ".validate": "newData.hasChildren(['email', 'since']) && newData.child('email').val() == auth.token.email"
+      }
+    },
+
+    // Who opened the tracker - anyone with access adds their own row; only editors read.
+    "access": {
+      ".read": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+      "$id": {
+        ".write": "auth != null && auth.token.email_verified == true && !data.exists() && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+        ".validate": "newData.hasChildren(['email', 'ts']) && newData.child('email').val() == auth.token.email"
+      }
+    },
+
+    // GC inbox (F-037): anyone with access posts their own item; editors triage.
+    "gcItems": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".indexOn": ["ts"],
+      "$id": {
+        ".write": "auth != null && auth.token.email_verified == true && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || (!data.exists() && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())))",
+        ".validate": "newData.hasChildren(['by', 'ts', 'text']) && (data.exists() || newData.child('by').val() == auth.token.email)"
+      }
+    },
+
+    // Friday glass delivery triage.
+    "triage": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      "$deliveryId": {
+        "pieces": {
+          ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+          "$tagKey": { ".validate": "newData.hasChild('status')" }
+        },
+        "meta": {
+          ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()"
+        }
+      }
+    },
+
+    // Warehouse (receive).
+    "warehouse": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      "items": {
+        ".indexOn": ["receivedAt"],
+        "$itemId": {
+          ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+          ".validate": "newData.hasChildren(['where', 'receivedAt', 'receivedBy', 'status']) && newData.child('status').val() == 'in_stock'"
+        }
+      }
+    },
+
+    // Membership lists. Each person can read only their own entry; the lists
+    // themselves are edited in the Firebase console (or by the admin workflow).
+    "allowlist": {
+      ".read": false, ".write": false,
+      "$emailKey": { ".read": "auth != null && auth.token.email_verified == true && auth.token.email.replace('.', ',') == $emailKey" }
+    },
+    "gcList": {
+      ".read": false, ".write": false,
+      "$emailKey": { ".read": "auth != null && auth.token.email_verified == true && auth.token.email.replace('.', ',') == $emailKey" }
+    },
+    "viewers": {
+      ".read": false, ".write": false,
+      "$emailKey": { ".read": "auth != null && auth.token.email_verified == true && auth.token.email.replace('.', ',') == $emailKey" }
+    }
+  }
+}

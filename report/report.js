@@ -72,8 +72,8 @@ function daysAgo(d) {
 }
 
 /* Field for field, the payload hub-report.js summarize() sends. Only `url`
-   differs in source: the browser reads location.origin, this takes the origin of
-   the url in projects.json. */
+   differs in source: the browser reads its own folder (location), this takes the
+   folder of the url in projects.json. */
 function summarize(state, P, ELEV, url, now) {
   const units = state.units;
   let done = 0, thisWeek = 0, lastWeek = 0, fourWeeks = 0;
@@ -178,7 +178,9 @@ function compare(id, now, next) {
       }
 
       const now = Date.now();
-      const s = summarize(state, conf.PROJECT, conf.ELEVATIONS, cfg.url ? new URL(cfg.url).origin : '', now);
+      // The tracker's folder, as the browser reporter sends it (trackers can live
+      // under the hub now: https://af-hub-two.vercel.app/ac3/).
+      const s = summarize(state, conf.PROJECT, conf.ELEVATIONS, cfg.url ? new URL(cfg.url).href.replace(/[^\/]*$/, '') : '', now);
       const wk = weekly(state, conf.PROJECT, conf.ELEVATIONS, now);
       const ref = hub.database().ref(`projects/${cfg.id}/summary`);
 

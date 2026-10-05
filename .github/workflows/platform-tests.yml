@@ -1,0 +1,65 @@
+# AF Hub — checks that projects stay apart. Runs on every push that touches a
+# tracker, the shared engine, the rules or the tools.
+#   local:    configs, migration helpers, rules (simulator), pages end to end (stub SDK)
+#   emulator: the same rules, the migration tool and the pages against the real
+#             Firebase emulators and the real Firebase SDK
+name: Platform tests
+
+on:
+  push:
+    paths:
+      - 'core/**'
+      - 'ac3/**'
+      - 'lex/**'
+      - 'platform/**'
+      - 'report/projects.json'
+      - 'hub-report.js'
+      - '.github/workflows/platform-tests.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  local:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install
+        working-directory: platform/tests
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Configs, migration helpers, rules, pages (stub SDK)
+        working-directory: platform/tests
+        run: npm run test:local
+
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install
+        run: |
+          (cd platform/migrate && npm install --no-audit --no-fund)
+          cd platform/tests
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Rules, migration tool, pages (Firebase emulators)
+        working-directory: platform/tests
+        run: npm run test:emulator

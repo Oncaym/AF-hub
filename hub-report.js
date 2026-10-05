@@ -371,7 +371,9 @@
       name:  P.displayName || P.name || P.hubId,
       unit:  P.hubUnit  || 'openings',
       scope: P.hubScope || '',
-      url:   location.origin,          // lets the hub link straight to this tracker
+      // lets the hub link straight to this tracker — its folder, since trackers now
+      // live under the hub (af-hub-two.vercel.app/ac3/) as well as on their own sites
+      url:   location.origin + location.pathname.replace(/[^\/]*$/, ''),
       done:  done,
       total: units.length,
       weekRate: thisWeek,

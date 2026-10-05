@@ -84,6 +84,10 @@
   .btn:hover { background: #2d3744; border-color: #4d5764; }
   body.day-mode .btn:hover { background: #dde3ea; border-color: #b6c0cb; }
   .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .note { background: var(--panel); border: 1px solid var(--yellow); border-radius: 10px; padding: 14px 16px;
+          margin: 0 0 16px; font-size: 13.5px; line-height: 1.55; color: var(--text); }
+  .note .btn { margin: 10px 8px 0 0; }
+  .note .nmsg { color: var(--green); font-size: 12.5px; margin-top: 8px; min-height: 1em; }
   .btn-primary:hover { background: var(--accent-2); border-color: var(--accent-2); }
 
   main { max-width: 1000px; margin: 0 auto; padding: 24px 32px 48px; }
@@ -275,6 +279,7 @@
     </div>
   </header>
   <main>
+    <div class="note" id="note" hidden></div>
     <section class="chart" id="chart" hidden></section>
     <div id="list"></div>
     <p class="foot" id="foot"></p>
@@ -354,17 +359,18 @@ const DAY = 864e5;
 /* The roster — every project that BELONGS here, reported or not. Live summaries
    merge on top; a project that has never pushed still gets a row, dimmed. The
    list must not be decided by whoever happened to write last.
-   Add a row the same day you add hubId to a tracker's project-config.js. */
+   Add a row the same day you add hubId to a tracker's project-config.js.
+   Trackers that live inside the hub (2026-10: AC3, Lexington) link to their folder. */
 const ROSTER = [
   { id:'ac3', name:'Atlantic-Chestnut Building 3', unit:'openings',
     scope:'Storefront / Curtain Wall',
-    url:'https://atlantic-chestnut-3-tracking.vercel.app' },
+    url:'ac3/' },
   { id:'cp2', name:'Cooper Park 2', unit:'openings',
     scope:'Storefront — GF 71 · L2 6 · L13 5',
     url:'https://copper-park-2-install-progress-trac.vercel.app' },
   { id:'lex', name:'355 Lexington Avenue', unit:'pieces',
     scope:'Shower Door 159 · Terrace Divider 33 · Guardrail 8 · Equipment Screen 2',
-    url:'https://355-lexington-dashboard.vercel.app' },
+    url:'lex/' },
 ];
 
 function merge(live){
@@ -681,9 +687,35 @@ function showGate(msg){
     }
     ME = user.email || '';
     document.getElementById('me').textContent = ME;
+    /* Progress is readable only by verified @advfacade.com accounts (2026-10): the
+       same login now opens project trackers for foremen and GCs, who must not see
+       the whole portfolio. An unverified address confirms it once. */
+    if (!user.emailVerified) { render(merge(null)); showVerify(user); return; }
+    hideNote();
     ref = firebase.database().ref('projects');
-    ref.on('value', snap => render(merge(snap.val())), () => render(merge(null)));
+    ref.on('value', snap => render(merge(snap.val())), () => {
+      render(merge(null));
+      showNote('This account cannot see project progress. The overview is for Advanced Facade staff; '
+             + 'your projects open from the links you were sent.');
+    });
   });
+
+  function showNote(html){ const n = document.getElementById('note'); n.innerHTML = html; n.hidden = false; return n; }
+  function hideNote(){ const n = document.getElementById('note'); n.hidden = true; n.innerHTML = ''; }
+  function showVerify(user){
+    const n = showNote('<b>Confirm your email to see progress.</b> We send one link to '
+      + esc(user.email) + '; open it, then tap “I opened the link”.'
+      + '<div><button class="btn btn-primary" type="button" id="vSend">Send the link</button>'
+      + '<button class="btn" type="button" id="vDone">I opened the link</button></div><div class="nmsg" id="vMsg"></div>');
+    const msg = t => { document.getElementById('vMsg').textContent = t; };
+    n.querySelector('#vSend').onclick = () => user.sendEmailVerification()
+      .then(() => msg('Sent. It comes from firebaseapp.com — check spam the first time.'))
+      .catch(e => msg(/too-many/.test(String(e && e.code)) ? 'Already sent — check your inbox.' : 'Could not send it. Try again.'));
+    n.querySelector('#vDone').onclick = () => user.reload().then(() => user.getIdToken(true)).then(() => {
+      if (auth.currentUser && auth.currentUser.emailVerified) location.reload();
+      else msg('Not confirmed yet — open the newest email from Firebase first.');
+    });
+  }
 
   document.getElementById('out').addEventListener('click', () => {
     document.getElementById('pw').value = '';

@@ -1,0 +1,31 @@
+{
+  "_about": "AF Hub platform registry. One entry per project database in the shared Firebase project af-hub-8f188. platform/tests/config.test.cjs checks every project folder against this file, so a copied firebase-config.js or project-config.js that still points at another project fails CI before it is deployed.",
+  "firebaseProject": "af-hub-8f188",
+  "storageBucket": "af-hub-8f188.firebasestorage.app",
+  "projects": [
+    {
+      "id": "ac3",
+      "name": "Atlantic-Chestnut Building 3",
+      "folder": "ac3",
+      "databaseURL": "https://af-hub-8f188-ac3.firebaseio.com",
+      "legacy": {
+        "databaseURL": "https://atlantic-chestnut-3-default-rtdb.firebaseio.com",
+        "storageBucket": "atlantic-chestnut-3.firebasestorage.app",
+        "secret": "AC3_SERVICE_ACCOUNT",
+        "site": "https://atlantic-chestnut-3-tracking.vercel.app"
+      }
+    },
+    {
+      "id": "lex",
+      "name": "355 Lexington Avenue",
+      "folder": "lex",
+      "databaseURL": "https://af-hub-8f188-lex.firebaseio.com",
+      "legacy": {
+        "databaseURL": "https://lexington-avenue-93a52-default-rtdb.firebaseio.com",
+        "storageBucket": "lexington-avenue-93a52.firebasestorage.app",
+        "secret": "LEX_SERVICE_ACCOUNT",
+        "site": "https://355-lexington-dashboard.vercel.app"
+      }
+    }
+  ]
+}

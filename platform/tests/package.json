@@ -1,0 +1,19 @@
+{
+  "name": "af-hub-platform-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Checks that projects stay apart: rules, configs, the migration tool, and the tracker pages end to end.",
+  "scripts": {
+    "test:local": "node config.test.cjs && node migrate.test.cjs && node rules.local.test.cjs && node hub-rules.local.test.cjs && node e2e/run.mjs --backend=fake",
+    "test:emulator": "firebase emulators:exec --only database,auth,storage --project demo-afhub \"node rules.emulator.test.mjs && node migrate.e2e.mjs && node e2e/run.mjs --backend=emulator\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "chart.js": "4.4.0",
+    "firebase": "^12.0.0",
+    "firebase-admin": "^14.5.0",
+    "firebase-tools": "^15.0.0",
+    "playwright": "^1.55.0",
+    "targaryen": "^3.1.0"
+  }
+}

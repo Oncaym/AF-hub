@@ -1,0 +1,8 @@
+{
+  "name": "af-hub-project-db",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AF Hub project database tool: migrate a tracker into af-hub, put rules, add members. Run by .github/workflows/project-db.yml.",
+  "main": "run.js",
+  "dependencies": { "firebase-admin": "^14.5.0" }
+}

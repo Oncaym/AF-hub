@@ -1,0 +1,69 @@
+# AF Hub — project databases. Run by hand: Actions → Project database → Run workflow.
+#
+#   dry-run  show what moving the project's old Firebase into af-hub would copy (writes nothing)
+#   migrate  move it: rules first, freeze the old database, copy, check every byte
+#   member   add / change / remove one person (email + role)
+#   rules    put platform/project-database.rules.json on the project ("all" = every project)
+#   init     start an empty database for a NEW project (email = its first editor)
+#
+# This repository is public, so its Actions logs are public: the tool never prints
+# a whole email address, and the email you type is read from the run's event file,
+# not from a logged environment variable.
+name: Project database
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'What to do'
+        type: choice
+        options: [dry-run, migrate, member, rules, init]
+        default: dry-run
+      project:
+        description: 'Project id: ac3, lex … (rules: "all" for every project)'
+        type: string
+        required: true
+      email:
+        description: 'member / init: the person''s email'
+        type: string
+        required: false
+      role:
+        description: 'member: editor (can change), gc, viewer, or remove'
+        type: choice
+        options: [editor, gc, viewer, remove]
+        default: editor
+      force:
+        description: 'migrate / init: replace data already in the new database'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-db
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install
+        working-directory: platform/migrate
+        run: npm install --omit=dev --no-audit --no-fund
+      - name: Run
+        run: node platform/migrate/run.js
+        env:
+          MODE: ${{ inputs.mode }}
+          PROJECT: ${{ inputs.project }}
+          ROLE: ${{ inputs.role }}
+          FORCE: ${{ inputs.force }}
+          HUB_SERVICE_ACCOUNT: ${{ secrets.HUB_SERVICE_ACCOUNT }}
+          AC3_SERVICE_ACCOUNT: ${{ secrets.AC3_SERVICE_ACCOUNT }}
+          LEX_SERVICE_ACCOUNT: ${{ secrets.LEX_SERVICE_ACCOUNT }}
+          CP2_SERVICE_ACCOUNT: ${{ secrets.CP2_SERVICE_ACCOUNT }}

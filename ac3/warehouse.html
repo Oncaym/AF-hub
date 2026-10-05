@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f1419">
+<title>Warehouse</title>
+
+<!-- Firebase SDK (shared with parent app via same-origin auth state) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="project-config.js"></script>
+
+<style>
+  /* ---- design tokens — copied from index.html so this drops in cleanly ---- */
+  :root {
+    --bg: #0f1419;
+    --panel: #1a2028;
+    --panel-2: #232b36;
+    --border: #2d3744;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #4493f8;
+    --accent-2: #58a6ff;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --orange: #ff8c42;
+    --purple: #bc8cff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { background: var(--bg); color: var(--text); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.45;
+    padding-bottom: env(safe-area-inset-bottom);
+    min-height: 100vh;
+  }
+  input, textarea, select, button { font-family: inherit; color: inherit; }
+
+  /* ---- sticky header ---- */
+  .wh-header {
+    position: sticky; top: 0; z-index: 20;
+    background: linear-gradient(135deg, #1a2028 0%, #232b36 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px 10px;
+  }
+  .wh-title-row {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+  }
+  .back-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 7px;
+    padding: 6px 10px 6px 8px;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer; text-decoration: none;
+  }
+  .back-btn:active { transform: scale(0.97); }
+  .wh-title-row h1 {
+    font-size: 16px; font-weight: 600; letter-spacing: -0.005em; flex: 1;
+  }
+  .conn-pill {
+    font-size: 11px; font-weight: 600;
+    padding: 3px 8px; border-radius: 999px;
+    background: var(--panel-2); color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+  .conn-pill.live   { color: var(--green);  border-color: rgba(63,185,80,.35); }
+  .conn-pill.viewer { color: var(--yellow); border-color: rgba(210,153,34,.35); }
+  .conn-pill.error  { color: var(--red);    border-color: rgba(248,81,73,.35); }
+
+  .lang-switcher {
+    display: inline-flex; gap: 4px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 7px; padding: 3px;
+  }
+  .lang-btn {
+    background: transparent; border: 0; color: var(--text-dim);
+    font-size: 11px; font-weight: 600; padding: 4px 8px;
+    border-radius: 5px; cursor: pointer;
+  }
+  .lang-btn.active { background: var(--panel-2); color: var(--text); }
+
+  /* ---- main layout ---- */
+  main {
+    padding: 16px;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .card h2 {
+    font-size: 13px; font-weight: 600;
+    color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em;
+    margin-bottom: 12px;
+  }
+
+  /* ---- photo capture ---- */
+  .photo-row {
+    display: flex; gap: 10px; margin-bottom: 14px;
+  }
+  .photo-btn {
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px;
+    background: var(--panel-2);
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 24px 12px;
+    color: var(--text-dim);
+    font-size: 14px; font-weight: 600;
+    cursor: pointer;
+    min-height: 100px;
+    text-align: center;
+  }
+  .photo-btn:active { transform: scale(0.99); }
+  .photo-btn .icon { font-size: 26px; }
+  /* preview replaces the photo-row once a photo is chosen */
+  .photo-preview {
+    position: relative;
+    border-radius: 10px;
+    border: 2px solid var(--green);
+    overflow: hidden;
+    margin-bottom: 14px;
+    cursor: pointer;
+  }
+  .photo-preview img {
+    width: 100%; height: 180px; object-fit: cover; display: block;
+  }
+  .photo-preview .retake-pill {
+    position: absolute; right: 10px; bottom: 10px;
+    background: rgba(0,0,0,0.65); color: #fff;
+    font-size: 12px; font-weight: 600;
+    padding: 5px 10px; border-radius: 999px;
+  }
+
+  /* hide native file inputs */
+  input[type="file"].hidden-file { display: none; }
+
+  /* ---- form fields ---- */
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block; font-size: 12px; font-weight: 600;
+    color: var(--text-dim); margin-bottom: 6px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .field input[type="text"],
+  .field textarea,
+  .field select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 16px;     /* >=16px so iOS doesn't auto-zoom on focus */
+    color: var(--text);
+  }
+  .field textarea { min-height: 64px; resize: vertical; }
+  .field input:focus, .field textarea:focus, .field select:focus {
+    outline: none; border-color: var(--accent);
+  }
+
+  /* ---- save button ---- */
+  .save-row { margin-top: 6px; }
+  .btn-primary {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: 0;
+    border-radius: 10px;
+    padding: 16px;
+    font-size: 16px; font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary:active { transform: scale(0.99); }
+
+  /* ---- toast ---- */
+  .toast {
+    position: fixed; left: 50%; bottom: 24px;
+    transform: translateX(-50%);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 14px; font-weight: 600;
+    z-index: 50;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    opacity: 0; transition: opacity 0.2s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  .toast.ok    { color: var(--green); border-color: rgba(63,185,80,.4); }
+  .toast.err   { color: var(--red);   border-color: rgba(248,81,73,.4); }
+
+  /* ---- recent list ---- */
+  .item {
+    display: flex; gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .item:last-child { border-bottom: 0; }
+  .item .thumb {
+    width: 56px; height: 56px;
+    border-radius: 8px;
+    background: var(--panel-2);
+    flex-shrink: 0;
+    object-fit: cover;
+    cursor: pointer;
+  }
+  .item .meta {
+    flex: 1; min-width: 0;
+  }
+  .item .meta .top {
+    display: flex; gap: 6px; align-items: baseline;
+    margin-bottom: 2px;
+  }
+  .item .meta .order {
+    font-weight: 700; font-size: 15px;
+  }
+  .item .meta .type-pill {
+    font-size: 10px; font-weight: 700;
+    padding: 2px 6px; border-radius: 999px;
+    background: var(--panel-2); color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .item .meta .type-pill.aluminum { color: var(--accent); background: rgba(68,147,248,0.12); }
+  .item .meta .type-pill.glass    { color: var(--purple); background: rgba(188,140,255,0.12); }
+  .item .meta .type-pill.other    { color: var(--orange); background: rgba(255,140,66,0.12); }
+  .item .meta .where {
+    font-size: 13px; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .item .meta .sub {
+    font-size: 11px; color: var(--text-dim);
+    margin-top: 2px;
+  }
+  .empty {
+    text-align: center; color: var(--text-dim);
+    font-size: 13px; padding: 20px;
+  }
+
+  /* ---- gate when not editor ---- */
+  .gate-msg {
+    background: rgba(210,153,34,0.10);
+    border: 1px solid rgba(210,153,34,0.35);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: var(--yellow);
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+  .gate-msg a { color: var(--accent); }
+
+  /* ---- edit modal (tap a Recent row to open) ---- */
+  .edit-modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: none; align-items: flex-end; justify-content: center;
+    z-index: 80;
+  }
+  .edit-modal.show { display: flex; }
+  .edit-modal-card {
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    border-radius: 14px 14px 0 0;
+    width: 100%; max-width: 520px;
+    max-height: 92vh; overflow-y: auto;
+    padding: 14px 16px 20px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    box-shadow: 0 -8px 28px rgba(0,0,0,0.5);
+  }
+  .edit-modal-head {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+  }
+  .edit-modal-head h3 {
+    font-size: 15px; font-weight: 600; flex: 1;
+  }
+  .icon-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 8px;
+    width: 32px; height: 32px;
+    font-size: 18px; line-height: 1;
+    cursor: pointer;
+  }
+  .edit-photo {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 14px;
+    background: var(--panel-2);
+    cursor: pointer;
+  }
+  .edit-photo img {
+    width: 100%; height: 200px; object-fit: cover; display: block;
+  }
+  .edit-photo .change-pill {
+    position: absolute; right: 10px; bottom: 10px;
+    background: rgba(0,0,0,0.65); color: #fff;
+    font-size: 12px; font-weight: 600;
+    padding: 5px 10px; border-radius: 999px;
+  }
+  .edit-footer {
+    display: flex; gap: 8px;
+    margin-top: 4px;
+  }
+  .edit-footer .btn-secondary,
+  .edit-footer .btn-danger,
+  .edit-footer .btn-primary {
+    flex: 1;
+    border: 0; border-radius: 10px;
+    padding: 14px 10px;
+    font-size: 15px; font-weight: 700;
+    cursor: pointer;
+  }
+  .edit-footer .btn-secondary {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .edit-footer .btn-danger  { background: var(--red); color: #fff; }
+  .edit-footer .btn-primary { background: var(--accent); color: #fff; }
+  .edit-footer button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .edit-footer button:active   { transform: scale(0.99); }
+
+  /* Make Recent rows look tappable */
+  .item.clickable { cursor: pointer; }
+  .item.clickable:active { background: rgba(255,255,255,0.02); }
+
+  /* ---- photo lightbox ---- */
+  .lightbox {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.92);
+    display: none; align-items: center; justify-content: center;
+    z-index: 100; padding: 20px;
+  }
+  .lightbox.show { display: flex; }
+  .lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .lightbox .close-x {
+    position: absolute; top: 16px; right: 16px;
+    background: rgba(255,255,255,0.15); color: #fff;
+    border: 0; border-radius: 50%;
+    width: 36px; height: 36px;
+    font-size: 20px; cursor: pointer;
+  }
+
+  @media (min-width: 640px) {
+    .photo-btn { min-height: 140px; }
+  }
+
+  /* ---- material tracking (M5) ---- */
+  .mat-header-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .mat-header-row h2 { margin-bottom: 0; flex: 1; }
+  .mat-add-btn {
+    background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+    padding: 7px 12px; font-size: 12px; font-weight: 700; cursor: pointer;
+  }
+  .mat-item {
+    padding: 10px 0; border-bottom: 1px solid var(--border); cursor: pointer;
+  }
+  .mat-item:last-child { border-bottom: 0; }
+  .mat-item .top { display: flex; gap: 6px; align-items: baseline; margin-bottom: 3px; }
+  .mat-reorder { display: flex; flex-direction: column; gap: 1px; align-items: center; }
+  .mat-reorder-btn {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 4px; width: 20px; height: 16px; font-size: 9px; line-height: 1;
+    padding: 0; cursor: pointer;
+  }
+  .mat-reorder-btn:disabled { opacity: 0.3; cursor: default; }
+  .mat-item .name { font-weight: 700; font-size: 14px; flex: 1; }
+  .mat-item .scope { font-size: 11px; color: var(--text-dim); }
+  .mat-item .sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  .mat-status-badge {
+    font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.03em;
+    background: var(--panel-2); color: var(--text-dim);
+  }
+  .mat-status-badge.delivered, .mat-status-badge.installed { color: var(--green); background: rgba(63,185,80,.12); }
+  .mat-status-badge.shipped { color: var(--accent); background: rgba(68,147,248,.12); }
+  .mat-status-badge.in-production, .mat-status-badge.ordered { color: var(--yellow); background: rgba(210,153,34,.12); }
+  .mat-status-badge.not-ordered { color: var(--text-dim); }
+  .mat-item.overdue .sub.expected { color: var(--red); font-weight: 700; }
+  .mat-overdue-pill {
+    font-size: 10px; font-weight: 700; color: var(--red); background: rgba(248,81,73,.12);
+    padding: 2px 7px; border-radius: 999px; text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<header class="wh-header">
+  <div class="wh-title-row">
+    <a class="back-btn" href="index.html" title="Back to tracker">←</a>
+    <h1 data-i18n="title">Warehouse — Receive</h1>
+    <span class="conn-pill" id="connPill" data-i18n="conn_init">…</span>
+  </div>
+  <div class="lang-switcher" id="langSwitcher">
+    <button class="lang-btn active" data-lang="en">ENG</button>
+    <button class="lang-btn"        data-lang="zh">中文</button>
+    <button class="lang-btn"        data-lang="ko">한국어</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- Gate notice: shown when user not in allowlist -->
+  <div class="gate-msg" id="gateMsg" style="display:none">
+    <span data-i18n="gate_msg">View only — sign in at the main app first to record items.</span>
+  </div>
+
+  <!-- Receive form -->
+  <section class="card" id="receiveCard">
+    <h2 data-i18n="form_title">New arrival</h2>
+
+    <!-- Photo capture (two entry points: camera vs album) -->
+    <div class="photo-row" id="photoRow">
+      <div class="photo-btn" id="photoBtnCamera" onclick="document.getElementById('fileCamera').click()">
+        <span class="icon">📷</span>
+        <span data-i18n="take_photo">Take photo</span>
+      </div>
+      <div class="photo-btn" id="photoBtnAlbum" onclick="document.getElementById('fileAlbum').click()">
+        <span class="icon">🖼</span>
+        <span data-i18n="from_album">From album</span>
+      </div>
+    </div>
+    <!-- Once a photo is selected, photoRow above is hidden and this preview is shown instead -->
+    <div class="photo-preview" id="photoPreview" style="display:none" onclick="resetPhoto()">
+      <img id="photoPreviewImg" alt="">
+      <span class="retake-pill" data-i18n="retake">Retake</span>
+    </div>
+    <input type="file" class="hidden-file" id="fileCamera" accept="image/*" capture="environment" onchange="onPhotoSelected(event)">
+    <input type="file" class="hidden-file" id="fileAlbum"  accept="image/*"                       onchange="onPhotoSelected(event)">
+
+    <div class="field">
+      <label data-i18n="order_no">Order #</label>
+      <input type="text" id="orderNo" autocomplete="off" autocapitalize="characters" placeholder="J03">
+    </div>
+
+    <div class="field">
+      <label data-i18n="type">Type</label>
+      <select id="typeSel" onchange="onTypeChange()">
+        <option value="aluminum" data-i18n="type_aluminum">Aluminum</option>
+        <option value="glass"    data-i18n="type_glass">Glass</option>
+        <option value="other"    data-i18n="type_other">Other</option>
+      </select>
+    </div>
+
+    <div class="field" id="typeCustomField" style="display:none">
+      <label data-i18n="type_custom">Specify type</label>
+      <input type="text" id="typeCustom" placeholder="round tube 50x3">
+    </div>
+
+    <div class="field">
+      <label data-i18n="where">Where</label>
+      <textarea id="whereTxt" placeholder="front door alu rack row 2" rows="2"></textarea>
+    </div>
+
+    <div class="save-row">
+      <button class="btn-primary" id="saveBtn" onclick="onSave()" data-i18n="save">Save</button>
+    </div>
+  </section>
+
+  <!-- Recent list -->
+  <section class="card">
+    <h2 data-i18n="recent">Recent</h2>
+    <div id="recentList">
+      <div class="empty" data-i18n="loading">Loading…</div>
+    </div>
+  </section>
+
+  <!-- Material tracking (M5): lead time + delivery status, synced to the tracker's cloud state.materials[] -->
+  <section class="card">
+    <div class="mat-header-row">
+      <h2 style="margin-bottom:0">📦 Material Tracking</h2>
+      <select id="matSortMode" onchange="setMaterialSortMode(this.value)" style="font-size:12px;background:var(--bg,#1a1f26);color:var(--text,#eee);border:1px solid var(--border,#333);border-radius:6px;padding:5px 9px;margin:0 8px">
+        <option value="expected">Sort: Expected Date</option>
+        <option value="manual">Sort: Manual order</option>
+      </select>
+      <button class="mat-add-btn" id="matAddBtn" onclick="openAddMaterial()">+ Add</button>
+    </div>
+    <div id="materialsList">
+      <div class="empty">Loading…</div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<!-- Edit modal: opens when tapping a Recent row -->
+<div class="edit-modal" id="editModal" onclick="onEditBackdropClick(event)">
+  <div class="edit-modal-card" onclick="event.stopPropagation()">
+    <div class="edit-modal-head">
+      <h3 data-i18n="edit_title">Edit item</h3>
+      <button class="icon-btn" onclick="closeEditModal()" aria-label="close">×</button>
+    </div>
+
+    <div class="edit-photo" id="editPhotoBox" onclick="document.getElementById('fileEditPhoto').click()">
+      <img id="editPhotoImg" alt="">
+      <span class="change-pill" data-i18n="change_photo">Change photo</span>
+    </div>
+    <input type="file" class="hidden-file" id="fileEditPhoto" accept="image/*" onchange="onEditPhotoSelected(event)">
+
+    <div class="field">
+      <label data-i18n="order_no">Order #</label>
+      <input type="text" id="editOrderNo" autocomplete="off" autocapitalize="characters">
+    </div>
+
+    <div class="field">
+      <label data-i18n="type">Type</label>
+      <select id="editTypeSel" onchange="onEditTypeChange()">
+        <option value="aluminum" data-i18n="type_aluminum">Aluminum</option>
+        <option value="glass"    data-i18n="type_glass">Glass</option>
+        <option value="other"    data-i18n="type_other">Other</option>
+      </select>
+    </div>
+
+    <div class="field" id="editTypeCustomField" style="display:none">
+      <label data-i18n="type_custom">Specify type</label>
+      <input type="text" id="editTypeCustom">
+    </div>
+
+    <div class="field">
+      <label data-i18n="where">Where</label>
+      <textarea id="editWhereTxt" rows="2"></textarea>
+    </div>
+
+    <div class="edit-footer">
+      <button class="btn-danger"    id="deleteBtn" onclick="onDeleteItem()" data-i18n="delete">Delete</button>
+      <button class="btn-secondary" onclick="closeEditModal()" data-i18n="cancel">Cancel</button>
+      <button class="btn-primary"   id="updateBtn" onclick="onUpdateItem()" data-i18n="update">Update</button>
+    </div>
+  </div>
+</div>
+
+<!-- Material add/edit modal -->
+<div class="edit-modal" id="materialModal" onclick="onMaterialBackdropClick(event)">
+  <div class="edit-modal-card" onclick="event.stopPropagation()">
+    <div class="edit-modal-head">
+      <h3 id="materialModalTitle">Add Material</h3>
+      <button class="icon-btn" onclick="closeMaterialModal()" aria-label="close">×</button>
+    </div>
+
+    <div class="field">
+      <label>Material</label>
+      <input type="text" id="mat-material" placeholder="e.g. 750XT extrusions">
+    </div>
+    <div class="field">
+      <label>Scope</label>
+      <input type="text" id="mat-scope" placeholder="e.g. Storefront / Curtain wall / Glazing">
+    </div>
+    <div class="field">
+      <label>Supplier</label>
+      <input type="text" id="mat-supplier" placeholder="e.g. Alucoil">
+    </div>
+    <div class="field">
+      <label>PO Number</label>
+      <input type="text" id="mat-po" placeholder="e.g. PO-1042">
+    </div>
+    <div class="field">
+      <label>Quantity</label>
+      <input type="text" id="mat-qty" placeholder="e.g. 240 pcs / 12 crates">
+    </div>
+    <div class="field">
+      <label>Lead time (weeks)</label>
+      <input type="text" id="mat-leadtime" placeholder="e.g. 8">
+    </div>
+    <div class="field">
+      <label>Ordered date</label>
+      <input type="date" id="mat-ordered">
+    </div>
+    <div class="field">
+      <label>Expected date</label>
+      <input type="date" id="mat-expected">
+    </div>
+    <div class="field">
+      <label>Status</label>
+      <select id="mat-status">
+        <option value="not-ordered">Not ordered</option>
+        <option value="ordered">Ordered</option>
+        <option value="in-production">In production</option>
+        <option value="shipped">Shipped</option>
+        <option value="delivered">Delivered</option>
+        <option value="installed">Installed</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Delivered date</label>
+      <input type="date" id="mat-delivered">
+    </div>
+    <div class="field">
+      <label>Note</label>
+      <textarea id="mat-note" rows="2"></textarea>
+    </div>
+
+    <div class="edit-footer">
+      <button class="btn-danger"    id="matDeleteBtn" onclick="onDeleteMaterial()" style="display:none">Delete</button>
+      <button class="btn-secondary" onclick="closeMaterialModal()">Cancel</button>
+      <button class="btn-primary"   id="matSaveBtn" onclick="onSaveMaterial()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="close-x" onclick="closeLightbox()">×</button>
+  <img id="lightboxImg" alt="">
+</div>
+
+<script>
+/* =========================================================================
+ *  Warehouse — Stage 1: Receive only
+ *  Pattern mirrors friday-triage.html (separate page, same Firebase project).
+ *  TODO[backend]: when Stage 2 lands, this file will also handle "Ship".
+ * ======================================================================= */
+
+// ---------- i18n ----------
+const I18N = {
+  en: {
+    title: "Warehouse — Receive",
+    conn_init: "…",
+    conn_live: "Live",
+    conn_viewer: "View only",
+    conn_signin: "Sign in to sync",
+    conn_local: "Offline",
+    gate_msg: "View only — sign in at the main app first to record items.",
+    form_title: "New arrival",
+    take_photo: "Take photo",
+    from_album: "From album",
+    retake: "Retake",
+    order_no: "Order #",
+    type: "Type",
+    type_aluminum: "Aluminum",
+    type_glass: "Glass",
+    type_other: "Other",
+    type_custom: "Specify type",
+    where: "Where",
+    save: "Save",
+    saving: "Saving…",
+    saved: "Saved ✓",
+    err_no_photo: "Take a photo first",
+    err_no_where: "Where? — fill location",
+    err_upload: "Upload failed",
+    err_save: "Save failed",
+    recent: "Recent",
+    loading: "Loading…",
+    empty: "No records yet.",
+    by: "by",
+    ago_s: "{n}s ago",
+    ago_m: "{n}m ago",
+    ago_h: "{n}h ago",
+    ago_d: "{n}d ago",
+    just_now: "just now",
+    // edit / delete
+    edit_title: "Edit item",
+    change_photo: "Change photo",
+    update: "Update",
+    updating: "Updating…",
+    updated: "Updated ✓",
+    delete: "Delete",
+    delete_confirm: "Delete this item permanently? Photo will be removed too.",
+    deleting: "Deleting…",
+    deleted: "Deleted ✓",
+    cancel: "Cancel",
+    err_update: "Update failed",
+    err_delete: "Delete failed",
+  },
+  zh: {
+    title: "仓库 — 来货",
+    conn_init: "…",
+    conn_live: "已连接",
+    conn_viewer: "只读",
+    conn_signin: "请先登录主应用",
+    conn_local: "离线",
+    gate_msg: "只读模式 — 请先在主应用登录后再录入。",
+    form_title: "新到货",
+    take_photo: "拍照",
+    from_album: "从相册",
+    retake: "重选",
+    order_no: "订单号",
+    type: "类型",
+    type_aluminum: "铝材",
+    type_glass: "玻璃",
+    type_other: "其他",
+    type_custom: "填写类型",
+    where: "位置",
+    save: "保存",
+    saving: "保存中…",
+    saved: "已保存 ✓",
+    err_no_photo: "先拍一张照片",
+    err_no_where: "请填位置",
+    err_upload: "图片上传失败",
+    err_save: "保存失败",
+    recent: "最近记录",
+    loading: "加载中…",
+    empty: "暂无记录。",
+    by: "·",
+    ago_s: "{n}秒前",
+    ago_m: "{n}分前",
+    ago_h: "{n}小时前",
+    ago_d: "{n}天前",
+    just_now: "刚刚",
+    // 编辑 / 删除
+    edit_title: "编辑记录",
+    change_photo: "换照片",
+    update: "更新",
+    updating: "更新中…",
+    updated: "已更新 ✓",
+    delete: "删除",
+    delete_confirm: "确认删除这条记录？照片也会一起清掉。",
+    deleting: "删除中…",
+    deleted: "已删除 ✓",
+    cancel: "取消",
+    err_update: "更新失败",
+    err_delete: "删除失败",
+  },
+  ko: {
+    title: "창고 — 입고",
+    conn_init: "…",
+    conn_live: "연결됨",
+    conn_viewer: "읽기 전용",
+    conn_signin: "메인 앱에서 로그인하세요",
+    conn_local: "오프라인",
+    gate_msg: "읽기 전용 — 메인 앱에서 먼저 로그인하세요.",
+    form_title: "신규 입고",
+    take_photo: "사진 찍기",
+    from_album: "앨범에서",
+    retake: "다시 선택",
+    order_no: "주문번호",
+    type: "종류",
+    type_aluminum: "알루미늄",
+    type_glass: "유리",
+    type_other: "기타",
+    type_custom: "종류 입력",
+    where: "위치",
+    save: "저장",
+    saving: "저장 중…",
+    saved: "저장됨 ✓",
+    err_no_photo: "먼저 사진을 찍으세요",
+    err_no_where: "위치를 입력하세요",
+    err_upload: "업로드 실패",
+    err_save: "저장 실패",
+    recent: "최근",
+    loading: "로딩 중…",
+    empty: "기록 없음.",
+    by: "·",
+    ago_s: "{n}초 전",
+    ago_m: "{n}분 전",
+    ago_h: "{n}시간 전",
+    ago_d: "{n}일 전",
+    just_now: "방금",
+    // 편집 / 삭제
+    edit_title: "기록 편집",
+    change_photo: "사진 변경",
+    update: "업데이트",
+    updating: "업데이트 중…",
+    updated: "업데이트됨 ✓",
+    delete: "삭제",
+    delete_confirm: "이 기록을 영구 삭제하시겠습니까? 사진도 함께 삭제됩니다.",
+    deleting: "삭제 중…",
+    deleted: "삭제됨 ✓",
+    cancel: "취소",
+    err_update: "업데이트 실패",
+    err_delete: "삭제 실패",
+  },
+};
+
+let lang = localStorage.getItem("wh.lang") || "en";
+
+function t(key, vars) {
+  let s = (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key;
+  if (vars) for (const k in vars) s = s.replace("{" + k + "}", vars[k]);
+  return s;
+}
+
+function applyI18n() {
+  document.title = t("title") + " — " + ((window.PROJECT || {}).name || "");
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const key = el.getAttribute("data-i18n");
+    el.textContent = t(key);
+  });
+  // Update <option> labels in any <select> (covers Receive form + Edit modal)
+  document.querySelectorAll("select option[data-i18n]").forEach(opt => {
+    const key = opt.getAttribute("data-i18n");
+    if (key) opt.textContent = t(key);
+  });
+  // Re-render recent so timestamps follow the language
+  renderRecent();
+  // Refresh connection pill label
+  setConn(currentConnState, true);
+}
+
+document.querySelectorAll(".lang-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    lang = btn.dataset.lang;
+    localStorage.setItem("wh.lang", lang);
+    document.querySelectorAll(".lang-btn").forEach(b => b.classList.toggle("active", b === btn));
+    applyI18n();
+  });
+});
+// Set active lang button to remembered choice
+document.querySelectorAll(".lang-btn").forEach(b => b.classList.toggle("active", b.dataset.lang === lang));
+
+// ---------- Firebase init ----------
+if (!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+const fbAuth    = firebase.auth();
+const fbDb      = firebase.database();
+const fbStorage = firebase.storage();
+// AF Hub: this project's files live under p/<project id>/ in the shared bucket.
+const WH_PATH = "p/" + String((window.PROJECT || {}).hubId || "unknown").replace(/[^a-z0-9_-]/gi, "") + "/warehouse/";
+
+let currentUser = null;
+let isEditor    = false;
+let currentConnState = "init"; // init | signin | viewer | live | error
+
+function setConn(state, suppressLog) {
+  currentConnState = state;
+  const el = document.getElementById("connPill");
+  el.classList.remove("live", "viewer", "error");
+  let label = "";
+  if      (state === "live")   { el.classList.add("live");   label = t("conn_live");   }
+  else if (state === "viewer") { el.classList.add("viewer"); label = t("conn_viewer"); }
+  else if (state === "signin") { el.classList.add("viewer"); label = t("conn_signin"); }
+  else if (state === "error")  { el.classList.add("error");  label = "Error"; }
+  else                         {                              label = t("conn_init");  }
+  el.textContent = label;
+}
+
+function showGate(show) {
+  document.getElementById("gateMsg").style.display = show ? "block" : "none";
+  document.getElementById("saveBtn").disabled = show;
+}
+
+fbAuth.onAuthStateChanged(user => {
+  currentUser = user;
+  if (!user) {
+    isEditor = false;
+    setConn("signin");
+    showGate(true);
+    subscribeRecent(); // still allow read attempt (rules permit auth!=null read, but unauth gets nothing)
+    subscribeMaterials();
+    return;
+  }
+  // AF Hub: the database must belong to this page's project before anything else.
+  const wantProject = (window.PROJECT || {}).hubId;
+  fbDb.ref("meta/project").once("value").then(m => {
+    if (m.val() !== wantProject) throw Object.assign(new Error('project mismatch'), { mismatch: m.val() });
+  }).then(() => {
+  // Allowlist check (mirrors friday-triage.html pattern)
+  const emailKey = user.email.replace(/\./g, ",");
+  return fbDb.ref("allowlist/" + emailKey).once("value")
+    .then(snap => {
+      isEditor = snap.exists();
+      setConn(isEditor ? "live" : "viewer");
+      showGate(!isEditor);
+      subscribeRecent();
+      subscribeMaterials();
+    })
+    .catch(err => {
+      console.warn("[warehouse] allowlist check failed:", err);
+      // Be permissive on rule errors: assume editor so keeper isn't locked out by a transient.
+      // (The database rules still refuse any write by a non-editor.)
+      isEditor = true;
+      setConn("live");
+      showGate(false);
+      subscribeRecent();
+      subscribeMaterials();
+    });
+  }).catch(err => {
+    // Wrong database for this page, or no access to this project: stop here.
+    isEditor = false;
+    setConn("error");
+    showGate(true);
+    const g = document.getElementById("gateMsg");
+    if (g) g.textContent = err && err.mismatch !== undefined
+      ? 'Stopped: this page is "' + wantProject + '" but its database is "' + err.mismatch + '". Nothing will be saved — tell Leo.'
+      : 'No access to this project with ' + user.email + '. Ask Leo or the PM to add you.';
+    console.warn("[warehouse] project check failed:", err);
+  });
+});
+
+// ---------- Photo capture + compression ----------
+let pendingPhotoBlob   = null; // JPEG blob ready to upload
+let pendingPreviewUrl  = null; // ObjectURL to revoke on reset
+
+async function onPhotoSelected(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = ""; // allow re-selecting same file
+  if (!file) return;
+  try {
+    const blob = await compressImage(file, 1600, 0.85);
+    pendingPhotoBlob = blob;
+    if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl);
+    pendingPreviewUrl = URL.createObjectURL(blob);
+    document.getElementById("photoPreviewImg").src = pendingPreviewUrl;
+    document.getElementById("photoRow").style.display = "none";
+    document.getElementById("photoPreview").style.display = "block";
+  } catch (err) {
+    console.error("[warehouse] image compress failed:", err);
+    toast(t("err_upload"), "err");
+  }
+}
+
+/* Tap preview to discard the photo and reveal the camera/album buttons again. */
+function resetPhoto() {
+  pendingPhotoBlob = null;
+  if (pendingPreviewUrl) { URL.revokeObjectURL(pendingPreviewUrl); pendingPreviewUrl = null; }
+  document.getElementById("photoPreviewImg").src = "";
+  document.getElementById("photoPreview").style.display = "none";
+  document.getElementById("photoRow").style.display = "flex";
+}
+
+/* Resize image so the long edge is at most maxDim px, then export as JPEG. */
+function compressImage(file, maxDim, quality) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width: w, height: h } = img;
+      if (w > maxDim || h > maxDim) {
+        if (w >= h) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else         { w = Math.round(w * maxDim / h); h = maxDim; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("toBlob null")), "image/jpeg", quality);
+    };
+    img.onerror = () => reject(new Error("image load failed"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+function onTypeChange() {
+  const v = document.getElementById("typeSel").value;
+  document.getElementById("typeCustomField").style.display = (v === "other") ? "block" : "none";
+}
+
+// ---------- Save flow ----------
+async function onSave() {
+  if (!isEditor) { toast(t("gate_msg"), "err"); return; }
+  if (!pendingPhotoBlob) { toast(t("err_no_photo"), "err"); return; }
+  const orderNo    = document.getElementById("orderNo").value.trim();
+  const type       = document.getElementById("typeSel").value;
+  const typeCustom = document.getElementById("typeCustom").value.trim();
+  const where      = document.getElementById("whereTxt").value.trim();
+  if (!where) { toast(t("err_no_where"), "err"); return; }
+
+  const btn = document.getElementById("saveBtn");
+  btn.disabled = true;
+  btn.textContent = t("saving");
+
+  try {
+    // 1) Reserve an item id (so Storage path & DB key match)
+    const itemRef = fbDb.ref("warehouse/items").push();
+    const itemId  = itemRef.key;
+
+    // 2) Upload photo
+    const photoRef = fbStorage.ref(WH_PATH + itemId + "/photo.jpg");
+    await photoRef.put(pendingPhotoBlob, { contentType: "image/jpeg" });
+    const photoUrl = await photoRef.getDownloadURL();
+
+    // 3) Write DB record
+    await itemRef.set({
+      orderNo:    orderNo || null,
+      type,
+      typeCustom: type === "other" ? (typeCustom || null) : null,
+      where,
+      photoUrl,
+      receivedAt: firebase.database.ServerValue.TIMESTAMP,
+      receivedBy: currentUser ? currentUser.email : null,
+      status:     "in_stock",
+    });
+
+    // 4) Reset form
+    resetPhoto();
+    document.getElementById("orderNo").value = "";
+    document.getElementById("whereTxt").value = "";
+    document.getElementById("typeCustom").value = "";
+    // keep type select where it was — usually same type in a batch
+    toast(t("saved"), "ok");
+  } catch (err) {
+    console.error("[warehouse] save failed:", err);
+    toast(t("err_save") + ": " + (err.message || err), "err");
+  } finally {
+    btn.disabled = !isEditor;
+    btn.textContent = t("save");
+  }
+}
+
+// ---------- Recent list ----------
+let recentItems = []; // [{id, ...}] sorted newest-first
+
+function subscribeRecent() {
+  // Live subscription to last 20 by receivedAt.
+  // Note: rules need .indexOn ['receivedAt'] under warehouse/items for this to be efficient.
+  const q = fbDb.ref("warehouse/items").orderByChild("receivedAt").limitToLast(20);
+  q.on("value", snap => {
+    const arr = [];
+    snap.forEach(child => {
+      arr.push(Object.assign({ id: child.key }, child.val()));
+    });
+    arr.sort((a, b) => (b.receivedAt || 0) - (a.receivedAt || 0));
+    recentItems = arr;
+    renderRecent();
+  }, err => {
+    console.warn("[warehouse] recent subscribe failed:", err);
+    document.getElementById("recentList").innerHTML =
+      `<div class="empty">${escapeHtml(t("empty"))}</div>`;
+  });
+}
+
+function renderRecent() {
+  const list = document.getElementById("recentList");
+  if (!recentItems.length) {
+    list.innerHTML = `<div class="empty">${escapeHtml(t("empty"))}</div>`;
+    return;
+  }
+  list.innerHTML = recentItems.map(it => {
+    const typeKey = (it.type === "aluminum" || it.type === "glass") ? it.type : "other";
+    const typeLabel = (typeKey === "other" && it.typeCustom) ? it.typeCustom : t("type_" + typeKey);
+    const order = it.orderNo ? escapeHtml(it.orderNo) : "—";
+    const where = escapeHtml(it.where || "");
+    const when  = formatAgo(it.receivedAt);
+    const byTxt = it.receivedBy ? `${t("by")} ${escapeHtml(shortenEmail(it.receivedBy))}` : "";
+    const photoUrl = escapeAttr(it.photoUrl || "");
+    const idAttr = escapeAttr(it.id);
+    return `
+      <div class="item clickable" data-id="${idAttr}" onclick="openEditModal('${idAttr}')">
+        ${photoUrl ? `<img class="thumb" src="${photoUrl}" alt="">`
+                   : `<div class="thumb"></div>`}
+        <div class="meta">
+          <div class="top">
+            <span class="order">${order}</span>
+            <span class="type-pill ${typeKey}">${escapeHtml(typeLabel)}</span>
+          </div>
+          <div class="where" title="${where}">${where}</div>
+          <div class="sub">${when} ${byTxt}</div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function formatAgo(ts) {
+  if (!ts) return "";
+  const diff = Date.now() - ts;
+  if (diff < 30 * 1000) return t("just_now");
+  const s = Math.floor(diff / 1000);
+  if (s < 60)        return t("ago_s", { n: s });
+  const m = Math.floor(s / 60);
+  if (m < 60)        return t("ago_m", { n: m });
+  const h = Math.floor(m / 60);
+  if (h < 24)        return t("ago_h", { n: h });
+  const d = Math.floor(h / 24);
+  return t("ago_d", { n: d });
+}
+
+function shortenEmail(e) {
+  if (!e) return "";
+  return e.split("@")[0];
+}
+
+// ---------- Material tracking (M5) ----------
+// Lives in the SAME Firebase project's /state doc (state.materials[]) as the
+// main tracker (app.js), so it shares one source of truth. We read the
+// "state/materials" subtree directly (cheap, real-time), but WRITES fetch the
+// full /state doc first and stamp a fresh _clientId — same pattern as
+// chat.html confirmPreview() (see M6) — so an open tracker tab's cloud-sync.js
+// self-echo filter doesn't swallow warehouse-originated changes.
+let materialsList = []; // [{id, material, scope, supplier, poNumber, qty, leadTimeWeeks,
+                         //   orderedDate, expectedDate, status, deliveredDate, note}]
+const MAT_STATUS_LABEL = {
+  "not-ordered": "Not ordered", "ordered": "Ordered", "in-production": "In production",
+  "shipped": "Shipped", "delivered": "Delivered", "installed": "Installed",
+};
+let editingMaterialId = null;
+// Manual reordering (Leo, 2026-07-17): default stays "Expected Date" (existing behavior,
+// no regression); switching to "Manual order" shows ↑/↓ controls and renders in the stored
+// array order (materialsList as received from Firebase) instead of re-sorting by date — the
+// two modes would otherwise fight (any manual reorder would just get sorted away again).
+// The mode itself is a per-browser view preference (localStorage), not synced state.
+let _matSortMode = localStorage.getItem('mat_sort_mode') || 'expected';
+function setMaterialSortMode(v) {
+  _matSortMode = (v === 'manual') ? 'manual' : 'expected';
+  localStorage.setItem('mat_sort_mode', _matSortMode);
+  renderMaterials();
+}
+
+function subscribeMaterials() {
+  fbDb.ref("state/materials").on("value", snap => {
+    const v = snap.val();
+    materialsList = Array.isArray(v) ? v.filter(Boolean) : Object.values(v || {});
+    renderMaterials();
+  }, err => {
+    console.warn("[warehouse] materials subscribe failed:", err);
+    document.getElementById("materialsList").innerHTML = `<div class="empty">Could not load materials.</div>`;
+  });
+}
+
+function isOverdue(m) {
+  if (!m.expectedDate) return false;
+  if (m.status === "delivered" || m.status === "installed") return false;
+  return m.expectedDate < new Date().toISOString().slice(0, 10);
+}
+
+function renderMaterials() {
+  const list = document.getElementById("materialsList");
+  const sortSel = document.getElementById("matSortMode");
+  if (sortSel) sortSel.value = _matSortMode;
+  if (!materialsList.length) {
+    list.innerHTML = `<div class="empty">No materials tracked yet.</div>`;
+    return;
+  }
+  const manual = _matSortMode === "manual";
+  const ordered = manual ? materialsList.slice() : materialsList.slice().sort((a, b) => (a.expectedDate || "9999").localeCompare(b.expectedDate || "9999"));
+  list.innerHTML = ordered.map((m, p) => {
+    const overdue = isOverdue(m);
+    const statusLabel = MAT_STATUS_LABEL[m.status] || m.status || "";
+    const bits = [];
+    if (m.supplier) bits.push(escapeHtml(m.supplier));
+    if (m.poNumber) bits.push("PO " + escapeHtml(m.poNumber));
+    if (m.qty) bits.push(escapeHtml(m.qty));
+    const expectedTxt = m.expectedDate ? ("Expected " + escapeHtml(m.expectedDate)) : "";
+    const reorder = manual ? `
+        <div class="mat-reorder" onclick="event.stopPropagation()">
+          <button class="mat-reorder-btn" title="Move up" ${p === 0 ? "disabled" : ""} onclick="moveMaterial('${escapeAttr(m.id)}',-1)">&#9650;</button>
+          <button class="mat-reorder-btn" title="Move down" ${p === ordered.length - 1 ? "disabled" : ""} onclick="moveMaterial('${escapeAttr(m.id)}',1)">&#9660;</button>
+        </div>` : "";
+    return `
+      <div class="mat-item${overdue ? " overdue" : ""}" onclick="editMaterial('${escapeAttr(m.id)}')">
+        <div class="top">
+          ${reorder}
+          <span class="name">${escapeHtml(m.material || "(unnamed)")}</span>
+          <span class="mat-status-badge ${escapeAttr(m.status || "not-ordered")}">${escapeHtml(statusLabel)}</span>
+          ${overdue ? '<span class="mat-overdue-pill">Overdue</span>' : ""}
+        </div>
+        ${m.scope ? `<div class="scope">${escapeHtml(m.scope)}</div>` : ""}
+        <div class="sub">${bits.join(" · ")}</div>
+        ${expectedTxt ? `<div class="sub expected">${expectedTxt}</div>` : ""}
+      </div>`;
+  }).join("");
+}
+// Manual reordering (Leo, 2026-07-17): swaps this material with its stored-order neighbor and
+// pushes the full reordered array — same cloud-write pattern as add/edit/delete (pushMaterials
+// fetches the live /state doc, splices in materials, stamps a fresh _clientId so an open
+// tracker tab's self-echo filter doesn't swallow the change; see M6/M5 in memory.md).
+async function moveMaterial(id, dir) {
+  if (!isEditor) { toast(t("gate_msg"), "err"); return; }
+  const pos = materialsList.findIndex(x => x.id === id);
+  const swapPos = pos + dir;
+  if (pos < 0 || swapPos < 0 || swapPos >= materialsList.length) return;
+  const next = materialsList.slice();
+  const tmp = next[pos]; next[pos] = next[swapPos]; next[swapPos] = tmp;
+  try {
+    await pushMaterials(next, "Warehouse: reordered materials");
+  } catch (err) {
+    console.error("[warehouse] material reorder failed:", err);
+    toast(t("err_save") + ": " + (err.message || err), "err");
+  }
+}
+
+function openAddMaterial() {
+  if (!isEditor) { toast(t("gate_msg"), "err"); return; }
+  editingMaterialId = null;
+  document.getElementById("materialModalTitle").textContent = "Add Material";
+  ["mat-material","mat-scope","mat-supplier","mat-po","mat-qty","mat-leadtime","mat-ordered","mat-expected","mat-delivered","mat-note"]
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
+  document.getElementById("mat-status").value = "not-ordered";
+  document.getElementById("matDeleteBtn").style.display = "none";
+  document.getElementById("materialModal").classList.add("show");
+}
+
+function editMaterial(id) {
+  const m = materialsList.find(x => x.id === id);
+  if (!m) return;
+  editingMaterialId = id;
+  document.getElementById("materialModalTitle").textContent = "Edit Material";
+  document.getElementById("mat-material").value = m.material || "";
+  document.getElementById("mat-scope").value = m.scope || "";
+  document.getElementById("mat-supplier").value = m.supplier || "";
+  document.getElementById("mat-po").value = m.poNumber || "";
+  document.getElementById("mat-qty").value = m.qty || "";
+  document.getElementById("mat-leadtime").value = m.leadTimeWeeks || "";
+  document.getElementById("mat-ordered").value = m.orderedDate || "";
+  document.getElementById("mat-expected").value = m.expectedDate || "";
+  document.getElementById("mat-status").value = m.status || "not-ordered";
+  document.getElementById("mat-delivered").value = m.deliveredDate || "";
+  document.getElementById("mat-note").value = m.note || "";
+  document.getElementById("matDeleteBtn").style.display = isEditor ? "" : "none";
+  document.getElementById("materialModal").classList.add("show");
+}
+
+function closeMaterialModal() {
+  document.getElementById("materialModal").classList.remove("show");
+  editingMaterialId = null;
+}
+
+function onMaterialBackdropClick(ev) {
+  if (ev.target.id === "materialModal") closeMaterialModal();
+}
+
+// Fetch the full /state doc, splice in the updated materials array, and write it
+// back with a fresh _clientId (mirrors chat.html confirmPreview — see M6 fix).
+async function pushMaterials(nextMaterials, desc) {
+  const snap = await fbDb.ref("state").once("value");
+  const live = snap.val() || {};
+  const next = JSON.parse(JSON.stringify(live));
+  next.materials = nextMaterials;
+  next.updatedAt = new Date().toISOString();
+  const payload = Object.assign({}, next, {
+    _ts: firebase.database.ServerValue.TIMESTAMP,
+    _by: currentUser ? currentUser.email : "warehouse",
+    _desc: desc || "Warehouse: updated materials",
+    _clientId: "wh-" + Math.random().toString(36).slice(2),
+    _project: (window.PROJECT || {}).hubId,   // checked against /meta/project by the rules
+  });
+  await fbDb.ref("state").set(payload);
+}
+
+async function onSaveMaterial() {
+  if (!isEditor) { toast(t("gate_msg"), "err"); return; }
+  const entry = {
+    material: document.getElementById("mat-material").value.trim(),
+    scope: document.getElementById("mat-scope").value.trim(),
+    supplier: document.getElementById("mat-supplier").value.trim(),
+    poNumber: document.getElementById("mat-po").value.trim(),
+    qty: document.getElementById("mat-qty").value.trim(),
+    leadTimeWeeks: document.getElementById("mat-leadtime").value.trim(),
+    orderedDate: document.getElementById("mat-ordered").value,
+    expectedDate: document.getElementById("mat-expected").value,
+    status: document.getElementById("mat-status").value,
+    deliveredDate: document.getElementById("mat-delivered").value,
+    note: document.getElementById("mat-note").value.trim(),
+  };
+  if (!entry.material) { toast("Enter a material name", "err"); return; }
+  const btn = document.getElementById("matSaveBtn");
+  btn.disabled = true; btn.textContent = "Saving…";
+  try {
+    const next = materialsList.slice();
+    if (editingMaterialId) {
+      entry.id = editingMaterialId;
+      const idx = next.findIndex(x => x.id === editingMaterialId);
+      if (idx >= 0) next[idx] = entry; else next.push(entry);
+    } else {
+      entry.id = "mat_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      next.push(entry);
+    }
+    await pushMaterials(next, "Warehouse: " + (editingMaterialId ? "updated" : "added") + " material " + entry.material);
+    toast(t("saved"), "ok");
+    closeMaterialModal();
+  } catch (err) {
+    console.error("[warehouse] material save failed:", err);
+    toast(t("err_save") + ": " + (err.message || err), "err");
+  } finally {
+    btn.disabled = false; btn.textContent = "Save";
+  }
+}
+
+async function onDeleteMaterial() {
+  if (!editingMaterialId) return;
+  if (!isEditor) { toast(t("gate_msg"), "err"); return; }
+  if (!confirm("Delete this material record?")) return;
+  const btn = document.getElementById("matDeleteBtn");
+  btn.disabled = true; btn.textContent = t("deleting");
+  try {
+    const next = materialsList.filter(x => x.id !== editingMaterialId);
+    await pushMaterials(next, "Warehouse: removed material");
+    toast(t("deleted"), "ok");
+    closeMaterialModal();
+  } catch (err) {
+    console.error("[warehouse] material delete failed:", err);
+    toast(t("err_delete") + ": " + (err.message || err), "err");
+  } finally {
+    btn.disabled = false; btn.textContent = "Delete";
+  }
+}
+
+// ---------- Edit modal (tap a Recent row to edit / delete) ----------
+let editingItemId       = null;
+let editingItemSnapshot = null;   // the record as it was when modal opened (for old photoUrl on update)
+let editPendingPhotoBlob = null;  // non-null = user picked a new photo
+let editPendingPreviewUrl = null;
+
+function openEditModal(itemId) {
+  if (!isEditor) { toast(t("gate_msg"), "err"); return; }
+  const it = recentItems.find(x => x.id === itemId);
+  if (!it) return;
+  editingItemId        = itemId;
+  editingItemSnapshot  = it;
+  editPendingPhotoBlob = null;
+  if (editPendingPreviewUrl) { URL.revokeObjectURL(editPendingPreviewUrl); editPendingPreviewUrl = null; }
+
+  // Populate fields from the snapshot
+  document.getElementById("editOrderNo").value   = it.orderNo    || "";
+  const typeVal = (it.type === "aluminum" || it.type === "glass") ? it.type : "other";
+  document.getElementById("editTypeSel").value   = typeVal;
+  document.getElementById("editTypeCustom").value = it.typeCustom || "";
+  document.getElementById("editTypeCustomField").style.display = (typeVal === "other") ? "block" : "none";
+  document.getElementById("editWhereTxt").value  = it.where      || "";
+  document.getElementById("editPhotoImg").src    = it.photoUrl   || "";
+
+  document.getElementById("updateBtn").disabled = false;
+  document.getElementById("deleteBtn").disabled = false;
+  document.getElementById("updateBtn").textContent = t("update");
+  document.getElementById("deleteBtn").textContent = t("delete");
+
+  document.getElementById("editModal").classList.add("show");
+}
+
+function closeEditModal() {
+  document.getElementById("editModal").classList.remove("show");
+  editingItemId        = null;
+  editingItemSnapshot  = null;
+  editPendingPhotoBlob = null;
+  if (editPendingPreviewUrl) { URL.revokeObjectURL(editPendingPreviewUrl); editPendingPreviewUrl = null; }
+}
+
+function onEditBackdropClick(ev) {
+  // Click outside the card closes the modal
+  if (ev.target.id === "editModal") closeEditModal();
+}
+
+function onEditTypeChange() {
+  const v = document.getElementById("editTypeSel").value;
+  document.getElementById("editTypeCustomField").style.display = (v === "other") ? "block" : "none";
+}
+
+async function onEditPhotoSelected(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = "";
+  if (!file) return;
+  try {
+    const blob = await compressImage(file, 1600, 0.85);
+    editPendingPhotoBlob = blob;
+    if (editPendingPreviewUrl) URL.revokeObjectURL(editPendingPreviewUrl);
+    editPendingPreviewUrl = URL.createObjectURL(blob);
+    document.getElementById("editPhotoImg").src = editPendingPreviewUrl;
+  } catch (err) {
+    console.error("[warehouse] edit photo compress failed:", err);
+    toast(t("err_upload"), "err");
+  }
+}
+
+async function onUpdateItem() {
+  if (!editingItemId || !editingItemSnapshot) return;
+  if (!isEditor) { toast(t("gate_msg"), "err"); return; }
+  const where = document.getElementById("editWhereTxt").value.trim();
+  if (!where) { toast(t("err_no_where"), "err"); return; }
+
+  const updateBtn = document.getElementById("updateBtn");
+  const deleteBtn = document.getElementById("deleteBtn");
+  updateBtn.disabled = true; deleteBtn.disabled = true;
+  updateBtn.textContent = t("updating");
+
+  const itemId  = editingItemId;
+  const prevPhotoUrl = editingItemSnapshot.photoUrl || "";
+
+  try {
+    let photoUrl = prevPhotoUrl;
+
+    // If a new photo was picked, upload it (overwrites warehouse/<id>/photo.jpg)
+    if (editPendingPhotoBlob) {
+      const photoRef = fbStorage.ref(WH_PATH + itemId + "/photo.jpg");
+      await photoRef.put(editPendingPhotoBlob, { contentType: "image/jpeg" });
+      photoUrl = await photoRef.getDownloadURL();
+    }
+
+    const type       = document.getElementById("editTypeSel").value;
+    const typeCustom = document.getElementById("editTypeCustom").value.trim();
+    const orderNo    = document.getElementById("editOrderNo").value.trim();
+
+    // Use update() to PATCH the existing record. Required fields stay populated
+    // from the original write, so .validate's hasChildren(...) still passes.
+    await fbDb.ref("warehouse/items/" + itemId).update({
+      orderNo:    orderNo || null,
+      type,
+      typeCustom: type === "other" ? (typeCustom || null) : null,
+      where,
+      photoUrl,
+      // receivedAt / receivedBy / status intentionally NOT overwritten — keep history
+    });
+
+    toast(t("updated"), "ok");
+    closeEditModal();
+  } catch (err) {
+    console.error("[warehouse] update failed:", err);
+    toast(t("err_update") + ": " + (err.message || err), "err");
+    updateBtn.disabled = false; deleteBtn.disabled = false;
+    updateBtn.textContent = t("update");
+  }
+}
+
+async function onDeleteItem() {
+  if (!editingItemId) return;
+  if (!isEditor) { toast(t("gate_msg"), "err"); return; }
+  if (!confirm(t("delete_confirm"))) return;
+
+  const updateBtn = document.getElementById("updateBtn");
+  const deleteBtn = document.getElementById("deleteBtn");
+  updateBtn.disabled = true; deleteBtn.disabled = true;
+  deleteBtn.textContent = t("deleting");
+
+  const itemId = editingItemId;
+  try {
+    // 1) Wipe Storage folder. Use listAll() so we catch any extra files
+    //    (current code only uploads photo.jpg, but be defensive).
+    try {
+      const folderRef = fbStorage.ref(WH_PATH + itemId);
+      const list = await folderRef.listAll();
+      await Promise.all(list.items.map(f => f.delete().catch(e => {
+        console.warn("[warehouse] storage delete child failed:", f.fullPath, e);
+      })));
+    } catch (e) {
+      // Don't block DB delete on Storage errors — orphan photos are harmless.
+      console.warn("[warehouse] storage cleanup failed (continuing):", e);
+    }
+
+    // 2) Remove DB record
+    await fbDb.ref("warehouse/items/" + itemId).remove();
+
+    toast(t("deleted"), "ok");
+    closeEditModal();
+  } catch (err) {
+    console.error("[warehouse] delete failed:", err);
+    toast(t("err_delete") + ": " + (err.message || err), "err");
+    updateBtn.disabled = false; deleteBtn.disabled = false;
+    deleteBtn.textContent = t("delete");
+  }
+}
+
+// ---------- Lightbox ----------
+function openLightbox(url) {
+  document.getElementById("lightboxImg").src = url;
+  document.getElementById("lightbox").classList.add("show");
+}
+function closeLightbox() {
+  document.getElementById("lightbox").classList.remove("show");
+  document.getElementById("lightboxImg").src = "";
+}
+
+// ---------- Toast ----------
+let toastTimer = null;
+function toast(msg, kind) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.remove("ok", "err");
+  if (kind) t.classList.add(kind);
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+// ---------- Misc helpers ----------
+function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function escapeAttr(s) { return escapeHtml(s); }
+
+// Refresh "X minutes ago" labels every 30s
+setInterval(() => { if (recentItems.length) renderRecent(); }, 30000);
+
+// Initial UI paint
+applyI18n();
+setConn("init");
+</script>
+</body>
+</html>

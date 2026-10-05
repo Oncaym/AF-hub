@@ -1,2 +1,6 @@
-v2/tests
-v2/tools
+# Not part of the website: tools, tests, docs, the scheduled report.
+platform
+report
+_tests
+.github
+*.md

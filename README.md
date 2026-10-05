@@ -8,11 +8,23 @@ Live: https://af-hub-two.vercel.app/
 ```
 af-hub/
 ├── index.html                    Executive overview (iPad portrait first, dark/light)
-├── hub-report.js                 Reporter — copied into every tracker
-├── af-hub-config.js              Hub Firebase config (same file in every tracker)
-├── firebase-database-rules.json  Security rules
+├── hub-report.js                 Reporter — loaded by every tracker
+├── af-hub-config.js              Hub Firebase config
+├── firebase-database-rules.json  Rules for the hub's own database (summaries)
+├── core/                         The tracker engine shared by every project in the hub
+│                                 (app.js, app-log.js, cloud-sync.js)
+├── ac3/  lex/                    One folder per project: index.html, project-config.js,
+│                                 firebase-config.js (its own database), plans, pages
+├── api/parse.mjs                 Chat updater (needs ANTHROPIC_API_KEY in Vercel)
+├── platform/                     Project databases: rules, registry, migration tool, tests
+│                                 → platform/README.md (中文操作步骤)
 └── README.md
 ```
+
+**Projects inside the hub (2026-10).** AC3 and Lexington moved off their own Firebase
+projects. Every project now has its own database inside af-hub-8f188 (one login for
+all of them); see `platform/README.md` for how projects are kept apart and how to add
+people or a new project. Cooper Park 2 still runs on its own site and Firebase.
 
 ---
 

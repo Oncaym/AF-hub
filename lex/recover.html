@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CP2 数据恢复 / Data Recovery</title>
+<style>
+  :root { --bg:#0f1419; --card:#161b22; --border:#30363d; --text:#e6edf3; --dim:#8b949e;
+          --blue:#58a6ff; --green:#3fb950; --red:#f85149; --orange:#d29922; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--text);
+         font:14px/1.5 -apple-system,"Segoe UI",sans-serif; max-width:720px; margin:0 auto; }
+  h1 { font-size:18px; } h2 { font-size:15px; margin:0 0 8px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:14px; margin:12px 0; }
+  .warn { border-color:var(--orange); }
+  button { background:#21262d; color:var(--text); border:1px solid var(--border); border-radius:6px;
+           padding:8px 14px; font-size:14px; cursor:pointer; margin:4px 6px 4px 0; }
+  button.primary { background:#1f6feb; border-color:#1f6feb; }
+  button.danger  { background:#b62324; border-color:#b62324; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  input[type=email], input[type=password] { background:#0d1117; color:var(--text); border:1px solid var(--border);
+           border-radius:6px; padding:8px; width:100%; margin:4px 0; font-size:14px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th,td { border-bottom:1px solid var(--border); padding:4px 6px; text-align:left; white-space:nowrap; }
+  .ok { color:var(--green); } .bad { color:var(--red); } .dim { color:var(--dim); }
+  pre { background:#0d1117; border:1px solid var(--border); border-radius:6px; padding:8px;
+        font-size:12px; overflow:auto; max-height:160px; }
+  #log { font-size:12px; color:var(--dim); white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<h1>🛟 CP2 数据恢复工具</h1>
+<p class="dim">本页只读不写：不会动主页面的 localStorage，也不会自动连 Firebase。所有写入操作都需要你手动点击确认。</p>
+
+<!-- ① 本机数据 -->
+<div class="card">
+  <h2>① 本机缓存（这台设备的 localStorage）</h2>
+  <div id="localSummary">读取中…</div>
+  <button id="btnExport" disabled>⬇ 下载本机数据备份 JSON</button>
+</div>
+
+<!-- ② 云端数据 -->
+<div class="card">
+  <h2>② 云端数据（Firebase）</h2>
+  <div id="authBox">
+    <input type="email" id="email" placeholder="登录邮箱 Email">
+    <input type="password" id="pw" placeholder="密码 Password">
+    <button class="primary" onclick="cloudLogin()">登录并读取云端</button>
+  </div>
+  <div id="cloudSummary"></div>
+  <div id="historyBox"></div>
+  <button id="btnExportCloud" style="display:none" onclick="exportCloud()">⬇ 下载云端数据备份 JSON</button>
+</div>
+
+<!-- ③ 恢复 -->
+<div class="card warn">
+  <h2>③ 恢复（先做完 ①② 再来）</h2>
+  <p class="dim">选择数据源 → 核对摘要 → 推回云端。推送前会自动把当前云端再备份一份下载到本机。</p>
+  <button id="btnRestoreLocal" disabled onclick="restore('local')">⬆ 用「本机缓存」覆盖云端</button>
+  <br>
+  <label class="dim">或者从文件导入（支持 .json 备份 / 旧版下载的 tracker .html 内嵌数据）：</label><br>
+  <input type="file" id="fileIn" accept=".json,.html,.htm" onchange="loadFile(this.files[0])">
+  <div id="fileSummary"></div>
+  <button id="btnRestoreFile" disabled onclick="restore('file')">⬆ 用「导入的文件」覆盖云端</button>
+</div>
+
+<div class="card"><div id="log"></div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="project-config.js"></script>
+<script>
+// AF Hub: the same page serves every project — keys and ids come from project-config.js.
+const PRJ  = window.PROJECT || {};
+const SKEY = PRJ.storageKey || 'tracker_install_v1';
+const BKEY = PRJ.baselineKey || (SKEY + '_baseline');
+const SLUG = PRJ.fileSlug || PRJ.hubId || 'tracker';
+let localState = null, cloudState = null, fileState = null, db = null, user = null;
+
+function logln(s){ document.getElementById('log').textContent += s + '\n'; }
+
+function normLog(st){
+  if (!st) return st;
+  if (!Array.isArray(st.log)) st.log = Object.values(st.log || {});
+  return st;
+}
+function summarize(st){
+  if (!st || !st.units) return '<span class="bad">无数据 / no data</span>';
+  const units = Array.isArray(st.units) ? st.units : Object.values(st.units||{});
+  const log = Array.isArray(st.log) ? st.log : Object.values(st.log||{});
+  const inst = units.filter(u=>u.status==='installed').length;
+  const issue = units.filter(u=>u.status==='issue').length;
+  const dates = log.map(l=>l.date||'').filter(Boolean).sort();
+  return `updatedAt: <b>${st.updatedAt||'?'}</b><br>` +
+         `单元 units: ${units.length} · <span class="ok">已装 ${inst}</span> · <span class="bad">问题 ${issue}</span><br>` +
+         `日志 log: <b>${log.length}</b> 条` + (dates.length?` · ${dates[0]} → <b>${dates[dates.length-1]}</b>`:'');
+}
+function dl(obj, name){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(obj)], {type:'application/json'}));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ---- ① local ----
+try {
+  const raw = localStorage.getItem(SKEY);
+  if (raw) {
+    localState = normLog(JSON.parse(raw));
+    document.getElementById('localSummary').innerHTML = summarize(localState) +
+      `<br><span class="dim">baseline: ${localStorage.getItem(BKEY)||'(无)'}</span>`;
+    document.getElementById('btnExport').disabled = false;
+    document.getElementById('btnExport').onclick = () =>
+      dl(localState, `${SLUG}-local-backup-${Date.now()}.json`);
+  } else {
+    document.getElementById('localSummary').innerHTML =
+      '<span class="bad">这台设备没有本机缓存（localStorage 为空或已被清除）</span>';
+  }
+} catch(e){ document.getElementById('localSummary').textContent = '读取失败: ' + e; }
+
+// ---- ② cloud ----
+async function cloudLogin(){
+  try {
+    firebase.initializeApp(window.FIREBASE_CONFIG);
+    const cred = await firebase.auth().signInWithEmailAndPassword(
+      document.getElementById('email').value.trim(),
+      document.getElementById('pw').value);
+    user = cred.user; db = firebase.database();
+    logln('✓ 已登录 ' + user.email);
+    // AF Hub: refuse to touch a database that belongs to another project.
+    const meta = (await db.ref('meta/project').get()).val();
+    if (meta !== PRJ.hubId) { db = null; logln('✗ 停止：这个页面是 "' + PRJ.hubId + '"，数据库却是 "' + meta + '"。什么都没读、什么都没写——告诉 Leo。'); return; }
+    const snap = await db.ref('state').get();
+    const v = snap.val() || {};
+    const { _clientId, _ts, _by, _desc, _project, ...st } = v;
+    cloudState = normLog(st);
+    document.getElementById('cloudSummary').innerHTML =
+      summarize(cloudState) + `<br><span class="dim">最后推送 by ${_by||'?'} · ${_ts?new Date(_ts).toLocaleString():'?'}</span>`;
+    document.getElementById('btnExportCloud').style.display = '';
+    if (localState) document.getElementById('btnRestoreLocal').disabled = false;
+    // history timeline
+    const hs = await db.ref('history').limitToLast(40).get();
+    const rows = [];
+    hs.forEach(c => { const h = c.val();
+      rows.push(`<tr><td>${h.ts?new Date(h.ts).toLocaleString():'?'}</td><td>${(h.user||'').split('@')[0]}</td>` +
+        `<td>${h.snapshot?h.snapshot.installed:'?'}</td><td>${h.snapshot?h.snapshot.log:'?'}</td><td class="dim">${h.desc||''}</td></tr>`); });
+    document.getElementById('historyBox').innerHTML =
+      '<h2 style="margin-top:12px">编辑历史（找数据消失的时间点：看 log 数 / 已装数何时跳水）</h2>' +
+      '<table><tr><th>时间</th><th>谁</th><th>已装</th><th>log数</th><th>说明</th></tr>' + rows.reverse().join('') + '</table>';
+  } catch(e){ logln('✗ 登录/读取失败: ' + (e.message||e)); }
+}
+function exportCloud(){ dl(cloudState, `${SLUG}-cloud-backup-${Date.now()}.json`); }
+
+// ---- ③ file import ----
+function loadFile(f){
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      let st = null, txt = r.result;
+      if (/\.html?$/i.test(f.name)) {
+        const m = txt.match(/<script[^>]*id="__embedded_state"[^>]*>([\s\S]*?)<\/script>/);
+        if (!m || !m[1].trim()) { document.getElementById('fileSummary').innerHTML = '<span class="bad">这个 HTML 里没有内嵌数据</span>'; return; }
+        st = JSON.parse(m[1]);
+      } else st = JSON.parse(txt);
+      fileState = normLog(st);
+      document.getElementById('fileSummary').innerHTML = summarize(fileState);
+      document.getElementById('btnRestoreFile').disabled = !(db && user);
+      if (!db) logln('ℹ 文件已解析。要推回云端请先在 ② 登录。');
+    } catch(e){ document.getElementById('fileSummary').innerHTML = '<span class="bad">解析失败: ' + e + '</span>'; }
+  };
+  r.readAsText(f);
+}
+
+// ---- restore ----
+async function restore(src){
+  const st = src === 'local' ? localState : fileState;
+  if (!st || !db || !user) { logln('✗ 缺少数据源或未登录'); return; }
+  // A backup from ANOTHER project must never be restored here.
+  if (st._project && st._project !== PRJ.hubId) { logln('✗ 这份数据属于 "' + st._project + '"，不是 "' + PRJ.hubId + '"——拒绝恢复。'); return; }
+  delete st._project;
+  // Old backups carry no project id: compare unit ids with what the cloud has now.
+  if (cloudState && Array.isArray(cloudState.units) && cloudState.units.length) {
+    const ids = new Set(cloudState.units.map(u => u.key || u.id));
+    const fileUnits = Array.isArray(st.units) ? st.units : Object.values(st.units || {});
+    const same = fileUnits.filter(u => ids.has(u.key || u.id)).length;
+    if (fileUnits.length && same / Math.max(fileUnits.length, ids.size) < 0.5) {
+      logln('✗ 这份数据的单元编号和云端只有 ' + same + ' 个对得上——看起来是另一个项目的，拒绝恢复。');
+      return;
+    }
+  }
+  const logArr = Array.isArray(st.log) ? st.log : Object.values(st.log||{});
+  if (!confirm(`确认用这份数据覆盖云端？\n\nupdatedAt: ${st.updatedAt}\nlog 条数: ${logArr.length}\n\n覆盖前会先自动下载一份当前云端的备份。`)) return;
+  if (cloudState) dl(cloudState, `${SLUG}-cloud-before-restore-${Date.now()}.json`);
+  st.log = logArr;
+  st.updatedAt = new Date().toISOString();
+  const payload = Object.assign({}, st, {
+    _clientId: 'recovery-' + Math.random().toString(36).slice(2,8),
+    _ts: firebase.database.ServerValue.TIMESTAMP,
+    _by: user.email,
+    _desc: 'manual restore via recover.html',
+    _project: PRJ.hubId,   // checked against /meta/project by the rules
+  });
+  try {
+    await db.ref('state').set(payload);
+    logln('✓ 已恢复到云端！所有设备刷新主页后会收到这份数据。');
+    logln('ℹ 提醒：主页的 baseline 机制可能仍会先显示旧基线，刷新一两次或等 Firebase 推送即可。');
+  } catch(e){
+    logln('✗ 推送失败: ' + (e.message||e));
+    if (/PERMISSION/i.test(String(e))) logln('  → 这个账号不在 allowlist（无编辑权限）。');
+    if (/payload|size|large/i.test(String(e))) logln('  → 数据太大（多半是 log 里的 base64 照片）。可以先删掉照片字段再试。');
+  }
+}
+</script>
+</body>
+</html>

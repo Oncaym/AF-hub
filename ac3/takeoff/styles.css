@@ -1,0 +1,726 @@
+/* ============================================================
+   Hillview Reservoir — Kawneer Takeoff Tool
+   Built on Advanced Facade design tokens
+   ============================================================ */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--af-bg-2);
+  color: var(--af-fg-1);
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+/* ---------- HEADER ---------- */
+.tk-header {
+  background: var(--af-black);
+  color: var(--af-fg-on-dark);
+  border-bottom: 2px solid var(--af-black);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.tk-header__inner {
+  max-width: var(--af-content-wide);
+  margin: 0 auto;
+  padding: 0 var(--af-gutter);
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: var(--af-space-7);
+}
+.tk-wordmark {
+  font-family: var(--af-font-display);
+  font-weight: var(--af-w-bold);
+  font-size: 16px;
+  letter-spacing: var(--af-tracking-tight);
+  color: var(--af-white);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.tk-wordmark::after {
+  content: ".";
+  color: var(--af-accent);
+}
+.tk-header__sep {
+  width: 1px;
+  height: 24px;
+  background: rgba(255,255,255,0.18);
+}
+.tk-header__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tk-header__eyebrow {
+  font-size: var(--af-fs-eyebrow);
+  font-weight: var(--af-w-semibold);
+  letter-spacing: var(--af-tracking-eyebrow);
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.55);
+  line-height: 1;
+}
+.tk-header__title {
+  font-size: 14px;
+  font-weight: var(--af-w-medium);
+  letter-spacing: var(--af-tracking-tight);
+  color: var(--af-white);
+  line-height: 1;
+}
+.tk-header__spacer { flex: 1; }
+.tk-header__systems {
+  display: flex;
+  gap: var(--af-space-2);
+}
+.tk-syschip {
+  font-family: var(--af-font-mono);
+  font-size: 11px;
+  letter-spacing: var(--af-tracking-mono);
+  color: rgba(255,255,255,0.85);
+  border: 1px solid rgba(255,255,255,0.2);
+  padding: 6px 10px;
+  border-radius: var(--af-radius-1);
+}
+.tk-syschip strong {
+  color: var(--af-accent);
+  margin-right: 6px;
+  font-weight: var(--af-w-bold);
+}
+
+/* ---------- MAIN LAYOUT ---------- */
+.tk-main {
+  max-width: var(--af-content-wide);
+  margin: 0 auto;
+  padding: var(--af-space-7) var(--af-gutter) var(--af-space-10);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 440px;
+  gap: var(--af-space-7);
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .tk-main {
+    grid-template-columns: 1fr;
+  }
+}
+
+.tk-col-left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--af-space-7);
+  min-width: 0;
+}
+
+.tk-col-right {
+  position: sticky;
+  top: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--af-space-4);
+}
+@media (max-width: 1100px) {
+  .tk-col-right { position: static; }
+}
+
+/* ---------- SECTION ---------- */
+.tk-section {
+  background: var(--af-bg-1);
+  border: 1px solid var(--af-line);
+}
+.tk-section__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--af-space-4);
+  padding: var(--af-space-5) var(--af-space-5) var(--af-space-3);
+  border-bottom: var(--af-border-rule);
+}
+.tk-section__title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--af-space-3);
+  min-width: 0;
+}
+.tk-section__num {
+  font-family: var(--af-font-mono);
+  font-size: 11px;
+  font-weight: var(--af-w-medium);
+  letter-spacing: var(--af-tracking-mono);
+  color: var(--af-fg-3);
+}
+.tk-section__h {
+  font-family: var(--af-font-display);
+  font-size: 20px;
+  font-weight: var(--af-w-bold);
+  letter-spacing: var(--af-tracking-tight);
+  color: var(--af-fg-1);
+  margin: 0;
+}
+.tk-section__sub {
+  font-size: var(--af-fs-caption);
+  color: var(--af-fg-3);
+  margin: 4px 0 0;
+  max-width: 60ch;
+}
+.tk-section__actions {
+  display: flex;
+  gap: var(--af-space-2);
+  flex-shrink: 0;
+}
+.tk-section__body {
+  padding: 0;
+}
+
+/* ---------- TABLE ---------- */
+.tk-table-wrap {
+  overflow-x: auto;
+}
+.tk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.tk-table thead th {
+  text-align: left;
+  font-family: var(--af-font-sans);
+  font-size: var(--af-fs-eyebrow);
+  font-weight: var(--af-w-semibold);
+  letter-spacing: var(--af-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--af-fg-3);
+  padding: 12px 12px;
+  background: var(--af-bg-2);
+  border-bottom: 1px solid var(--af-line);
+  white-space: nowrap;
+}
+.tk-table th.num, .tk-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--af-font-mono);
+  letter-spacing: var(--af-tracking-mono);
+}
+.tk-table tbody td {
+  padding: 0;
+  border-bottom: 1px solid var(--af-line);
+  vertical-align: middle;
+  background: var(--af-bg-1);
+}
+.tk-table tbody tr:hover td {
+  background: rgba(232, 93, 31, 0.025);
+}
+.tk-table tbody tr.is-empty td {
+  text-align: center;
+  color: var(--af-fg-4);
+  font-size: var(--af-fs-caption);
+  padding: var(--af-space-7) var(--af-space-4);
+  font-style: italic;
+}
+
+.tk-cell-input,
+.tk-cell-select {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  font: inherit;
+  padding: 12px 12px;
+  color: var(--af-fg-1);
+  outline: none;
+  border-radius: 0;
+  appearance: none;
+  min-height: 42px;
+}
+.tk-cell-input.num {
+  font-family: var(--af-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--af-tracking-mono);
+  text-align: right;
+}
+.tk-cell-input.mono {
+  font-family: var(--af-font-mono);
+  letter-spacing: var(--af-tracking-mono);
+}
+.tk-cell-input:focus,
+.tk-cell-select:focus {
+  box-shadow: inset 0 0 0 2px var(--af-accent);
+  background: var(--af-white);
+}
+.tk-cell-select {
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236B6F77' stroke-width='1.5'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 14px;
+  cursor: pointer;
+}
+
+/* Role chips multi-select */
+.tk-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 10px;
+}
+.tk-role {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--af-font-mono);
+  font-size: 10px;
+  letter-spacing: var(--af-tracking-mono);
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border: 1px solid var(--af-line-strong);
+  background: var(--af-white);
+  color: var(--af-fg-3);
+  cursor: pointer;
+  user-select: none;
+  border-radius: var(--af-radius-1);
+  transition: all var(--af-dur-fast) var(--af-ease);
+}
+.tk-role:hover { border-color: var(--af-fg-2); color: var(--af-fg-1); }
+.tk-role.is-on {
+  background: var(--af-black);
+  color: var(--af-white);
+  border-color: var(--af-black);
+}
+
+/* Row delete */
+.tk-rowdel {
+  width: 40px;
+  text-align: center;
+}
+.tk-rowdel-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--af-fg-4);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--af-radius-1);
+  transition: all var(--af-dur-fast) var(--af-ease);
+}
+.tk-rowdel-btn:hover {
+  background: var(--af-bg-3);
+  color: var(--af-danger);
+}
+
+/* System tag pill */
+.tk-systag {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--af-font-mono);
+  font-size: 11px;
+  font-weight: var(--af-w-medium);
+  letter-spacing: var(--af-tracking-mono);
+  padding: 3px 8px;
+  border: 1px solid var(--af-line-strong);
+  border-radius: var(--af-radius-1);
+  color: var(--af-fg-1);
+  background: var(--af-bg-2);
+  white-space: nowrap;
+}
+.tk-systag.sys-ext {
+  border-color: var(--af-black);
+  color: var(--af-black);
+}
+.tk-systag.sys-int {
+  border-color: var(--af-info);
+  color: var(--af-info);
+}
+
+/* ---------- BUTTONS ---------- */
+.tk-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--af-font-sans);
+  font-size: 12px;
+  font-weight: var(--af-w-semibold);
+  letter-spacing: var(--af-tracking-eyebrow);
+  text-transform: uppercase;
+  padding: 9px 14px;
+  border-radius: var(--af-radius-2);
+  border: 1px solid var(--af-line-ink);
+  background: var(--af-white);
+  color: var(--af-fg-1);
+  cursor: pointer;
+  transition: all var(--af-dur-fast) var(--af-ease);
+  white-space: nowrap;
+}
+.tk-btn:hover { background: var(--af-bg-2); }
+.tk-btn:active { transform: translateY(1px); }
+.tk-btn--accent {
+  background: var(--af-accent);
+  color: var(--af-fg-on-accent);
+  border-color: var(--af-accent);
+}
+.tk-btn--accent:hover { background: var(--af-accent-deep); border-color: var(--af-accent-deep); }
+.tk-btn--dark {
+  background: var(--af-black);
+  color: var(--af-fg-on-dark);
+  border-color: var(--af-black);
+}
+.tk-btn--dark:hover { background: var(--af-charcoal); border-color: var(--af-charcoal); }
+.tk-btn--ghost {
+  background: transparent;
+  border-color: var(--af-line-strong);
+  color: var(--af-fg-2);
+}
+.tk-btn--ghost:hover { color: var(--af-fg-1); border-color: var(--af-fg-2); }
+.tk-btn--sm {
+  padding: 6px 10px;
+  font-size: 11px;
+}
+.tk-btn .ico {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* ---------- DXF PASTE ---------- */
+.tk-dxf {
+  padding: var(--af-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--af-space-3);
+  background: var(--af-bg-2);
+  border-top: 1px solid var(--af-line);
+}
+.tk-dxf__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--af-space-3);
+}
+.tk-dxf__title {
+  font-family: var(--af-font-sans);
+  font-size: var(--af-fs-eyebrow);
+  font-weight: var(--af-w-semibold);
+  letter-spacing: var(--af-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--af-fg-1);
+}
+.tk-dxf__hint {
+  font-size: var(--af-fs-caption);
+  color: var(--af-fg-3);
+}
+.tk-dxf textarea {
+  width: 100%;
+  min-height: 110px;
+  border: 1px solid var(--af-line-strong);
+  background: var(--af-white);
+  font-family: var(--af-font-mono);
+  font-size: 12px;
+  letter-spacing: var(--af-tracking-mono);
+  line-height: 1.5;
+  color: var(--af-fg-1);
+  padding: 10px 12px;
+  resize: vertical;
+  border-radius: var(--af-radius-1);
+}
+.tk-dxf textarea:focus {
+  outline: none;
+  border-color: var(--af-black);
+  box-shadow: 0 0 0 2px rgba(10,10,11,0.06);
+}
+.tk-dxf__actions {
+  display: flex;
+  gap: var(--af-space-2);
+  align-items: center;
+}
+.tk-dxf__status {
+  font-family: var(--af-font-mono);
+  font-size: 11px;
+  color: var(--af-fg-3);
+  margin-left: auto;
+}
+.tk-dxf__status.is-err { color: var(--af-danger); }
+.tk-dxf__status.is-ok  { color: var(--af-success); }
+
+/* ---------- REPORT ---------- */
+.tk-report__head {
+  border-bottom: var(--af-border-rule);
+}
+.tk-report__metabar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-bottom: 1px solid var(--af-line);
+}
+.tk-meta {
+  padding: var(--af-space-3) var(--af-space-4);
+  border-right: 1px solid var(--af-line);
+}
+.tk-meta:last-child { border-right: 0; }
+.tk-meta__label {
+  font-family: var(--af-font-sans);
+  font-size: 10px;
+  font-weight: var(--af-w-semibold);
+  letter-spacing: var(--af-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--af-fg-3);
+  display: block;
+  margin-bottom: 4px;
+}
+.tk-meta__val {
+  font-family: var(--af-font-mono);
+  font-size: 18px;
+  font-weight: var(--af-w-medium);
+  letter-spacing: var(--af-tracking-mono);
+  color: var(--af-fg-1);
+  font-variant-numeric: tabular-nums;
+}
+.tk-meta__val .unit {
+  font-size: 11px;
+  color: var(--af-fg-3);
+  margin-left: 4px;
+}
+
+.tk-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.tk-report-table thead th {
+  text-align: left;
+  font-family: var(--af-font-sans);
+  font-size: 10px;
+  font-weight: var(--af-w-semibold);
+  letter-spacing: var(--af-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--af-fg-3);
+  padding: 10px 12px;
+  background: var(--af-bg-2);
+  border-bottom: 1px solid var(--af-line);
+  white-space: nowrap;
+}
+.tk-report-table th.num,
+.tk-report-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--af-font-mono);
+  letter-spacing: var(--af-tracking-mono);
+}
+.tk-report-table tbody td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--af-line);
+  vertical-align: top;
+}
+.tk-report-table tbody tr.sys-break td {
+  background: var(--af-black);
+  color: var(--af-white);
+  font-family: var(--af-font-mono);
+  font-size: 10px;
+  letter-spacing: var(--af-tracking-eyebrow);
+  text-transform: uppercase;
+  padding: 6px 12px;
+}
+.tk-report-table .desc {
+  font-size: 11.5px;
+  color: var(--af-fg-3);
+  display: block;
+  margin-top: 2px;
+}
+.tk-report-table .pn {
+  font-family: var(--af-font-mono);
+  letter-spacing: var(--af-tracking-mono);
+  font-weight: var(--af-w-medium);
+  color: var(--af-fg-1);
+}
+.tk-report-table .roles {
+  font-family: var(--af-font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--af-fg-3);
+  margin-top: 2px;
+  letter-spacing: var(--af-tracking-mono);
+}
+.tk-report-table .stocks {
+  font-size: 16px;
+  font-weight: var(--af-w-bold);
+  color: var(--af-black);
+}
+.tk-report-empty {
+  padding: var(--af-space-9) var(--af-space-5);
+  text-align: center;
+  color: var(--af-fg-3);
+  font-size: var(--af-fs-caption);
+  background: var(--af-bg-1);
+}
+.tk-report-empty .ico {
+  width: 32px;
+  height: 32px;
+  color: var(--af-fg-4);
+  margin: 0 auto var(--af-space-3);
+  display: block;
+}
+
+/* Footer with formula + export */
+/* The report footer used to be one flex ROW: formula left, export buttons right. Six export
+   buttons no longer fit — the row pushed past the panel edge and squeezed the formula into a
+   one-word-wide column (Leo, 2026-08-20: "改成竖排，不要超出框"). It is a COLUMN now: the formula
+   gets a full line, the buttons stack under it. `min-width: 0` on the children is what actually
+   stops the overflow — a flex item defaults to min-width:auto and refuses to shrink below its
+   content, which is why the buttons spilled instead of being contained in the first place. */
+.tk-report__foot {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--af-space-3);
+  padding: var(--af-space-4) var(--af-space-5);
+  background: var(--af-bg-2);
+  border-top: 1px solid var(--af-line);
+  min-width: 0;
+}
+.tk-report__foot > * { min-width: 0; max-width: 100%; }
+.tk-report__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;   /* each button sized to its own label, not stretched across the panel */
+  gap: var(--af-space-2);
+  min-width: 0;
+}
+.tk-report__actions .tk-btn { max-width: 100%; }
+.tk-report__actions .tk-input { max-width: 100%; }
+.tk-formula {
+  font-family: var(--af-font-mono);
+  font-size: 10.5px;
+  color: var(--af-fg-3);
+  letter-spacing: var(--af-tracking-mono);
+  line-height: 1.6;
+  overflow-wrap: anywhere;   /* one long mono line, no natural break points at narrow widths */
+}
+.tk-formula b {
+  color: var(--af-fg-1);
+  font-weight: var(--af-w-medium);
+}
+
+/* ---------- ADD-ROW BUTTON BAR ---------- */
+.tk-addbar {
+  display: flex;
+  gap: var(--af-space-2);
+  padding: var(--af-space-3) var(--af-space-4);
+  background: var(--af-bg-2);
+  border-top: 1px solid var(--af-line);
+}
+
+/* ---------- INTRO PROJECT BANNER ---------- */
+.tk-projectbar {
+  max-width: var(--af-content-wide);
+  margin: 0 auto;
+  padding: var(--af-space-6) var(--af-gutter) 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--af-space-6);
+  flex-wrap: wrap;
+}
+.tk-projectbar__title {
+  font-family: var(--af-font-display);
+  font-weight: var(--af-w-bold);
+  font-size: clamp(28px, 4vw, 44px);
+  letter-spacing: var(--af-tracking-display);
+  line-height: var(--af-lh-display);
+  margin: 0;
+  color: var(--af-fg-1);
+}
+.tk-projectbar__sub {
+  font-size: var(--af-fs-body-s);
+  color: var(--af-fg-3);
+  margin: 8px 0 0;
+  max-width: 56ch;
+}
+.tk-projectbar__meta {
+  display: flex;
+  gap: var(--af-space-6);
+  flex-wrap: wrap;
+}
+.tk-pmeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tk-pmeta__label {
+  font-family: var(--af-font-sans);
+  font-size: var(--af-fs-eyebrow);
+  font-weight: var(--af-w-semibold);
+  letter-spacing: var(--af-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--af-fg-3);
+}
+.tk-pmeta__val {
+  font-family: var(--af-font-mono);
+  font-size: 13px;
+  color: var(--af-fg-1);
+  letter-spacing: var(--af-tracking-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Column hints */
+.col-mark   { width: 100px; }
+.col-sys    { width: 110px; }
+.col-pos    { width: 120px; }
+.col-num    { width: 90px; }
+.col-num-sm { width: 70px; }
+.col-pn     { width: 150px; }
+.col-roles  { width: 220px; }
+
+/* Quick-add opening form */
+.tk-quickadd {
+  display: grid;
+  grid-template-columns: 90px 110px 90px 90px 80px auto;
+  gap: 8px;
+  padding: var(--af-space-3) var(--af-space-4);
+  background: var(--af-bg-2);
+  border-top: 1px solid var(--af-line);
+  align-items: end;
+}
+.tk-quickadd label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--af-font-sans);
+  font-size: 10px;
+  font-weight: var(--af-w-semibold);
+  letter-spacing: var(--af-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--af-fg-3);
+}
+.tk-quickadd input,
+.tk-quickadd select {
+  height: 36px;
+  border: 1px solid var(--af-line-strong);
+  background: var(--af-white);
+  padding: 0 10px;
+  font-family: var(--af-font-mono);
+  font-size: 13px;
+  letter-spacing: var(--af-tracking-mono);
+  color: var(--af-fg-1);
+  border-radius: var(--af-radius-1);
+}
+.tk-quickadd input:focus,
+.tk-quickadd select:focus {
+  outline: none;
+  border-color: var(--af-black);
+}
+.tk-quickadd .tk-btn {
+  height: 36px;
+}
+@media (max-width: 720px) {
+  .tk-quickadd { grid-template-columns: 1fr 1fr; }
+  .tk-quickadd .tk-btn { grid-column: 1 / -1; }
+}
+
+/* ---------- SCROLLBAR (subtle) ---------- */
+.tk-table-wrap::-webkit-scrollbar { height: 10px; }
+.tk-table-wrap::-webkit-scrollbar-track { background: var(--af-bg-2); }
+.tk-table-wrap::-webkit-scrollbar-thumb { background: var(--af-fog); border-radius: 0; }
+.tk-table-wrap::-webkit-scrollbar-thumb:hover { background: var(--af-aluminum); }

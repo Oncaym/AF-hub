@@ -1,0 +1,262 @@
+/* ============================================================
+   Advanced Facade — Colors & Type
+   Industrial-technical, photo-led, neutral palette + safety accent.
+   ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root {
+  /* ---------- COLOR: NEUTRAL CORE ----------
+     Cool steel grays. The brand lives in black/white/steel — almost
+     no chroma. Imagery does the heavy lifting. */
+  --af-black:        #0A0A0B;   /* near-black; primary ink + structural lines */
+  --af-ink:          #1A1A1D;   /* body text on light, large headings */
+  --af-charcoal:     #2D2F34;   /* secondary surfaces dark mode */
+  --af-graphite:     #4A4D54;   /* subdued copy on light */
+  --af-steel:        #6B6F77;   /* mid gray, captions, metadata */
+  --af-aluminum:     #9CA0A8;   /* placeholder, disabled */
+  --af-fog:          #C8CACE;   /* dividers, light borders */
+  --af-mist:         #E4E5E8;   /* surface stroke */
+  --af-paper:        #F4F4F5;   /* off-white surface */
+  --af-white:        #FFFFFF;
+
+  /* ---------- COLOR: ACCENT ----------
+     One accent only — a sharp jobsite signal. Use sparingly:
+     CTAs, single-key emphasis, project category tags. */
+  --af-accent:       #E85D1F;   /* high-vis safety orange */
+  --af-accent-deep:  #B8430E;   /* hover/press */
+  --af-accent-tint:  #FBE7DA;   /* faint wash for highlight backgrounds */
+
+  /* ---------- COLOR: SEMANTIC ----------
+     Construction-domain semantics. Errors lean rust, success a steely
+     teal so it doesn't fight the orange accent. */
+  --af-success:      #1F6B5C;
+  --af-warning:      #C68A1B;
+  --af-danger:       #A53224;
+  --af-info:         #2B5170;
+
+  /* ---------- COLOR: LEGACY LOGO GRADIENT ----------
+     Original site logo is a teal→blue gradient. Preserved here for
+     compatibility, but the primary mark is monochrome. */
+  --af-legacy-teal:  #1FA08C;
+  --af-legacy-blue:  #4A90D0;
+
+  /* ---------- COLOR: SEMANTIC TOKENS ---------- */
+  --af-fg-1:         var(--af-ink);     /* primary text */
+  --af-fg-2:         var(--af-graphite);/* secondary text */
+  --af-fg-3:         var(--af-steel);   /* tertiary / captions */
+  --af-fg-4:         var(--af-aluminum);/* disabled / placeholder */
+  --af-fg-on-dark:   var(--af-white);
+  --af-fg-on-accent: var(--af-white);
+
+  --af-bg-1:         var(--af-white);   /* base canvas */
+  --af-bg-2:         var(--af-paper);   /* subtle surface */
+  --af-bg-3:         var(--af-mist);    /* divider surface */
+  --af-bg-dark-1:    var(--af-black);   /* hero / footer */
+  --af-bg-dark-2:    var(--af-charcoal);
+
+  --af-line:         var(--af-mist);    /* default 1px border */
+  --af-line-strong:  var(--af-fog);     /* heavier border */
+  --af-line-ink:     var(--af-black);   /* full-strength rule */
+
+  /* ---------- TYPE: FAMILIES ----------
+     User specified Helvetica. We use Helvetica Neue / Helvetica / Arial
+     as the system stack, with Inter as a webfont fallback for hosts
+     that lack Helvetica (Linux, some Android). Inter at weight 500 is
+     the closest open-source match for Helvetica Medium. */
+  --af-font-sans: "Helvetica Neue", "Helvetica", "Inter", "Arial", sans-serif;
+  --af-font-display: "Helvetica Neue", "Helvetica", "Inter", "Arial", sans-serif;
+  --af-font-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  /* ---------- TYPE: WEIGHTS ---------- */
+  --af-w-light:    300;
+  --af-w-regular:  400;
+  --af-w-medium:   500;
+  --af-w-semibold: 600;
+  --af-w-bold:     700;
+  --af-w-black:    800;
+
+  /* ---------- TYPE: SCALE ----------
+     Tight, structural ramp. Display sizes are condensed in tracking. */
+  --af-fs-display-xl: clamp(56px, 8vw, 112px);
+  --af-fs-display-l:  clamp(44px, 6vw, 80px);
+  --af-fs-display-m:  clamp(36px, 4.5vw, 56px);
+  --af-fs-h1:         40px;
+  --af-fs-h2:         28px;
+  --af-fs-h3:         22px;
+  --af-fs-h4:         18px;
+  --af-fs-body-l:     18px;
+  --af-fs-body:       16px;
+  --af-fs-body-s:     14px;
+  --af-fs-caption:    12px;
+  --af-fs-eyebrow:    11px;
+
+  /* ---------- TYPE: TRACKING ----------
+     Helvetica-style: tighten display, open up small caps. */
+  --af-tracking-display: -0.025em;
+  --af-tracking-tight:   -0.01em;
+  --af-tracking-normal:   0;
+  --af-tracking-wide:     0.06em;
+  --af-tracking-eyebrow:  0.14em;   /* labels, eyebrows, ALL-CAPS */
+  --af-tracking-mono:     0.02em;
+
+  /* ---------- TYPE: LINE-HEIGHT ---------- */
+  --af-lh-display: 0.96;
+  --af-lh-heading: 1.1;
+  --af-lh-body:    1.55;
+  --af-lh-tight:   1.25;
+
+  /* ---------- SPACING (4px base) ---------- */
+  --af-space-0:  0;
+  --af-space-1:  4px;
+  --af-space-2:  8px;
+  --af-space-3:  12px;
+  --af-space-4:  16px;
+  --af-space-5:  20px;
+  --af-space-6:  24px;
+  --af-space-7:  32px;
+  --af-space-8:  40px;
+  --af-space-9:  56px;
+  --af-space-10: 80px;
+  --af-space-11: 120px;
+  --af-space-12: 160px;
+
+  /* ---------- RADII ----------
+     Industrial: mostly square. Radii reserved for soft UI affordances. */
+  --af-radius-0: 0;       /* default — cards, sections, photos */
+  --af-radius-1: 2px;     /* inputs */
+  --af-radius-2: 4px;     /* buttons */
+  --af-radius-3: 8px;     /* small overlays */
+  --af-radius-pill: 999px;/* status chips only */
+
+  /* ---------- BORDERS ---------- */
+  --af-border-hairline: 1px solid var(--af-line);
+  --af-border-default:  1px solid var(--af-line-strong);
+  --af-border-ink:      1px solid var(--af-line-ink);
+  --af-border-rule:     2px solid var(--af-black);
+
+  /* ---------- SHADOWS ----------
+     Restrained. Flat shadow language; no soft glows. */
+  --af-shadow-1: 0 1px 0 rgba(10,10,11,0.06);
+  --af-shadow-2: 0 2px 8px rgba(10,10,11,0.06), 0 0 0 1px rgba(10,10,11,0.04);
+  --af-shadow-3: 0 8px 24px rgba(10,10,11,0.10), 0 0 0 1px rgba(10,10,11,0.04);
+  --af-shadow-overlay: 0 24px 60px rgba(10,10,11,0.22);
+  --af-inset-line: inset 0 -1px 0 var(--af-line);
+
+  /* ---------- LAYOUT ---------- */
+  --af-content-max:   1280px;
+  --af-content-wide:  1480px;
+  --af-gutter:        clamp(16px, 4vw, 48px);
+
+  /* ---------- MOTION ----------
+     Quiet, mechanical. Linear or shallow ease, never bouncy. */
+  --af-ease:        cubic-bezier(0.2, 0.0, 0.2, 1);
+  --af-ease-out:    cubic-bezier(0.0, 0.0, 0.2, 1);
+  --af-dur-fast:    120ms;
+  --af-dur-base:    220ms;
+  --af-dur-slow:    420ms;
+}
+
+/* ============================================================
+   Base element styles — apply with class .af-prose or globally.
+   ============================================================ */
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: var(--af-font-sans);
+  font-size: var(--af-fs-body);
+  line-height: var(--af-lh-body);
+  color: var(--af-fg-1);
+  background: var(--af-bg-1);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ----- Display & Headings -----
+   Headings are tight, near-black. Display sizes use negative tracking. */
+.af-display-xl,
+.af-display-l,
+.af-display-m {
+  font-family: var(--af-font-display);
+  font-weight: var(--af-w-bold);
+  letter-spacing: var(--af-tracking-display);
+  line-height: var(--af-lh-display);
+  color: var(--af-fg-1);
+  margin: 0;
+  text-wrap: balance;
+}
+.af-display-xl { font-size: var(--af-fs-display-xl); }
+.af-display-l  { font-size: var(--af-fs-display-l);  }
+.af-display-m  { font-size: var(--af-fs-display-m);  }
+
+h1, .af-h1, h2, .af-h2, h3, .af-h3, h4, .af-h4 {
+  font-family: var(--af-font-display);
+  letter-spacing: var(--af-tracking-tight);
+  line-height: var(--af-lh-heading);
+  color: var(--af-fg-1);
+  margin: 0;
+  text-wrap: balance;
+}
+h1, .af-h1 { font-size: var(--af-fs-h1); font-weight: var(--af-w-bold); }
+h2, .af-h2 { font-size: var(--af-fs-h2); font-weight: var(--af-w-bold); }
+h3, .af-h3 { font-size: var(--af-fs-h3); font-weight: var(--af-w-semibold); }
+h4, .af-h4 { font-size: var(--af-fs-h4); font-weight: var(--af-w-semibold); }
+
+/* ----- Body ----- */
+p, .af-body {
+  font-family: var(--af-font-sans);
+  font-size: var(--af-fs-body);
+  line-height: var(--af-lh-body);
+  color: var(--af-fg-2);
+  margin: 0;
+  text-wrap: pretty;
+}
+.af-body-l { font-size: var(--af-fs-body-l); line-height: var(--af-lh-body); }
+.af-body-s { font-size: var(--af-fs-body-s); line-height: var(--af-lh-body); }
+.af-caption {
+  font-size: var(--af-fs-caption);
+  line-height: var(--af-lh-tight);
+  color: var(--af-fg-3);
+  letter-spacing: var(--af-tracking-normal);
+}
+
+/* ----- Eyebrows / labels — the brand's signature small-caps treatment ----- */
+.af-eyebrow,
+.af-label {
+  font-family: var(--af-font-sans);
+  font-size: var(--af-fs-eyebrow);
+  font-weight: var(--af-w-semibold);
+  letter-spacing: var(--af-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--af-fg-3);
+  line-height: 1;
+}
+.af-eyebrow--accent { color: var(--af-accent); }
+.af-eyebrow--ink    { color: var(--af-fg-1); }
+
+/* ----- Mono — for project codes, specs, dimensions ----- */
+.af-mono,
+code, kbd, samp, pre {
+  font-family: var(--af-font-mono);
+  font-size: 0.92em;
+  letter-spacing: var(--af-tracking-mono);
+}
+
+/* ----- Numerals: tabular for specs ----- */
+.af-tabular { font-variant-numeric: tabular-nums; }
+
+/* ----- Project-style title-case treatment used on site ----- */
+.af-titlecase { text-transform: capitalize; }
+
+/* ----- Numbered list "01 / 02 / 03" used in scope of work ----- */
+.af-index-num {
+  font-family: var(--af-font-sans);
+  font-weight: var(--af-w-light);
+  font-size: 56px;
+  letter-spacing: var(--af-tracking-tight);
+  color: var(--af-fg-1);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}

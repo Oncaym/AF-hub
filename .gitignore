@@ -19,5 +19,5 @@ Claude outputs/
 # Written by report/fetch-configs.js on every run — generated, not source.
 report/.trackers/
 
-# v2 rules tests install their own tools.
-v2/tests/node_modules/
+# Screenshots from a local end-to-end run (SHOTS=...).
+platform/tests/shots/
