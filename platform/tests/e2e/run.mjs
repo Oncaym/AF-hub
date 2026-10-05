@@ -157,7 +157,8 @@ class EmulatorBackend {
   async verify(email) { const u = await this.authAdmin().getUserByEmail(email); await this.authAdmin().updateUser(u.uid, { emailVerified: true }); }
   async attach(context) {
     // Belt and braces: a test must never reach the real Firebase project.
-    await context.route(/\.firebaseio\.com|firebasedatabase\.app|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com/, r => r.abort());
+    // (Host only: the Auth emulator's own URLs carry "identitytoolkit.googleapis.com" in their PATH.)
+    await context.route(/^https:\/\/([^/]*\.)?(firebaseio\.com|firebasedatabase\.app|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com)\//, r => r.abort());
   }
   config(url) { return { databaseURL: url }; }
   /* Appended to every routed config file: point the real Auth SDK at the emulator the
