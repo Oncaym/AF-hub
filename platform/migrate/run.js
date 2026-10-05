@@ -205,11 +205,12 @@ async function dryRunOrMigrate(dry) {
     if (dry) log('  ! ' + msg); else die(msg);
   }
 
-  // Freeze the old one first, so nothing changes while we copy.
+  // Freeze the old one first, so nothing changes while we copy. Its rules are kept
+  // (not printed: GitHub masks every { and } in a log because the service-account
+  // secret contains them, which would make a printed copy useless).
+  let oldRules = null;
   if (!dry) {
-    const oldRules = await getRules(legacyApp);
-    log('\nOld rules (put these back in the old project\'s Realtime Database → Rules to undo the freeze):');
-    log(oldRules ? oldRules.split('\n').map(l => '  | ' + l).join('\n') : '  (could not read them — they are also in the old tracker repo: firebase-database-rules.json)');
+    oldRules = await getRules(legacyApp);
     await putRules(hubApp, RULES);                      // new database closed before any data lands
     log('✓ rules put on the new database');
     await putRules(legacyApp, FROZEN_RULES);
@@ -249,6 +250,12 @@ async function dryRunOrMigrate(dry) {
   const d = C.diff(tree, back);
   if (d.length) die(`read-back differs from what was written at ${d.length} place(s): ${d.slice(0, 10).join(', ')}`);
   log('\n✓ VERIFIED — the new database holds exactly what was copied.');
+  if (oldRules) {
+    // Kept where no page can read it (no rule grants /_admin); visible in the Firebase console.
+    await getDatabase(hubApp).ref('_admin/legacyRules').set({ from: p.legacy.databaseURL, savedAt: new Date().toISOString(), text: oldRules });
+  }
+  log('\nTo undo the freeze of the old database: Firebase console → this project\'s NEW database → Data → _admin → legacyRules → text,\n' +
+      'copy it into the OLD project\'s Realtime Database → Rules → Publish. (The same rules are in the old tracker repo: firebase-database-rules.json.)');
   log(`\nNext: open ${(REG.projects.find(x => x.id === p.id) || {}).folder ? 'https://af-hub-two.vercel.app/' + p.folder + '/' : 'the tracker'} and sign in.`);
 }
 
