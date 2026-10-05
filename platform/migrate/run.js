@@ -140,7 +140,7 @@ async function copyPhotos(tree, p, legacyApp, hubApp, dry) {
       const [buf] = await from.file(src).download();
       const [meta] = await from.file(src).getMetadata();
       const token = crypto.randomUUID();
-      await to.file(dst).save(buf, { contentType: meta.contentType || 'image/jpeg',
+      await to.file(dst).save(buf, { resumable: false, contentType: meta.contentType || 'image/jpeg',
         metadata: { metadata: { firebaseStorageDownloadTokens: token, migratedFrom: p.legacy.storageBucket } } });
       map[url] = C.downloadUrl(REG.storageBucket, dst, token);
     } catch (e) {

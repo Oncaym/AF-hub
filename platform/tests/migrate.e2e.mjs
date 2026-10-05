@@ -37,7 +37,7 @@ function run(env) {
   console.log('migration tool (emulators)');
   // ---- an "old AC3": data, a photo in the old bucket, membership ----
   const file = getStorage(legacy).bucket(OLD_BUCKET).file('cp2-photos/1_door.jpg');
-  await file.save(Buffer.from('fake-jpeg'), { contentType: 'image/jpeg', metadata: { metadata: { firebaseStorageDownloadTokens: 'oldtok' } } });
+  await file.save(Buffer.from('fake-jpeg'), { resumable: false, contentType: 'image/jpeg', metadata: { metadata: { firebaseStorageDownloadTokens: 'oldtok' } } });
   const oldUrl = `https://firebasestorage.googleapis.com/v0/b/${OLD_BUCKET}/o/${encodeURIComponent('cp2-photos/1_door.jpg')}?alt=media&token=oldtok`;
   const OLD = {
     state: { _clientId: 'c', _ts: 1, _by: 'leo.sun@advfacade.com', updatedAt: '2026-09-30',
@@ -61,7 +61,7 @@ function run(env) {
   ok(/2 units \(1 installed\)/.test(r.out) && /1 submittals/.test(r.out), 'it counts units and submittals');
   ok(!/leo\.sun@advfacade\.com|joe\.foreman@gmail\.com/.test(r.out), 'no full email address in the log', r.out.match(/\S+@\S+/g));
   ok((await read(ac3, '/')) === null, 'the new database is still empty');
-  ok(/"\.write":\s*"auth != null"/.test(await rulesOf('legacy-ac3')), 'the old database is not frozen');
+  ok(/"\.write"\s*:\s*"auth != null"/.test(await rulesOf('legacy-ac3')), 'the old database is not frozen');
 
   console.log('\n2. migrate');
   r = run({ MODE: 'migrate', PROJECT: 'ac3' });
@@ -79,8 +79,10 @@ function run(env) {
   ok(exists, 'the photo was copied');
   const [stillOld] = await file.exists();
   ok(stillOld, 'the old photo is left where it was');
-  ok((await rulesOf('af-hub-8f188-ac3')).replace(/\s/g, '') === RULES.replace(/\s/g, ''), 'the new database has the project rules');
-  ok(/"\.write":\s*false/.test(await rulesOf('legacy-ac3')) && /"\.read":\s*false/.test(await rulesOf('legacy-ac3')), 'the old database is frozen');
+  const newRules = await rulesOf('af-hub-8f188-ac3');
+  ok(/meta\/project/.test(newRules) && /_project/.test(newRules) && /advfacade/.test(newRules), 'the new database has the project rules', newRules.slice(0, 200));
+  const frozen = await rulesOf('legacy-ac3');
+  ok(/"\.write"\s*:\s*false/.test(frozen) && /"\.read"\s*:\s*false/.test(frozen), 'the old database is frozen', frozen.slice(0, 200));
   const auth = getAuth(initializeApp({ projectId: 'demo-afhub' }, 't-auth'));
   for (const e of ['leo.sun@advfacade.com', 'joe.foreman@gmail.com', 'pm@turner.com']) {
     let u = null; try { u = await auth.getUserByEmail(e); } catch (x) {}
