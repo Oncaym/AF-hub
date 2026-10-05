@@ -148,7 +148,12 @@ class EmulatorBackend {
   }
   async read(url, p) { return (await this.D.getDatabase(this.app(url)).ref(p).once('value')).val() ?? undefined; }
   authAdmin() { return this.U.getAuth(this.apps.__auth = this.apps.__auth || this.A.initializeApp({ projectId: 'demo-afhub' }, 'auth')); }
-  async createUser(email, verified) { await this.authAdmin().createUser({ email, password: PW, emailVerified: !!verified }); }
+  async createUser(email, verified) {
+    // The migration test that runs before this one may already have made the account.
+    const a = this.authAdmin();
+    try { const u = await a.getUserByEmail(email); await a.updateUser(u.uid, { password: PW, emailVerified: !!verified }); }
+    catch (e) { if (e.code !== 'auth/user-not-found') throw e; await a.createUser({ email, password: PW, emailVerified: !!verified }); }
+  }
   async verify(email) { const u = await this.authAdmin().getUserByEmail(email); await this.authAdmin().updateUser(u.uid, { emailVerified: true }); }
   async attach(context) {
     // Belt and braces: a test must never reach the real Firebase project.
