@@ -15,3 +15,9 @@ Thumbs.db
 #  it uploads whatever you drop, .gitignore and all. That is how a commit containing
 #  the service-account keys gets attempted, and rejected.)
 Claude outputs/
+
+# Written by report/fetch-configs.js on every run — generated, not source.
+report/.trackers/
+
+# v2 rules tests install their own tools.
+v2/tests/node_modules/

@@ -3,6 +3,105 @@
     ".read": false,
     ".write": false,
 
+    // ── v2 — the new platform (2026-10-05). Everything under /v2. ─────────────────
+    // Signed-in REAL accounts only: the old trackers' anonymous sessions (which write
+    // /projects/{id}/summary above) can read or write nothing here.
+    // Roles per project in /v2/members/{pid}/{uid}/role:
+    //   pm · editor · field (foreman: stages, counts, issues) · viewer · gc (meta only, for now)
+    // /v2/admins → everything; /v2/staff/{uid} = 'exec' → read every project.
+    // Tests: v2/tests/rules.test.mjs, run by .github/workflows/v2-rules.yml on every push.
+    "v2": {
+      "admins": {
+        ".read": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous'",
+        "$uid": {
+          // an admin adds admins; the very first one is claimable once, by Leo's address only
+          ".write": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (root.child('v2/admins').child(auth.uid).val() == true || (auth.uid == $uid && !root.child('v2/admins').exists() && auth.token.email == 'leosun@advfacade.com'))",
+          ".validate": "!newData.exists() || newData.isBoolean()"
+        }
+      },
+      "staff": {
+        "$uid": {
+          ".read": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (auth.uid == $uid || root.child('v2/admins').child(auth.uid).val() == true)",
+          ".write": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && root.child('v2/admins').child(auth.uid).val() == true",
+          ".validate": "!newData.exists() || newData.val() == 'exec' || newData.val() == 'shop'"
+        }
+      },
+      "index": {
+        ".read": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (root.child('v2/admins').child(auth.uid).val() == true || root.child('v2/staff').child(auth.uid).val() == 'exec')",
+        "$pid": { ".write": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && root.child('v2/admins').child(auth.uid).val() == true" }
+      },
+      "members": {
+        "$pid": {
+          ".read": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (root.child('v2/admins').child(auth.uid).val() == true || root.child('v2/staff').child(auth.uid).val() == 'exec' || (root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'pm' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'editor' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'field' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'viewer'))",
+          "$uid": {
+            // admin; a project's PM for non-PM roles; or the person themself, claiming an invite
+            ".write": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (root.child('v2/admins').child(auth.uid).val() == true || (root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'pm' && newData.child('role').val() != 'pm' && data.child('role').val() != 'pm') || (auth.uid == $uid && auth.token.email_verified == true && newData.child('role').val() == root.child('v2/invitesByEmail').child(auth.token.email.toLowerCase().replace('.', ',')).child($pid).val()))",
+            ".validate": "!newData.exists() || (newData.hasChildren(['role']) && newData.child('role').isString() && newData.child('role').val().matches(/^(pm|editor|field|viewer|gc)$/))"
+          }
+        }
+      },
+      "my": {
+        "$uid": {
+          ".read": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && auth.uid == $uid",
+          "$pid": {
+            ".write": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (root.child('v2/admins').child(auth.uid).val() == true || (root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'pm' && newData.val() != 'pm' && data.val() != 'pm') || (auth.uid == $uid && auth.token.email_verified == true && newData.val() == root.child('v2/invitesByEmail').child(auth.token.email.toLowerCase().replace('.', ',')).child($pid).val()))",
+            ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^(pm|editor|field|viewer|gc)$/))"
+          }
+        }
+      },
+      "invitesByEmail": {
+        "$ek": {
+          ".read": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (root.child('v2/admins').child(auth.uid).val() == true || auth.token.email.toLowerCase().replace('.', ',') == $ek)",
+          "$pid": {
+            ".write": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (root.child('v2/admins').child(auth.uid).val() == true || (root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'pm' && newData.val() != 'pm'))",
+            ".validate": "!newData.exists() || (newData.isString() && newData.val().matches(/^(pm|editor|field|viewer|gc)$/))"
+          }
+        }
+      },
+      "p": {
+        "$pid": {
+          ".write": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && root.child('v2/admins').child(auth.uid).val() == true",
+          "meta": {
+            ".read": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (root.child('v2/admins').child(auth.uid).val() == true || root.child('v2/staff').child(auth.uid).val() == 'exec' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() != null)",
+            ".write": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'pm'"
+          },
+          "items": {
+            ".read": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (root.child('v2/admins').child(auth.uid).val() == true || root.child('v2/staff').child(auth.uid).val() == 'exec' || (root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'pm' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'editor' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'field' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'viewer'))",
+            "$iid": {
+              ".write": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'pm' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'editor')",
+              "st": {
+                "$stage": {
+                  ".write": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'pm' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'editor' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'field')",
+                  ".validate": "($stage == 'factory' || $stage == 'site' || $stage == 'installed') && (!newData.exists() || (newData.hasChildren(['d', 't', 'by']) && newData.child('d').isString() && newData.child('d').val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) && newData.child('t').isNumber() && newData.child('t').val() <= now && newData.child('by').val() == auth.uid))"
+                }
+              },
+              "qd": {
+                ".write": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'pm' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'editor' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'field')",
+                ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= newData.parent().child('qty/n').val())"
+              }
+            }
+          },
+          "issues": {
+            ".read": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (root.child('v2/admins').child(auth.uid).val() == true || root.child('v2/staff').child(auth.uid).val() == 'exec' || (root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'pm' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'editor' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'field' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'viewer'))",
+            "$iid": {
+              ".write": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'pm' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'editor' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'field')",
+              ".validate": "!newData.exists() || (newData.hasChildren(['text', 't', 'by']) && newData.child('text').isString() && newData.child('text').val().length <= 2000 && newData.child('by').val() == auth.uid)"
+            }
+          }
+        }
+      },
+      // Append-only history. Lives outside /p so an admin's write on a project can't rewrite it.
+      "changes": {
+        "$pid": {
+          ".read": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (root.child('v2/admins').child(auth.uid).val() == true || root.child('v2/staff').child(auth.uid).val() == 'exec' || (root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'pm' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'editor' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'field' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'viewer'))",
+          "$cid": {
+            ".write": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && !data.exists() && newData.exists() && newData.child('by').val() == auth.uid && (root.child('v2/admins').child(auth.uid).val() == true || (root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'pm' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'editor' || root.child('v2/members').child($pid).child(auth.uid).child('role').val() == 'field'))",
+            ".validate": "newData.hasChildren(['t', 'by', 'iid', 'f'])"
+          }
+        }
+      }
+    },
+
     // Project summaries.
     // READ  — real accounts only. Trackers sign in anonymously to push, so an
     //         anonymous session must not be able to read the whole portfolio.
