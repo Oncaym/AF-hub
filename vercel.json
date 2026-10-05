@@ -10,7 +10,7 @@
       ]
     },
     {
-      "source": "/v2/(.*)\\.(js|css|html|json)",
+      "source": "/v2/(.*)",
       "headers": [
         {
           "key": "Cache-Control",

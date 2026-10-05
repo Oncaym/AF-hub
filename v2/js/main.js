@@ -88,6 +88,7 @@ document.addEventListener('change', e => {
 });
 
 (async function boot() {
+  window.afv2Started = true; // tells index.html the app loaded (its fallback message stays quiet)
   theme();
   root.innerHTML = '<div class="boot">…</div>';
   if (demo) store = createDemoStore();

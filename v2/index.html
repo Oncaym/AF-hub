@@ -6,12 +6,22 @@
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#0d1117">
 <title>Advanced Facade — Projects</title>
+<script>
+/* /v2 without the trailing slash would load app.css and js/ from the site root and show a blank page. */
+(function(){var p=location.pathname;if(location.protocol!=='file:'&&!/\/$/.test(p)&&!/\.html$/.test(p))location.replace(p+'/'+location.search+location.hash);})();
+</script>
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
-<div id="app"></div>
+<div id="app"><div class="boot">Loading…</div></div>
+<script>
+/* Shown only when the app never starts: opened as a file, or a script failed to load. */
+window.afv2Fail=function(why){var a=document.getElementById('app');if(!a||window.afv2Started||window.afv2Failed)return;window.afv2Failed=1;a.innerHTML='<div class="boot err">'+why+'</div>';};
+if(location.protocol==='file:')afv2Fail('This page only runs from the website, not from a file on your computer.<br>Open <a href="https://af-hub-two.vercel.app/v2/?demo">af-hub-two.vercel.app/v2/?demo</a>');
+setTimeout(function(){afv2Fail('The app did not start. Refresh once; if it stays like this, send a screenshot of the browser console (F12).');},20000);
+</script>
 <!-- The hub's own Firebase config (one copy, at the site root). Missing → the app runs the demo. -->
 <script src="../af-hub-config.js"></script>
-<script type="module" src="js/main.js"></script>
+<script type="module" src="js/main.js" onerror="afv2Fail('Could not load the app files (js/main.js). Refresh, or check the site was deployed.')"></script>
 </body>
 </html>
