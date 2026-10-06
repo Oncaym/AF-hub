@@ -61,10 +61,29 @@
   // seeds = one-time library passes already applied to that system (e.g. "door-glass-stop"), kept
   // in the shared doc so a pass runs once company-wide instead of once per browser.
   function cleanSeeds(arr) { return Array.isArray(arr) ? arr.map(String).filter(Boolean).sort() : []; }
+  // panelConfig = that system's panel types (2026-10-06): { types:[{key,label,color,gaskets,edges}],
+  // perimeterPart, doorPart }. null when the system has none yet (app.js derives one and writes it).
+  function cleanPanelConfig(pc) {
+    if (!pc || typeof pc !== "object" || !Array.isArray(pc.types)) return null;
+    return {
+      types: pc.types.filter(function (t) { return t && t.key; }).map(function (t) {
+        return {
+          key: String(t.key), label: String(t.label || ""), color: String(t.color || ""),
+          gaskets: (Array.isArray(t.gaskets) ? t.gaskets : []).map(function (g) { return { part: String((g && g.part) || ""), loops: +(g && g.loops) || 0 }; }),
+          edges: (Array.isArray(t.edges) ? t.edges : []).map(function (e) {
+            return { part: String((e && e.part) || ""), desc: String((e && e.desc) || ""), on: String((e && e.on) || "all"), qty: +(e && e.qty) || 1, adj: +(e && e.adj) || 0 };
+          })
+        };
+      }),
+      perimeterPart: pc.perimeterPart ? String(pc.perimeterPart) : null,
+      doorPart: pc.doorPart ? String(pc.doorPart) : null
+    };
+  }
   function systemsFromState() {
     var bySys = {};
     var seeds = state.systemSeeds || {};
-    function bucket(s) { return bySys[s] || (bySys[s] = { parts: [], accessories: [], seeds: cleanSeeds(seeds[s]) }); }
+    var pcs = state.panelConfig || {};
+    function bucket(s) { return bySys[s] || (bySys[s] = { parts: [], accessories: [], seeds: cleanSeeds(seeds[s]), panelConfig: cleanPanelConfig(pcs[s]) }); }
     (state.parts || []).forEach(function (p) {
       var s = p.system || "";
       if (!s) return;                 // 无系统的零件不进云
@@ -84,7 +103,7 @@
     docs.forEach(function (d) {
       var name = d.data && d.data.name;
       if (!name) return;
-      m[name] = { parts: cleanParts(d.data.parts), accessories: cleanAccessories(d.data.accessories), seeds: cleanSeeds(d.data.seeds) };
+      m[name] = { parts: cleanParts(d.data.parts), accessories: cleanAccessories(d.data.accessories), seeds: cleanSeeds(d.data.seeds), panelConfig: cleanPanelConfig(d.data.panelConfig) };
     });
     return m;
   }
@@ -99,10 +118,12 @@
         if (oa !== ob) return oa - ob;
         return String(a.id).localeCompare(String(b.id));
       });
-      var parts = [], accessories = [], seeds = {};
+      var parts = [], accessories = [], seeds = {}, panelConfig = {};
       docs.forEach(function (d) {
         var name = (d.data && d.data.name) || d.id;
         seeds[name] = cleanSeeds(d.data && d.data.seeds);
+        var pc = cleanPanelConfig(d.data && d.data.panelConfig);
+        if (pc) panelConfig[name] = pc;
         cleanParts(d.data && d.data.parts).forEach(function (p) {
           var np = { id: uid(), system: name, partNumber: p.partNumber, description: p.description, roles: p.roles.slice() };
           if (p.stockInches != null) np.stockInches = p.stockInches;
@@ -117,6 +138,7 @@
       state.parts = parts;
       state.accessories = accessories;
       state.systemSeeds = seeds;
+      state.panelConfig = panelConfig;
       lastSyncedSystemsJSON = JSON.stringify(systemsFromState());
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
       renderAll();
@@ -143,7 +165,7 @@
         order: oi >= 0 ? oi : 999,
         parts: cleanParts(d.parts),
         accessories: cleanAccessories(d.accessories),
-        seeds: ["door-glass-stop"],          // systems.js already carries the role on its glass stop
+        seeds: [],
         updatedAt: fb.serverTimestamp()
       }, { merge: true });
     });
@@ -174,7 +196,7 @@
     Object.keys(cur).forEach(function (sys) {
       if (JSON.stringify(cur[sys]) === JSON.stringify(prev[sys])) return; // 该系统没变
       var oi = (window.SYSTEM_ORDER || []).indexOf(sys);
-      writes.push(fb.setDoc(fb.doc(fb.db, "systems", sysDocId(sys)), {
+      var data = {
         name: sys,
         manufacturer: manufacturerFor(sys),
         order: oi >= 0 ? oi : 999,
@@ -182,7 +204,9 @@
         accessories: cur[sys].accessories,
         seeds: cur[sys].seeds,
         updatedAt: fb.serverTimestamp()
-      }, { merge: true }));
+      };
+      if (cur[sys].panelConfig) data.panelConfig = cur[sys].panelConfig;
+      writes.push(fb.setDoc(fb.doc(fb.db, "systems", sysDocId(sys)), data, { merge: true }));
     });
     if (!writes.length) { lastSyncedSystemsJSON = curJSON; setStatus("● Synced", "#1a9e4b"); return Promise.resolve(); }
     setStatus("● Saving…", "#d59300");

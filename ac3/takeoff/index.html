@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Takeoff Tool — Advanced Facade</title>
 <link rel="stylesheet" href="colors_and_type.css" />
-<link rel="stylesheet" href="styles.css?v=20261005a" />
+<link rel="stylesheet" href="styles.css?v=20261006a" />
 </head>
 <body>
 
@@ -228,14 +228,33 @@
       </div>
     </section>
 
-    <!-- ===== 04 — ACCESSORIES ===== -->
+    <!-- ===== 04 — PANEL TYPES ===== -->
     <section class="tk-section">
       <header class="tk-section__head">
         <div class="tk-section__title">
           <span class="tk-section__num">04</span>
           <div>
+            <h2 class="tk-section__h">Panel Types</h2>
+            <p class="tk-section__sub">What each kind of panel takes: its gasket, and edge parts cut to its clear opening (glass stop). Add your own types — By Others, Spandrel — and assign them on the 🧵 Gasket diagram.</p>
+          </div>
+        </div>
+        <div class="tk-section__actions">
+          <select id="pt-system" class="tk-input tk-input--sm" title="Which system's panel types"></select>
+        </div>
+      </header>
+      <div class="tk-section__body">
+        <div id="panel-types"></div>
+      </div>
+    </section>
+
+    <!-- ===== 05 — ACCESSORIES ===== -->
+    <section class="tk-section">
+      <header class="tk-section__head">
+        <div class="tk-section__title">
+          <span class="tk-section__num">05</span>
+          <div>
             <h2 class="tk-section__h">Accessories</h2>
-            <p class="tk-section__sub">Gaskets, fasteners, blocks, anchors — rule-based off the framing takeoff. Gasket is taken off <b>per infill panel</b>: set what each panel type takes under Gasket defaults, or open an elevation's 🧵 Gasket diagram to change many panels at once.</p>
+            <p class="tk-section__sub">Fasteners, blocks, anchors — rule-based off the framing takeoff. Gasket rows come from the panels (Panel Types above, or per panel on the 🧵 Gasket diagram).</p>
           </div>
         </div>
         <div class="tk-section__actions">
@@ -246,7 +265,6 @@
         </div>
       </header>
       <div class="tk-section__body">
-        <div id="gasket-defaults"></div>
         <div class="tk-table-wrap">
           <table class="tk-table">
             <thead>
@@ -275,7 +293,7 @@
     <section class="tk-section">
       <header class="tk-section__head tk-report__head">
         <div class="tk-section__title">
-          <span class="tk-section__num">05</span>
+          <span class="tk-section__num">06</span>
           <div>
             <h2 class="tk-section__h">Consolidated Takeoff</h2>
             <p class="tk-section__sub">By part number, across the openings in scope.</p>
@@ -388,11 +406,11 @@
 </main>
 
 <script src="firebase-init.js?v=20260713g"></script>
-<script src="systems.js?v=20261005a"></script>
+<script src="systems.js?v=20261006a"></script>
 <script src="role-sections.js?v=20260713f"></script>
 <script src="part-sections.js?v=20260904g"></script>
 <script src="xlsx-writer.js?v=20260904g"></script>
-<script src="app.js?v=20261005a"></script>
-<script src="cloud-sync.js?v=20261005a"></script>
+<script src="app.js?v=20261006a"></script>
+<script src="cloud-sync.js?v=20261006a"></script>
 </body>
 </html>

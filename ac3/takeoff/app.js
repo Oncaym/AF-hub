@@ -387,7 +387,7 @@ function renameImp1InAccessories() {
   return changed;
 }
 // cloud-sync.js calls this once the shared parts library has arrived (or failed to), so
-// library-level one-time passes (seedDoorGlassStopRoles) run against the real library.
+// library-level one-time passes (ensurePanelConfigs) run against the real library.
 let _initDone = false;
 function onPartsLibraryReady() {
   if (typeof window !== 'undefined') window.__partsLibReady = true;
@@ -401,7 +401,7 @@ function renderAll() {
     console.log('[parts] pruned retired parts / renamed IMP-1 roles to Metal Panel — pushing clean library');
     setTimeout(() => { try { save(); } catch (_) {} }, 0);
   }
-  if (seedDoorGlassStopRoles()) setTimeout(() => { try { save(); } catch (_) {} }, 0);
+  if (ensurePanelConfigs()) setTimeout(() => { try { save(); } catch (_) {} }, 0);
   renderEditsSafety();
   renderParts();
   renderOpenings();
@@ -894,8 +894,11 @@ function rolePinReport(mark) { return _pinReport.get(mark) || null; }
 //  its geometry signature matches the fresh parse (see parseRawDxfOpenings).
 //  Note: this is also the training data #4's auto-propagation will learn from.
 // ============================================================
+// Both forms are a SET of rectangles: a build that kept two pieces on one rectangle (the 2026-10-05
+// door jamb + door jamb at transom) and one that keeps one piece there describe the same drawing.
+const _sigSet = list => [...new Set(list)].sort().join(';');
 function elevGeoSigAbs(cuts) {
-  return (cuts || []).filter(c => c && c.src).map(c => srcKey(c.src)).sort().join(';');
+  return _sigSet((cuts || []).filter(c => c && c.src).map(c => srcKey(c.src)));
 }
 function elevGeoSig(cuts) {
   // Role-independent fingerprint of the parsed source geometry for one elevation, taken RELATIVE
@@ -904,17 +907,35 @@ function elevGeoSig(cuts) {
   // matching and every split, merge and length edit was thrown away along with the role pins.
   const list = (cuts || []).filter(c => c && c.src);
   const org = cutsOrigin(list);
-  return list.map(c => [_r1(c.src.x - org.x), _r1(c.src.y - org.y), _r1(c.src.w), _r1(c.src.h)].join('|')).sort().join(';');
+  return _sigSet(list.map(c => [_r1(c.src.x - org.x), _r1(c.src.y - org.y), _r1(c.src.w), _r1(c.src.h)].join('|')));
 }
+function normGeoSig(sig) { return sig ? _sigSet(String(sig).split(';')) : ''; }
+// #door-split: an edit-set's `doorSplit` mark says "these cuts already follow the rule that cuts a
+// door's jambs at its head", so a re-import keeps them exactly as saved. It is a fingerprint OF
+// THOSE CUTS (shape + count, role-free), not a flag: an older build that rewrites the cuts leaves
+// the field behind (cloud writes merge), and a stale mark must then read as "not up to date".
+const DOOR_RULE_PV = 20261006;   // first PARSER_VERSION whose openings were parsed under the rule
+function doorRuleMark(cuts) {
+  const list = (cuts || []).filter(c => c && c.src);
+  const org = cutsOrigin(list);
+  const str = list.map(c => [_r1(c.src.x - org.x), _r1(c.src.y - org.y), _r1(c.src.w), _r1(c.src.h), parseInt(c.count) || 1].join('|')).sort().join(';');
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return 'd1-' + (h >>> 0).toString(36);
+}
+function doorRuleCurrent(rec) { return !!(rec && rec.doorSplit && rec.doorSplit === doorRuleMark(rec.cuts)); }
 // A saved signature may be in either form — accept both, so today's build restores edit-sets saved
 // by yesterday's. The next persist rewrites it in the new form.
+// `cuts` is the drawing as drawn — the parser passes its pre-door-split copy.
 function geoSigMatches(saved, cuts) {
   if (!saved) return false;
-  return saved === elevGeoSig(cuts) || saved === elevGeoSigAbs(cuts);
+  const s = normGeoSig(saved);
+  return s === elevGeoSig(cuts) || s === elevGeoSigAbs(cuts);
 }
 function elevEditRecord(o) {
+  const cuts = (o.cuts || []).map(c => ({ position: c.position, length: c.length, count: c.count || 1, src: c.src ? { ...c.src } : null }));
   return {
-    cuts: (o.cuts || []).map(c => ({ position: c.position, length: c.length, count: c.count || 1, src: c.src ? { ...c.src } : null })),
+    cuts,
     geoSig: o.geoSig || elevGeoSig(o.cuts),
     width: o.width, height: o.height, system: o.system || '',
     // #pins-in-cloud (2026-09-04, Leo: "修改记录是存在browser里面的吗 / 我每次间隔会超过1个礼拜"):
@@ -923,6 +944,9 @@ function elevEditRecord(o) {
     // apart lost them with nothing to fall back on. They travel in the same doc now: one write,
     // one read, same mark, and they come back on any machine that opens the project.
     rolePins: rolePinsFor(o.mark),
+    // #door-split: only an opening parsed under the rule has cuts that follow it — one still loaded
+    // from an older parse is brought up to date on its next import, so it is not marked (doorRuleMark)
+    doorSplit: (o._pv >= DOOR_RULE_PV) ? doorRuleMark(cuts) : 0,
   };
 }
 // #history (2026-07-19, Leo — SF01 data loss): keep at most this many prior versions per mark,
@@ -944,7 +968,7 @@ function persistElevEdits(o) {
   const nextSig = JSON.stringify((rec.cuts || []).map(c => [c.position, c.length, c.count]));
   if (prev && prevSig !== nextSig) {
     const prevHistory = Array.isArray(prev.history) ? prev.history : [];
-    const prevEntry = { cuts: prev.cuts, geoSig: prev.geoSig, width: prev.width, height: prev.height, system: prev.system, updatedAt: prev.updatedAt || 0 };
+    const prevEntry = { cuts: prev.cuts, geoSig: prev.geoSig, width: prev.width, height: prev.height, system: prev.system, updatedAt: prev.updatedAt || 0, doorSplit: prev.doorSplit || 0 };
     rec.history = [prevEntry, ...prevHistory].slice(0, ELEV_EDITS_HISTORY_LIMIT);
   } else {
     rec.history = (prev && Array.isArray(prev.history)) ? prev.history : [];
@@ -970,7 +994,15 @@ function restoreElevEditsVersion(mark, historyIdx) {
   const o = state.openings.find(x => x.mark === mark);
   if (!o) return false;
   o.cuts = (entry.cuts || []).map(c => ({ position: c.position, length: c.length, count: c.count || 1, src: c.src ? { ...c.src } : null }));
-  o.geoSig = elevGeoSig(o.cuts);   // always re-stamped in the current (relative) form
+  // a version saved before the door rule gets it now, just as its next import would
+  if (!doorRuleCurrent(entry)) {
+    const b = o._bands || {};
+    applyDoorJambs(o.cuts, doorSets(o.mark, o.system, b.doorRegions || []), o.system,
+      { pins: pinnedCuts(o.cuts, o.mark, b.bbox), louverBand: b.louverBand, wholeOnly: true });
+  }
+  // The signature describes the DRAWING, not the version being restored — keep this import's own
+  // (a door elevation's cuts no longer equal the drawing once its jambs are cut at the head).
+  o.geoSig = normGeoSig(o.geoSig) || elevGeoSig(o.cuts);
   persistElevEdits(o);   // saves the restored version as current, pushing today's (pre-restore) version into history
   return true;
 }
@@ -999,7 +1031,7 @@ function loadElevEditsFromCloud() {
       _cloudMarks.add(d.id);
       const data = d.data() || {};
       if (data && Array.isArray(data.cuts)) {
-        if (data.cuts.length) state.elevEdits[d.id] = { cuts: data.cuts, geoSig: data.geoSig || '', width: data.width, height: data.height, system: data.system || '', updatedAt: data.updatedAt || 0, history: Array.isArray(data.history) ? data.history : [], rolePins: Array.isArray(data.rolePins) ? data.rolePins : [] };
+        if (data.cuts.length) state.elevEdits[d.id] = { cuts: data.cuts, geoSig: data.geoSig || '', width: data.width, height: data.height, system: data.system || '', updatedAt: data.updatedAt || 0, history: Array.isArray(data.history) ? data.history : [], rolePins: Array.isArray(data.rolePins) ? data.rolePins : [], doorSplit: data.doorSplit || 0 };
         else delete state.elevEdits[d.id];   // a cleared mark
         // #pins-in-cloud: adopt the cloud's pins only where this browser has none — a local set is
         // either the same or newer, and silently replacing it would be the old bug wearing a hat.
@@ -1118,30 +1150,149 @@ const SEED_SYSTEM_GASKET = {
   const defs = (typeof window !== 'undefined' && window.SYSTEM_DEFS) || {};
   for (const sys in defs) if (defs[sys] && defs[sys].gasket) SEED_SYSTEM_GASKET[sys] = defs[sys].gasket;
 })();
-const GASKET_PANEL_TYPES = ['glass', 'panel', 'louver', 'door'];
-// Every read goes through here, so a half-filled hand-edited spec can never crash a render.
-function normGasketSpec(g) {
-  const src = g || {};
-  const panel = {};
-  for (const t of GASKET_PANEL_TYPES) {
-    panel[t] = ((src.panel || {})[t] || [])
-      .map(x => ({ part: String(x.part || '').trim(), loops: +x.loops || 0 }))
-      .filter(x => x.part && x.loops > 0);
+// ============================================================
+//  #panel-types (2026-10-06, Leo: "Panels are the most convenient tool so far. Allow me to create
+//  panel types and give them gaskets, as well as rules for extra parts (like glass stop)")
+//
+//  A panel TYPE says what a panel of that kind takes:
+//    · gaskets — [{part, loops}], one loop = the panel's perimeter (the infill gasket, as before)
+//    · edges   — [{part, desc, on, qty, adj}]: stock pieces cut to the panel's CLEAR opening (DLO),
+//                e.g. the glass stop around a by-others panel. They go on the cut list like any
+//                framing piece. Each panel bills its own edges.
+//  Built-in types (the detector assigns them): Glass, Metal Panel, Louver, Door. Anyone can add
+//  more (By Others, Spandrel …) and assign them on the gasket diagram.
+//
+//  Stored per system in the SHARED parts library (state.panelConfig[system] ↔ the `panelConfig`
+//  field of that system's Firestore doc, synced by cloud-sync.js), so a type made once exists for
+//  everybody. Until a system has one, panelConfigFor() derives it from the old per-browser gasket
+//  defaults and the seeds below; ensurePanelConfigs() writes it to the library once.
+//  Door glass stop (2026-10-05, a derived role) is now simply the Door type's edge part.
+// ============================================================
+const BUILTIN_PANEL_TYPES = [
+  { key: 'glass',  label: 'Glass',     color: '#bcd6ee' },
+  { key: 'panel',  label: METAL_PANEL, color: '#c9c9c9' },   // 'panel' = metal panel (was "IMP-1")
+  { key: 'louver', label: 'Louver',    color: '#bfe6c8' },
+  { key: 'door',   label: 'Door',      color: '#f2c48a' },
+];
+const BUILTIN_PANEL_KEYS = BUILTIN_PANEL_TYPES.map(t => t.key);
+const CUSTOM_PANEL_COLORS = ['#f9a8d4', '#fde68a', '#a5b4fc', '#99f6e4', '#fca5a5', '#d9f99d', '#c4b5fd', '#fdba74'];
+const EDGE_ON = { all: 'all 4 edges', vertical: 'both sides', horizontal: 'head + sill', head: 'head only', sill: 'sill only' };
+// The part that is each system's door glass stop (Leo, 2026-10-05: "750XT 是 Glazing Pocket Filler").
+const DOOR_GLASS_STOP_SEED = {
+  '45TU':   p => String(p.partNumber).trim() === 'E9-1015',
+  'IR501T': p => String(p.partNumber).trim() === '575504',
+  '450':    p => String(p.partNumber).trim() === '450CG004',
+  '750XT':  p => /glazing pocket filler|^pocket filler$/i.test(String(p.description || '').trim()),
+};
+function normSpecList(arr) {
+  return (Array.isArray(arr) ? arr : []).map(x => ({ part: String((x && x.part) || '').trim(), loops: +(x && x.loops) || 0 }))
+    .filter(x => x.part && x.loops > 0);
+}
+function normEdgeList(arr) {
+  return (Array.isArray(arr) ? arr : []).map(e => ({
+    part: String((e && e.part) || '').trim(), desc: String((e && e.desc) || '').trim(),
+    on: EDGE_ON[e && e.on] ? e.on : 'all',
+    qty: Math.max(1, Math.round(+(e && e.qty) || 1)), adj: +(e && e.adj) || 0,
+  }));   // a row with no part number yet is kept (it is being typed in) but bills nothing
+}
+// Built-ins first, in a fixed order with fixed names; then custom types in the order made.
+function normPanelConfig(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const list = Array.isArray(src.types) ? src.types : [];
+  const byKey = new Map(list.filter(t => t && t.key).map(t => [String(t.key), t]));
+  const types = BUILTIN_PANEL_TYPES.map(b => {
+    const t = byKey.get(b.key) || {};
+    return { key: b.key, label: b.label, color: /^#[0-9a-f]{6}$/i.test(t.color || '') ? t.color : b.color, builtin: true,
+             gaskets: b.key === 'door' ? [] : normSpecList(t.gaskets), edges: normEdgeList(t.edges) };
+  });
+  let ci = 0;
+  for (const t of list) {
+    if (!t || !t.key || BUILTIN_PANEL_KEYS.includes(String(t.key))) continue;
+    const label = String(t.label || '').trim(); if (!label) continue;
+    types.push({ key: String(t.key), label, color: /^#[0-9a-f]{6}$/i.test(t.color || '') ? t.color : CUSTOM_PANEL_COLORS[ci % CUSTOM_PANEL_COLORS.length],
+                 builtin: false, gaskets: normSpecList(t.gaskets), edges: normEdgeList(t.edges) });
+    ci++;
   }
-  const pn = s0 => { const v = String(s0 == null ? '' : s0).trim(); return v || null; };
-  return { panel, perimeterPart: pn(src.perimeterPart), doorPart: pn(src.doorPart) };
+  const pn = v => { const x = String(v == null ? '' : v).trim(); return x || null; };
+  return { types, perimeterPart: pn(src.perimeterPart), doorPart: pn(src.doorPart) };
 }
-function seedSystemGasket(system) { return normGasketSpec(SEED_SYSTEM_GASKET[system]); }
-function systemGasket(system) {
+// What a system gets before its config exists in the library: the old gasket defaults (this
+// browser's hand-set ones if any, else the seed) and the door glass stop.
+function legacySystemGasket(system) {
   const ov = (typeof state !== 'undefined' && state && state.systemGaskets) ? state.systemGaskets[system] : null;
-  return ov ? normGasketSpec(ov) : seedSystemGasket(system);
+  const g = ov || SEED_SYSTEM_GASKET[system] || {};
+  return { panel: g.panel || {}, perimeterPart: g.perimeterPart || null, doorPart: g.doorPart || null };
 }
-function isSystemGasketCustom(system) { return !!((state.systemGaskets || {})[system]); }
+function defaultPanelConfig(system) {
+  const g = legacySystemGasket(system);
+  const types = BUILTIN_PANEL_TYPES.map(b => ({ key: b.key, gaskets: b.key === 'door' ? [] : normSpecList(g.panel[b.key]), edges: [] }));
+  const parts = ((typeof state !== 'undefined' && state && state.parts) || []).filter(p => p.system === system);
+  const gs = parts.find(p => (p.roles || []).includes('Door Glass Stop')) || (DOOR_GLASS_STOP_SEED[system] ? parts.find(DOOR_GLASS_STOP_SEED[system]) : null);
+  if (gs) types.find(t => t.key === 'door').edges.push({ part: gs.partNumber, desc: gs.description || 'Glass stop', on: 'vertical', qty: 1, adj: 0 });
+  return { types, perimeterPart: g.perimeterPart, doorPart: g.doorPart };
+}
+function panelConfigFor(system) {
+  const raw = (typeof state !== 'undefined' && state && state.panelConfig) ? state.panelConfig[system] : null;
+  return normPanelConfig(raw || defaultPanelConfig(system));
+}
+// The live, editable config object for a system (created from the derived one on first edit).
+function materializePanelConfig(system) {
+  state.panelConfig = state.panelConfig || {};
+  if (!state.panelConfig[system]) state.panelConfig[system] = panelConfigFor(system);
+  else state.panelConfig[system] = normPanelConfig(state.panelConfig[system]);
+  return state.panelConfig[system];
+}
+function panelTypesFor(system) { return panelConfigFor(system).types; }
+function panelType(system, key) { return panelTypesFor(system).find(t => t.key === key) || null; }
+function panelTypeLabel(system, key) { const t = panelType(system, key); return t ? t.label : (BUILTIN_PANEL_TYPES.find(b => b.key === key) || {}).label || String(key || ''); }
+function panelTypeColor(system, key) { const t = panelType(system, key); return t ? t.color : '#ddd'; }
+function panelTypeKeys(system) { return panelTypesFor(system).map(t => t.key); }
+// an AUTO panel may be re-typed among these (not to/from louver or door — the detector found those)
+function switchablePanelTypes(system) { return panelTypeKeys(system).filter(k => k !== 'louver' && k !== 'door'); }
+// a DOOR stays gasket-locked (#door-gasket): its gasket is the two jambs, billed by doorPart
+function editablePanelTypes(system) { return panelTypeKeys(system).filter(k => k !== 'door'); }
+// Accessory "/ panel" rules name types by label; old rows say IMP-1.
+function panelTypeKeyFromLabel(system, label) {
+  const l = String(label || '').trim().toLowerCase();
+  if (!l) return null;
+  const alias = { 'imp-1': 'panel', 'imp1': 'panel', 'metal': 'panel', 'metal panel': 'panel', 'panel': 'panel' };
+  if (alias[l]) return alias[l];
+  const systems = system ? [system] : SYSTEMS_LIST();
+  for (const sys of systems) { const t = panelTypesFor(sys).find(x => x.label.toLowerCase() === l || x.key === l); if (t) return t.key; }
+  return null;
+}
+// The gasket view of the config — the shape every older caller already reads.
+function systemGasket(system) {
+  const pc = panelConfigFor(system);
+  const panel = {};
+  for (const t of pc.types) panel[t.key] = t.gaskets.map(g => ({ part: g.part, loops: g.loops }));
+  return { panel, perimeterPart: pc.perimeterPart, doorPart: pc.doorPart };
+}
+function seedSystemGasket(system) { const g = SEED_SYSTEM_GASKET[system] || {}; return { panel: g.panel || {}, perimeterPart: g.perimeterPart || null, doorPart: g.doorPart || null }; }
 function setSystemGasket(system, spec) {
-  state.systemGaskets = state.systemGaskets || {};
-  state.systemGaskets[system] = normGasketSpec(spec);
+  const pc = materializePanelConfig(system);
+  for (const t of pc.types) if (spec.panel && Array.isArray(spec.panel[t.key]) && t.key !== 'door') t.gaskets = normSpecList(spec.panel[t.key]);
+  if ('perimeterPart' in spec) pc.perimeterPart = spec.perimeterPart || null;
+  if ('doorPart' in spec) pc.doorPart = spec.doorPart || null;
 }
-function resetSystemGasket(system) { if (state.systemGaskets) delete state.systemGaskets[system]; }
+// One-time per system, once the shared library has arrived: write the derived config into the
+// library, and drop the old derived "Door Glass Stop" role (the Door type's edge part replaces it —
+// leaving both would bill the door glass stop twice).
+function ensurePanelConfigs() {
+  if (typeof window === 'undefined' || !window.__partsLibReady || !Array.isArray(state.parts)) return false;
+  state.panelConfig = state.panelConfig || {};
+  let changed = false;
+  for (const sys of SYSTEMS_LIST()) {
+    if (state.panelConfig[sys]) continue;
+    state.panelConfig[sys] = normPanelConfig(defaultPanelConfig(sys));
+    console.log(`[panel-types] ${sys}: panel types written to the shared library`);
+    changed = true;
+  }
+  for (const p of state.parts) if ((p.roles || []).includes('Door Glass Stop')) {
+    p.roles = p.roles.filter(r => r !== 'Door Glass Stop'); changed = true;
+  }
+  return changed;
+}
 // "E2-0127×1, E2-0120x2" (or ×, x, *, :, or a bare part number meaning ×1) ⇄ [{part,loops}].
 // A text field, not a dropdown of known parts: a system the tool has never seen must be typeable.
 function parseGasketSpecText(txt) {
@@ -1175,18 +1326,6 @@ function parseGasketBoxLFText(txt) {
   }
   return out;
 }
-// Which panels offer the glass↔metal-panel type switch, vs. which simply have an editable gasket spec.
-// A door is a door — you don't re-type it — but its gasket is still yours to change.
-const PANEL_TYPE_CHOICES = ['glass', 'panel'];      // an AUTO-detected panel may be re-typed between these
-const PANEL_ALL_TYPES = ['glass', 'panel', 'door', 'louver'];   // a HAND-DRAWN panel can be any of these
-// #gasket-any-system: a louver used to be hard-locked to "no gasket, nothing to set". That was a
-// 750XT fact wearing the costume of a rule — another system may well gasket its louver band, and
-// now that the default is a per-system setting the panel-level editor has to be able to follow it.
-// A DOOR stays locked on purpose (#door-gasket): its gasket is the two jambs and only the two
-// jambs, and a loop set on the leaf would double-count them.
-const PANEL_EDITABLE_TYPES = ['glass', 'panel', 'louver'];
-const PANEL_TYPE_LABEL = { glass: 'Glass', panel: METAL_PANEL, louver: 'Louver', door: 'Door' };   // 'panel' = metal panel (was "IMP-1")
-const PANEL_TYPE_FILL = { glass: '#bcd6ee', panel: '#c9c9c9', louver: '#bfe6c8', door: '#f2c48a' };
 const GASKET_PART_COLOR = { 'E2-0127': '#2dd4bf', 'E2-0120': '#f97316', 'E2-0052': '#38bdf8' };
 function gasketPartColor(part) { return GASKET_PART_COLOR[part] || '#a78bfa'; }
 
@@ -1219,7 +1358,7 @@ function gasketPartColor(part) { return GASKET_PART_COLOR[part] || '#a78bfa'; }
 // the DXF — which cells are panels, where the doors are — cannot be recomputed later from stored
 // state; only a re-import fixes it. Every parse stamps this number onto the opening, and the
 // viewer says so when it does not match. BUMP THIS whenever the parse changes what it produces.
-const PARSER_VERSION = 20261005;   // bump when the PARSE changes what it produces (panels/doors) — 20261005: geometric doors + door bottoms
+const PARSER_VERSION = 20261006;   // bump when the PARSE changes what it produces (panels/doors) — 20261006: door jambs split at the head
 const PERIM_DOOR_PAD = 10;      // inches — how far outside the leaf a door's own jamb face can sit
 // A door header takes no gasket at all (Leo). Not its underside, not its top, not its ends — so
 // the whole header sits in a dead band above the opening and every face in it is dropped. The band
@@ -1433,22 +1572,29 @@ function panelOverridesFor(mark) { return panelEditRec(mark).overrides; }
 // Resolve one raw parsed cell into its effective panel: auto type/spec, with any manual override
 // laid on top. `autoT0`/`autoGaskets` are preserved so the UI can show what the detector said and
 // offer a reset.
-function resolvePanel(mark, cell, system) {
+// `kinds` (optional) = panelKinds(system), passed in by callers that resolve many panels at once.
+function panelKinds(system) {
+  return { all: panelTypeKeys(system), switchable: switchablePanelTypes(system), editable: editablePanelTypes(system) };
+}
+function resolvePanel(mark, cell, system, kinds) {
+  const K = kinds || panelKinds(system);
   const k = panelKey(cell);
   const ov = (panelOverridesFor(mark) || {})[k] || null;
   const autoT0 = cell.t0;
-  const t0 = (ov && ov.t0 && PANEL_TYPE_CHOICES.includes(autoT0) && PANEL_TYPE_CHOICES.includes(ov.t0)) ? ov.t0 : autoT0;
+  // a type that has since been deleted from the library falls back to what the detector said
+  const t0 = (ov && ov.t0 && K.switchable.includes(autoT0) && K.switchable.includes(ov.t0)) ? ov.t0 : autoT0;
   const autoGaskets = defaultGasketsFor(t0, system);
   const gaskets = (ov && Array.isArray(ov.gaskets)) ? ov.gaskets.map(g => ({ part: String(g.part || '').trim(), loops: +g.loops || 0 })).filter(g => g.part) : autoGaskets;
   return { k, x1: cell.x1, y1: cell.y1, x2: cell.x2, y2: cell.y2, t0, autoT0, gaskets, autoGaskets,
-    editable: PANEL_EDITABLE_TYPES.includes(autoT0),
-    typeSwitchable: PANEL_TYPE_CHOICES.includes(autoT0),
+    editable: K.editable.includes(t0),
+    typeSwitchable: K.switchable.includes(autoT0),
     overridden: !!(ov && (ov.t0 || ov.gaskets)) };
 }
 // A hand-drawn panel. Every type is allowed and everything about it is editable — it exists only
 // because a person put it there, so there is no "auto" value to defer to and nothing to lock.
-function resolveManualPanel(mark, m, system) {
-  const t0 = PANEL_ALL_TYPES.includes(m.t0) ? m.t0 : 'glass';
+function resolveManualPanel(mark, m, system, kinds) {
+  const K = kinds || panelKinds(system);
+  const t0 = K.all.includes(m.t0) ? m.t0 : 'glass';
   const gaskets = Array.isArray(m.gaskets)
     ? m.gaskets.map(g => ({ part: String(g.part || '').trim(), loops: +g.loops || 0 })).filter(g => g.part)
     : defaultGasketsFor(t0, system);
@@ -1461,95 +1607,84 @@ function resolvedPanels(o) {
   if (!o) return [];
   const rec = panelEditRec(o.mark);
   const hidden = new Set(rec.hidden || []);
-  const autos = (o.panelCells || []).filter(c => !hidden.has(panelKey(c))).map(c => resolvePanel(o.mark, c, o.system));
-  return autos.concat((rec.manual || []).map(m => resolveManualPanel(o.mark, m, o.system)));
+  const K = panelKinds(o.system);
+  const autos = (o.panelCells || []).filter(c => !hidden.has(panelKey(c))).map(c => resolvePanel(o.mark, c, o.system, K));
+  return autos.concat((rec.manual || []).map(m => resolveManualPanel(o.mark, m, o.system, K)));
 }
 // Doors the perimeter tracer must know about: the ones the DXF gave us, plus every hand-drawn
 // door panel. Without this a drawn door would colour in on the diagram but bill no gasket, and
 // the storefront run would still march straight across its opening.
 // A detected door whose panel was struck out ("Not a panel — remove") is not a door any more: it
 // stops cutting the storefront perimeter and stops billing door glass stops.
+// A door drawn by hand where the parser also finds one is the SAME door — e.g. drawn before the
+// 2026-10-05 build learned to find sill-less doors, then re-imported. Counted once (doorSets).
 function effectiveDoorRegions(o) {
   if (!o) return [];
-  const hidden = new Set(panelEditRec(o.mark).hidden || []);
-  const struck = (o.panelCells || []).filter(c => c.t0 === 'door' && hidden.has(panelKey(c)));
-  const parsed = ((o._bands && o._bands.doorRegions) || [])
-    .filter(d => !struck.some(c => Math.abs(c.x1 - d.minX) < 1 && Math.abs(c.x2 - d.maxX) < 1));
-  // A door drawn by hand where the parser also finds one is the SAME door — e.g. drawn before the
-  // 2026-10-05 build learned to find sill-less doors, then re-imported. Counted once.
-  const overlapsParsed = p => parsed.some(d => {
-    const ov = Math.min(p.x2, d.maxX) - Math.max(p.x1, d.minX);
-    return ov > 0.5 * Math.min(p.x2 - p.x1, d.maxX - d.minX);
-  });
-  for (const p of resolvedPanels(o)) if (p.t0 === 'door' && p.manual && !overlapsParsed(p))
-    parsed.push({ kind: 'DRAWN', minX: p.x1, maxX: p.x2, headY: p.y2, minY: p.y1 });
-  return parsed;
+  return doorSets(o.mark, o.system, (o._bands && o._bands.doorRegions) || []).live;
 }
 
 // ============================================================
-//  #door-glass-stop (2026-10-05, Leo: "door jamb 还得切，下面那段多 glass stop，但我现在不想切了，
-//  因为 glass stop 的长度就是门的高度，所以所有带门的加 2 段 glass stop 就行了")
+//  #edge-parts (2026-10-06): the stock pieces a panel TYPE puts around its own clear opening —
+//  e.g. glass stop all round a by-others panel, or up both sides of a door (which is what the
+//  2026-10-05 "door glass stop" became). Nothing is stored: the pieces are worked out from the
+//  panels and the framing every time, so they follow a re-typed or redrawn panel at once.
 //
-//  The door jamb used to be split by hand at the door head so its lower half could carry an
-//  extra glass stop. Not any more: every door adds TWO glass-stop pieces, each the door's height
-//  (threshold to door head), under the derived role "Door Glass Stop". Nothing is stored — the
-//  pieces are worked out from the doors every time (parsed doors + doors drawn on the gasket
-//  diagram, minus struck-out ones), so they can never go stale or double up on re-import.
-//
-//  Which part they bill is ordinary parts-library data: whatever part carries the role
-//  "Door Glass Stop" in that system (45TU E9-1015, IR501T 575504, 450 450CG004, 750XT the Glazing
-//  Pocket Filler — seeded once by seedDoorGlassStopRoles). A system with no part on the role
-//  bills nothing, and the viewer says so instead of inventing a part number.
+//  Length = DLO (Leo, 2026-10-06): face to face between the framing members bounding that edge.
+//  Works for both kinds of panel geometry — detected cells run member-centreline to centreline
+//  (the member straddles the edge), hand-drawn ones snap to member faces (the member stops at the
+//  edge). Where no member bounds an edge (a door's threshold) the panel's own edge is the limit.
 // ============================================================
-const DOOR_GLASS_STOP_ROLE = 'Door Glass Stop';
-const DERIVED_ROLES = new Set([DOOR_GLASS_STOP_ROLE]);
-function openingDoors(o) {
-  if (!o) return [];
-  const bb = o._bands && o._bands.bbox;
-  const out = [];
-  for (const d of effectiveDoorRegions(o)) {
-    const bot = (d.minY != null && isFinite(d.minY)) ? d.minY : (bb ? bb.minY : 0);
-    const h = d.headY - bot;
-    if (h > 12) out.push(Object.assign({}, d, { minY: bot, height: dxfRound(h) }));
+const EDGE_REACH = 6;   // inches — how far outside a panel edge its bounding member may sit
+function panelDlo(o, p, segs) {
+  const list = segs || (o.cuts || []).filter(c => c.src);
+  const ph = p.y2 - p.y1, pw = p.x2 - p.x1;
+  const yOv = s => Math.min(s.y + s.h, p.y2) - Math.max(s.y, p.y1) > Math.min(ph * 0.25, 6);
+  const xOv = s => Math.min(s.x + s.w, p.x2) - Math.max(s.x, p.x1) > Math.min(pw * 0.25, 6);
+  const V = list.filter(c => c.src.h > c.src.w), H = list.filter(c => c.src.w >= c.src.h);
+  const L = V.filter(c => yOv(c.src) && c.src.x <= p.x1 + 0.01 && c.src.x + c.src.w >= p.x1 - EDGE_REACH && c.src.x + c.src.w < p.x1 + pw / 2);
+  const R = V.filter(c => yOv(c.src) && c.src.x + c.src.w >= p.x2 - 0.01 && c.src.x <= p.x2 + EDGE_REACH && c.src.x > p.x2 - pw / 2);
+  const B = H.filter(c => xOv(c.src) && c.src.y <= p.y1 + 0.01 && c.src.y + c.src.h >= p.y1 - EDGE_REACH && c.src.y + c.src.h < p.y1 + ph / 2);
+  const T = H.filter(c => xOv(c.src) && c.src.y + c.src.h >= p.y2 - 0.01 && c.src.y <= p.y2 + EDGE_REACH && c.src.y > p.y2 - ph / 2);
+  const left = L.length ? Math.max(...L.map(c => c.src.x + c.src.w)) : p.x1;
+  const right = R.length ? Math.min(...R.map(c => c.src.x)) : p.x2;
+  const bottom = B.length ? Math.max(...B.map(c => c.src.y + c.src.h)) : p.y1;
+  const top = T.length ? Math.min(...T.map(c => c.src.y)) : p.y2;
+  return { left, right, bottom, top, w: right - left, h: top - bottom, members: { left: L, right: R, bottom: B, top: T } };
+}
+const EDGE_SIDES = { all: ['left', 'right', 'bottom', 'top'], vertical: ['left', 'right'], horizontal: ['bottom', 'top'], head: ['top'], sill: ['bottom'] };
+// Every edge piece in one opening (for ONE unit — callers multiply by o.qty), plus the places where
+// the member beside an edge already carries the same part through its role: that is the old
+// "cut the member and give it a glass-stop role" habit, and it would bill the stop twice.
+function panelEdgeData(o) {
+  const out = { pieces: [], doubles: [] };
+  if (!o) return out;
+  if (Array.isArray(o.panelCells) && !Array.isArray(o.panels)) recomputeOpeningGaskets(o);
+  const panels = o.panels || [];
+  if (!panels.length) return out;
+  const types = new Map(panelTypesFor(o.system).map(t => [t.key, t]));
+  const segs = (o.cuts || []).filter(c => c.src);
+  const seen = new Set();
+  // a door drawn over a detected one is the same door (effectiveDoorRegions) — its edges are billed once
+  const parsedDoors = doorSets(o.mark, o.system, (o._bands && o._bands.doorRegions) || []).live.filter(d => d.kind !== 'DRAWN');
+  for (const p of panels) {
+    const t = types.get(p.t0);
+    if (!t || !t.edges.length) continue;
+    if (p.manual && p.t0 === 'door' && parsedDoors.some(d => doorsOverlap({ minX: p.x1, maxX: p.x2 }, d))) continue;
+    const d = panelDlo(o, p, segs);
+    for (const e of t.edges) {
+      if (!e.part) continue;
+      for (const side of EDGE_SIDES[e.on]) {
+        const L = dxfRound((side === 'left' || side === 'right' ? d.h : d.w) + e.adj);
+        if (L > 0) out.pieces.push({ part: e.part, desc: e.desc, length: L, count: e.qty, type: t.label, typeKey: t.key, panel: p.k, side });
+        for (const c of d.members[side]) {
+          const has = (state.parts || []).some(x => x.system === o.system && x.partNumber === e.part && (x.roles || []).includes(c.position));
+          const k = e.part + '|' + c.position + '|' + t.key;
+          if (has && !seen.has(k)) { seen.add(k); out.doubles.push({ part: e.part, role: c.position, type: t.label }); }
+        }
+      }
+    }
   }
   return out;
-}
-function doorGlassStopParts(system) {
-  return (state.parts || []).filter(p => p.system === system && (p.roles || []).includes(DOOR_GLASS_STOP_ROLE));
-}
-function doorGlassStopCuts(o) {
-  if (!o || !doorGlassStopParts(o.system).length) return [];
-  return openingDoors(o).map(d => ({ position: DOOR_GLASS_STOP_ROLE, length: d.height, count: 2, src: null, derived: true }));
-}
-// One-time, company-wide: put "Door Glass Stop" on each system's glass-stop part. Gated on a marker
-// stored IN the shared library doc (state.systemSeeds, synced by cloud-sync.js), not in this
-// browser — so it happens once for everyone, and if someone later takes the role off a part it
-// stays off. Waits for the first cloud snapshot so it cannot race the library arriving.
-const DOOR_GLASS_STOP_SEED = {
-  '45TU':   p => String(p.partNumber).trim() === 'E9-1015',
-  'IR501T': p => String(p.partNumber).trim() === '575504',
-  '450':    p => String(p.partNumber).trim() === '450CG004',
-  '750XT':  p => /glazing pocket filler|^pocket filler$/i.test(String(p.description || '').trim()),
-};
-function seedDoorGlassStopRoles() {
-  if (typeof window === 'undefined' || !window.__partsLibReady || !Array.isArray(state.parts)) return false;
-  state.systemSeeds = state.systemSeeds || {};
-  let changed = false;
-  for (const sys in DOOR_GLASS_STOP_SEED) {
-    const done = state.systemSeeds[sys] || [];
-    if (done.includes('door-glass-stop')) continue;
-    const parts = state.parts.filter(p => p.system === sys);
-    if (!parts.length) continue;
-    if (!parts.some(p => (p.roles || []).includes(DOOR_GLASS_STOP_ROLE))) {
-      const target = parts.find(DOOR_GLASS_STOP_SEED[sys]);
-      if (!target) continue;              // that part is not in the library (yet) — try again later
-      target.roles = [...(target.roles || []), DOOR_GLASS_STOP_ROLE];
-      console.log(`[door-glass-stop] ${sys}: ${target.partNumber} now covers "${DOOR_GLASS_STOP_ROLE}"`);
-    }
-    state.systemSeeds[sys] = [...done, 'door-glass-stop'];
-    changed = true;
-  }
-  return changed;
 }
 function panelPerimeterIn(p) { return 2 * ((p.x2 - p.x1) + (p.y2 - p.y1)); }
 // #gasket-in-cutting (2026-08-20, Leo: "用 gasket diagram 里面的数量加起来发在 cutting diagram 里
@@ -1636,7 +1771,7 @@ function addManualPanel(mark, rect, t0) {
   if (r.x2 - r.x1 < 1 || r.y2 - r.y1 < 1) return null;   // a stray click, not a panel
   const rec = panelEditRec(mark);
   const m = { k: 'M' + panelKey(r), x1: +r.x1.toFixed(3), y1: +r.y1.toFixed(3),
-              x2: +r.x2.toFixed(3), y2: +r.y2.toFixed(3), t0: PANEL_ALL_TYPES.includes(t0) ? t0 : 'glass' };
+              x2: +r.x2.toFixed(3), y2: +r.y2.toFixed(3), t0: t0 || 'glass' };
   if ((rec.manual || []).some(p => p.k === m.k)) return m.k;   // same rectangle twice — ignore
   rec.manual = (rec.manual || []).concat([m]);
   writePanelEditRec(mark, rec);
@@ -1774,11 +1909,269 @@ function mergeCollinearVerticals(cuts) {
 // The IMP-1 band geometry itself is still detected and still passed in via ctx — it is now used
 // only to seed each infill panel's glass/IMP-1 type (buildElevExport), which is where the gasket
 // takeoff comes from, and which Leo can override per panel.
+// ============================================================
+//  #door-split (2026-10-06, Leo: "any door panel will immediately make the jamb on the sides of it
+//  door jamb and the remain part above door jamb at transom. While it doesn't necessarily need to
+//  be an extra role as door jamb at transom, it could just be vertical." + "Glass and metal panel
+//  share the same pressure plate; only when one side is door, it becomes perimeter pressure plate")
+//
+//  The vertical on each side of a door is cut at the door head: below = Door Jamb (its role carries
+//  the perimeter pressure plate), above = Vertical — or Jamb on the elevation's outer edge, or
+//  Door Jamb At Transom on a system that has that role (IR501T). Every system, 750XT included.
+//  "如果是在两端的就延伸到end就行，不要留一小段": when the head sits within DOOR_SPLIT_MIN of the
+//  member's end the whole member stays Door Jamb. The extrusion both halves share still comes out
+//  as ONE piece — see memberChains().
+//  When it runs (review 2026-10-06 — a saved edit-set is the user's word, so it is never re-cut):
+//    · a fresh parse — before any saved edit-set is laid on top;
+//    · on an edit-set whose cuts do not carry a current `doorSplit` mark (saved before this rule,
+//      or rewritten since by an older build — see doorRuleMark), and on restoring such a version —
+//      bringing it up to date. A member already cut by hand there is left as it is; the old
+//      two-pieces-on-one-rectangle jamb becomes its two real pieces, each keeping its role.
+//      Anything saved since says how the user wants its jambs, merges included, and is kept;
+//    · live, when a door appears or goes on the gasket diagram (syncDoorJambs).
+//  A door struck out with "Not a panel" is not a door: its jambs are not cut, and go back to Jamb /
+//  Vertical. A piece pinned to some other role through the dropdown is left exactly as it is.
+// ============================================================
+const DOOR_SPLIT_MIN = 8;   // inches
+const DOOR_SPLIT_ROLES = new Set(['Door Jamb', 'Door Jamb At Transom', 'Jamb', 'Vertical']);
+// what the part of a door-side member ABOVE the head may be called — i.e. the member's own role
+const DOOR_UPPER_ROLES = new Set(['Door Jamb At Transom', 'Jamb', 'Vertical', 'Vertical (wide)', 'Jamb (X)', 'Vertical (X)', 'Vertical (wide X)']);
+// Louver-area members → (X)/(Lv) variants (still counted; only the part role changes).
+const LOUVER_XMAP = { 'Head': 'Head (X)', 'Sill': 'Sill (X)', 'Horizontal': 'Horizontal (X)', 'Jamb': 'Jamb (X)', 'Vertical': 'Vertical (X)', 'Vertical (wide)': 'Vertical (wide X)', 'Door Jamb': 'Vertical (X)' };
+function inLouverBand(s, lb) {
+  if (!s || !lb) return false;
+  const cx = s.x + s.w / 2;
+  return cx >= lb.minX - 10 && cx <= lb.maxX + 10 && (s.y + s.h) >= lb.minY - 5 && s.y <= lb.maxY + 5;
+}
+function doorUpperRole(system, isOuter) {
+  if (recognizedRolesForSystem(system).has('Door Jamb At Transom')) return 'Door Jamb At Transom';
+  return isOuter ? 'Jamb' : 'Vertical';
+}
+// The same finishing touches the parser gives every member: 750XT wide verticals, louver-band (X).
+function finishDoorPiece(c, system, louverBand) {
+  if (system === '750XT' && (c.position === 'Vertical' || c.position === 'Jamb') && c.src && c.src.w >= 3.5) c.position = 'Vertical (wide)';
+  if (louverBand && LOUVER_XMAP[c.position] && inLouverBand(c.src, louverBand)) c.position = LOUVER_XMAP[c.position];
+  return c;
+}
+// A drawn door and a detected one are the same door when they share over half the narrower width.
+function doorsOverlap(a, b) {
+  const ov = Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX);
+  return ov > 0.5 * Math.min(a.maxX - a.minX, b.maxX - b.minX);
+}
+const _isVertCut = c => !!(c && c.src && c.src.h > c.src.w);
+// The framing member on one side of a door: the nearest vertical running alongside the leaf (same
+// reach as the parser's own jamb finder).
+function doorSideMember(cuts, d, side) {
+  if (!(isFinite(d.headY) && isFinite(d.minX) && isFinite(d.maxX))) return null;
+  const bot = isFinite(d.minY) ? d.minY : -1e9;
+  const beside = s => Math.min(s.y + s.h, d.headY) - Math.max(s.y, bot) > 12;
+  const verts = cuts.filter(_isVertCut);
+  if (!verts.length) return null;
+  const near = verts.filter(c => beside(c.src) && (side === 'L'
+    ? (c.src.x + c.src.w / 2 <= d.minX + 2 && c.src.x + c.src.w >= d.minX - 12)
+    : (c.src.x + c.src.w / 2 >= d.maxX - 2 && c.src.x <= d.maxX + 12)));
+  if (!near.length) return null;
+  near.sort((a, b) => side === 'L' ? (b.src.x + b.src.w) - (a.src.x + a.src.w) : a.src.x - b.src.x);
+  const mx = near[0].src.x, mw = near[0].src.w;
+  const cxs = verts.map(c => c.src.x + c.src.w / 2), cx = mx + mw / 2;
+  return { mx, mw, beside,
+    isOuter: Math.abs(cx - Math.min(...cxs)) < 0.5 || Math.abs(cx - Math.max(...cxs)) < 0.5,
+    has: c => _isVertCut(c) && Math.abs(c.src.x - mx) < 0.05 && Math.abs(c.src.w - mw) < 0.05 };
+}
+// Pieces a role pin sits on (Map cut → the stored pin), so the door rule can stay off them.
+function pinnedCuts(cuts, mark, bbox) {
+  const pins = mark ? rolePinsFor(mark) : [];
+  if (!pins.length || !Array.isArray(cuts)) return null;
+  const { out } = matchRolePins(pins, cuts, pinOrigin(cuts, bbox));
+  if (!out.size) return null;
+  const m = new Map();
+  out.forEach((p, i) => m.set(cuts[i], p._pin || p));
+  return m;
+}
+// opts (all optional):
+//   pins       pinnedCuts() — pieces the user pinned through the dropdown
+//   louverBand the opening's louver band (for the (X) roles)
+//   log        [] — gets one line per member cut, for the viewer's "changed from your saved version"
+//   pinMoves   [] — where a pin has to follow its piece. Without it the stored pin is moved at once
+//              (live edits); the parser passes one and moves them only once the import is accepted
+//              and those cut pieces are what the opening ends up with.
+//   wholeOnly  only cut a member that is still whole beside the door — used when bringing an old
+//              edit-set up to date, where a member already cut by hand is the user's own work.
+function splitJambsAtDoors(cuts, doors, system, opts) {
+  if (!Array.isArray(cuts) || !doors || !doors.length) return false;
+  const o = opts || {}, pins = o.pins || null, lb = o.louverBand, log = o.log;
+  const movePin = (pin, from, to) => {
+    if (!pin) return;
+    const mv = { pin, ry: _r1(pin.ry + (to.y - from.y)), h: _r1(to.h) };
+    if (o.pinMoves) o.pinMoves.push(mv); else { pin.ry = mv.ry; pin.h = mv.h; }
+  };
+  const done = new Set();
+  let changed = false;
+  for (const d of doors) {
+    for (const side of ['L', 'R']) {
+      const m = doorSideMember(cuts, d, side);
+      if (!m) continue;
+      // A jamb saved by the 2026-10-05 build is TWO pieces on one full-height rectangle: Door Jamb
+      // and Door Jamb At Transom, their LENGTHS below and above the head. That is one member, already
+      // divided at the head — turn it into the two real pieces, each keeping the role it was given,
+      // instead of cutting both (which bills the jamb twice).
+      const groups = new Map();
+      for (const c of cuts) {
+        if (!m.has(c) || !m.beside(c.src) || done.has(c) || (parseInt(c.count) || 1) !== 1 || !DOOR_SPLIT_ROLES.has(c.position)) continue;
+        const k = _r1(c.src.y) + '|' + _r1(c.src.h);
+        if (!groups.has(k)) groups.set(k, []);
+        groups.get(k).push(c);
+      }
+      for (const g of groups.values()) {
+        if (g.length < 2) continue;
+        const s = g[0].src, top = s.y + s.h, upper = top - d.headY, lower = d.headY - s.y;
+        const lowP = g.find(c => Math.abs(c.length - lower) <= 1.5);
+        const upP = lowP && g.find(c => c !== lowP && Math.abs(c.length - upper) <= 1.5);
+        if (g.length === 2 && lowP && upP && upper > DOOR_SPLIT_MIN && lower > DOOR_SPLIT_MIN) {
+          const isDoorRole = r => r === 'Door Jamb' || r === 'Door Jamb At Transom';
+          const lo = finishDoorPiece({ position: isDoorRole(lowP.position) ? 'Door Jamb' : lowP.position, length: dxfRound(lower), count: 1,
+                       src: { x: s.x, y: s.y, w: s.w, h: dxfRound(lower), layer: s.layer } }, system, lb);
+          const hi = finishDoorPiece({ position: isDoorRole(upP.position) ? doorUpperRole(system, m.isOuter) : upP.position, length: dxfRound(upper), count: 1,
+                       src: { x: s.x, y: dxfRound(d.headY), w: s.w, h: dxfRound(upper), layer: s.layer } }, system, lb);
+          if (m.isOuter) hi.edgeDoorJamb = true;
+          // a pin on that shared rectangle never said which half it meant — it goes to the half with its role
+          for (const pin of [pins && pins.get(lowP), pins && pins.get(upP)]) {
+            if (!pin) continue;
+            const r = normalizeImp1RoleToBase(pin.role);
+            movePin(pin, s, (r === hi.position && r !== lo.position ? hi : lo).src);
+          }
+          cuts.splice(cuts.indexOf(upP), 1);
+          cuts.splice(cuts.indexOf(lowP), 1, lo, hi);
+          done.add(lo); done.add(hi);
+          if (log) log.push({ src: s, from: `${lowP.position} ${lowP.length}″ + ${upP.position} ${upP.length}″ (on one rectangle)`, to: `${lo.position} + ${hi.position} (cut at the door head)` });
+          changed = true;
+          continue;
+        }
+        const keep = g.find(c => pins && pins.has(c)) || g.find(c => c.position === 'Door Jamb') || g[0];
+        keep.length = dxfRound(keep.src.h);
+        for (const c of g) if (c !== keep) { cuts.splice(cuts.indexOf(c), 1); changed = true; }
+      }
+      // every segment of that member beside the door
+      const beside = cuts.filter(c => m.has(c) && m.beside(c.src) && !done.has(c));
+      if (o.wholeOnly && new Set(beside.map(c => _r1(c.src.y) + '|' + _r1(c.src.h))).size > 1) continue;
+      for (const c of beside) {
+        if (!DOOR_SPLIT_ROLES.has(c.position)) continue;          // a hand-set special role is left alone
+        const pin = pins && pins.get(c);
+        if (pin && normalizeImp1RoleToBase(pin.role) !== 'Door Jamb') continue;   // pinned to something else: the user's call
+        const s = c.src, top = s.y + s.h, n = parseInt(c.count) || 1;
+        const upper = top - d.headY, lower = d.headY - s.y;
+        if (upper > DOOR_SPLIT_MIN && lower > DOOR_SPLIT_MIN) {
+          const lo = finishDoorPiece({ position: 'Door Jamb', length: dxfRound(lower), count: n,
+                       src: { x: s.x, y: s.y, w: s.w, h: dxfRound(lower), layer: s.layer } }, system, lb);
+          const hi = finishDoorPiece({ position: doorUpperRole(system, m.isOuter), length: dxfRound(upper), count: n,
+                       src: { x: s.x, y: dxfRound(d.headY), w: s.w, h: dxfRound(upper), layer: s.layer } }, system, lb);
+          if (m.isOuter) hi.edgeDoorJamb = true;
+          cuts.splice(cuts.indexOf(c), 1, lo, hi);
+          done.add(lo); done.add(hi);
+          movePin(pin, s, lo.src);              // a Door Jamb pin moves onto the Door Jamb part
+          if (log) log.push({ src: s, from: c.position, to: `${lo.position} + ${hi.position} (cut at the door head)` });
+          changed = true;
+        } else if (c.position !== 'Door Jamb') {
+          c.position = 'Door Jamb'; changed = true;
+        }
+      }
+    }
+  }
+  return changed;
+}
+// The reverse, for a door that has gone (a drawn door deleted or re-typed, a detected one struck
+// out): the two pieces cut at its head become one member again, with the role the part above the
+// head carries — the member's own role away from the door; a jamb that was only re-labelled Door
+// Jamb goes back to Jamb / Vertical. A member another door still stands beside, and any pinned
+// piece, is left alone.
+function unsplitJambsAtDoor(cuts, d, keepDoors, system, opts) {
+  if (!Array.isArray(cuts) || !d) return false;
+  const pins = (opts && opts.pins) || null, lb = opts && opts.louverBand, log = opts && opts.log;
+  const free = c => !(pins && pins.has(c));
+  const cnt = c => parseInt(c.count) || 1;
+  let changed = false;
+  for (const side of ['L', 'R']) {
+    const m = doorSideMember(cuts, d, side);
+    if (!m) continue;
+    const stillDoor = (keepDoors || []).some(k => ['L', 'R'].some(s2 => {
+      const m2 = doorSideMember(cuts, k, s2);
+      return m2 && Math.abs(m2.mx - m.mx) < 0.05 && Math.abs(m2.mw - m.mw) < 0.05;
+    }));
+    if (stillDoor) continue;
+    const segs = cuts.filter(m.has);
+    const plain = () => m.isOuter ? 'Jamb' : 'Vertical';
+    const lo = segs.find(c => c.position === 'Door Jamb' && free(c) && Math.abs(c.src.y + c.src.h - d.headY) < 0.6);
+    const hi = lo && segs.find(c => c !== lo && free(c) && cnt(c) === cnt(lo) && DOOR_UPPER_ROLES.has(c.position) && Math.abs(c.src.y - (lo.src.y + lo.src.h)) < 0.6);
+    if (lo && hi) {
+      const top = hi.src.y + hi.src.h, was = lo.src;
+      lo.src = { ...lo.src, h: dxfRound(top - lo.src.y) };
+      lo.length = dxfRound(top - lo.src.y);
+      lo.position = hi.position === 'Door Jamb At Transom' ? plain() : hi.position;
+      delete lo.edgeDoorJamb;
+      finishDoorPiece(lo, system, lb);
+      cuts.splice(cuts.indexOf(hi), 1);
+      if (log) log.push({ src: was, from: `Door Jamb + ${hi.position}`, to: `${lo.position} (one piece again — no door)` });
+      changed = true;
+      continue;
+    }
+    for (const c of segs) if (c.position === 'Door Jamb' && free(c) && m.beside(c.src)) {
+      c.position = plain(); finishDoorPiece(c, system, lb); changed = true;
+    }
+  }
+  return changed;
+}
+// The doors an elevation's jambs answer to, from the panel record alone (the parser needs this
+// before the opening object exists): detected doors not struck out, plus hand-drawn door panels
+// that are not the same door as a detected one; and the struck-out ones, apart.
+function doorSets(mark, system, parsedDoors) {
+  const rec = panelEditRec(mark);
+  const hk = (rec.hidden || []).map(k => String(k).split('|').map(Number)).filter(h => h.length === 4);
+  const isStruck = d => hk.some(h => Math.abs(h[0] - d.minX) < 1 && Math.abs(h[2] - d.maxX) < 1 && Math.abs(h[3] - d.headY) < 1);
+  const live = [], struck = [];
+  for (const d of parsedDoors || []) (isStruck(d) ? struck : live).push(d);
+  const parsedLive = live.slice();
+  const K = panelKinds(system);
+  for (const m of rec.manual || []) {
+    const p = resolveManualPanel(mark, m, system, K);
+    if (p.t0 !== 'door') continue;
+    const d = { kind: 'DRAWN', minX: p.x1, maxX: p.x2, headY: p.y2, minY: p.y1 };
+    if (!parsedLive.some(q => doorsOverlap(d, q))) live.push(d);
+  }
+  return { live, struck };
+}
+function applyDoorJambs(cuts, doors, system, opts) {
+  let changed = splitJambsAtDoors(cuts, doors.live, system, opts);
+  for (const d of doors.struck) if (unsplitJambsAtDoor(cuts, d, doors.live, system, opts)) changed = true;
+  return changed;
+}
+// Live: a door appeared or went on the gasket diagram (drawn, deleted, re-typed, struck out, all
+// panels reset). `before` is effectiveDoorRegions(o) taken just before the edit. The jamb change is
+// a real edit to the framing, so it is saved like one.
+function syncDoorJambs(o, before) {
+  if (!o || !Array.isArray(o.cuts) || !Array.isArray(before)) return false;
+  const after = effectiveDoorRegions(o);
+  const same = (a, b) => Math.abs(a.minX - b.minX) < 0.5 && Math.abs(a.maxX - b.maxX) < 0.5 && Math.abs(a.headY - b.headY) < 0.5;
+  const gone = before.filter(d => !after.some(x => same(x, d)));
+  const added = after.filter(d => !before.some(x => same(x, d)));
+  if (!gone.length && !added.length) return false;
+  const b = o._bands || {};
+  const opts = { pins: pinnedCuts(o.cuts, o.mark, b.bbox), louverBand: b.louverBand };
+  let changed = false;
+  for (const d of gone) if (unsplitJambsAtDoor(o.cuts, d, after, o.system, opts)) changed = true;
+  if (splitJambsAtDoors(o.cuts, added, o.system, opts)) changed = true;
+  if (changed) persistElevEdits(o);
+  return changed;
+}
 function classifyRoles(cuts, ctx) {
   const { system, bbox, imp1Bands = [], louverBand, doorRegions, mark } = ctx;
   const inX = (b, midX) => midX >= b.minX - 6 && midX <= b.maxX + 6;
   for (const cut of cuts) cut.position = normalizeImp1RoleToBase(cut.position);
   mergeCollinearVerticals(cuts);
+  // the geometry-signature pass stops here: everything below only changes roles
+  if (ctx.sigOnly) return;
+  // #door-split: only when the caller asks — an edit-set saved before the rule existed, brought up
+  // to date once. A fresh parse was already cut by the parser; a newer edit-set is the user's word.
+  if (ctx.doors) applyDoorJambs(cuts, ctx.doors, system, { pins: pinnedCuts(cuts, mark, bbox), louverBand, log: ctx.doorLog, pinMoves: ctx.pinMoves, wholeOnly: true });
   // #S3-followup (2026-07-17, Leo): "if it's glass top and bottom, then it's
   // horizontal(glass&glass)". Everything that borders IMP-1 or louver already got its own
   // label above (this step only ever sees whatever is still plain 'Horizontal'), so any
@@ -1890,13 +2283,14 @@ function pinDiagnostics(o) {
   const rel = list => list.slice(0, 60).map(c => [_r1(c.src.x), _r1(c.src.y), _r1(c.src.w), _r1(c.src.h)].join('|'));
   return {
     mark: o.mark, system: o.system, parserVersion: o._pv || null, buildParser: PARSER_VERSION,
-    freshCuts: cuts.length, freshGeoSig: elevGeoSig(o.cuts).slice(0, 120),
+    freshCuts: cuts.length, freshGeoSig: String(o.geoSig || elevGeoSig(o.cuts)).slice(0, 120),
     saved: !saved ? null : {
       cuts: savedCuts.length,
       storedGeoSig: String(saved.geoSig || '').slice(0, 120),
-      matchesRelative: saved.geoSig === elevGeoSig(o.cuts),
-      matchesAbsolute: saved.geoSig === elevGeoSigAbs(o.cuts),
-      wouldRestoreWholesale: geoSigMatches(saved.geoSig, o.cuts),
+      matchesRelative: !!o.geoSig && normGeoSig(saved.geoSig) === normGeoSig(o.geoSig),
+      matchesAbsolute: normGeoSig(saved.geoSig) === elevGeoSigAbs(o.cuts),
+      wouldRestoreWholesale: (!!o.geoSig && normGeoSig(saved.geoSig) === normGeoSig(o.geoSig)) || geoSigMatches(saved.geoSig, o.cuts),
+      doorSplit: doorRuleCurrent(saved),
     },
     savedRoleReport: savedRoleReport(o.mark),
     pinsStored: pins.length,
@@ -2088,11 +2482,11 @@ function renderPanelSvg(o) {
   if (bb.synthetic) svg += rect(bb.minX, bb.minY, bb.maxX, bb.maxY,
     `fill="none" pointer-events="none" stroke="#4b5563" stroke-width="${(sw * 3).toFixed(3)}" stroke-dasharray="${(sw * 12).toFixed(2)},${(sw * 8).toFixed(2)}"`);
   for (const p of (o.panels || [])) {
-    const title = `${PANEL_TYPE_LABEL[p.t0] || p.t0} · ${formatNumber((p.x2 - p.x1))}" × ${formatNumber((p.y2 - p.y1))}"`
+    const title = `${panelTypeLabel(o.system, p.t0)} · ${formatNumber((p.x2 - p.x1))}" × ${formatNumber((p.y2 - p.y1))}"`
       + (p.gaskets.length ? ' · ' + p.gaskets.map(g => `${g.part}×${g.loops}`).join(', ') : ' · no infill gasket')
       + (p.manual ? ' · drawn by hand' : p.overridden ? ' · hand-set' : '') + (p.editable ? ' (click to edit)' : ' (locked)');
     svg += rect(p.x1, p.y1, p.x2, p.y2,
-      `data-panel="${escAttr(p.k)}" fill="${PANEL_TYPE_FILL[p.t0] || '#ddd'}" fill-opacity="0.75" stroke="none" style="cursor:${viewerDrawType ? 'crosshair' : (p.editable ? 'pointer' : 'not-allowed')};"`,
+      `data-panel="${escAttr(p.k)}" fill="${panelTypeColor(o.system, p.t0)}" fill-opacity="0.75" stroke="none" style="cursor:${viewerDrawType ? 'crosshair' : (p.editable ? 'pointer' : 'not-allowed')};"`,
       `<title>${escHtml(title)}</title>`);
   }
   for (const c of (o.cuts || [])) {
@@ -2138,7 +2532,7 @@ function renderPanelSvg(o) {
   if (viewerDrawRect) {
     const r = viewerDrawRect;
     svg += rect(Math.min(r.x1, r.x2), Math.min(r.y1, r.y2), Math.max(r.x1, r.x2), Math.max(r.y1, r.y2),
-      `fill="${PANEL_TYPE_FILL[viewerDrawType] || '#fff'}" fill-opacity="0.35" pointer-events="none" stroke="#22d3ee" stroke-width="${(sw * 5).toFixed(3)}" stroke-dasharray="${(sw * 10).toFixed(2)},${(sw * 6).toFixed(2)}"`);
+      `fill="${panelTypeColor(o.system, viewerDrawType)}" fill-opacity="0.35" pointer-events="none" stroke="#22d3ee" stroke-width="${(sw * 5).toFixed(3)}" stroke-dasharray="${(sw * 10).toFixed(2)},${(sw * 6).toFixed(2)}"`);
   }
   return `<svg id="panel-map-svg" data-x0="${bb.minX}" data-y1="${bb.maxY}" viewBox="${(-pad).toFixed(2)} ${(-pad).toFixed(2)} ${(W + 2 * pad).toFixed(2)} ${(H + 2 * pad).toFixed(2)}" style="width:100%;max-height:520px;display:block;background:#0b0e12;${viewerDrawType ? 'cursor:crosshair;' : ''}">${svg}</svg>`;
 }
@@ -2280,7 +2674,7 @@ function renderGasketBulk(o) {
   const sysOpens = (state.openings || []).filter(x => x.system === o.system);
   let sysCount = 0;
   for (const x of sysOpens) { if (!Array.isArray(x.panels)) recomputeOpeningGaskets(x); sysCount += (x.panels || []).filter(p => p.t0 === gkBulkType).length; }
-  const types = PANEL_EDITABLE_TYPES;
+  const types = editablePanelTypes(o.system);
   if (!types.includes(gkBulkType)) gkBulkType = 'glass';
   const inScope = gkBulkScope === 'system'
     ? sysOpens.flatMap(x => (x.panels || []).filter(p => p.t0 === gkBulkType))
@@ -2289,13 +2683,13 @@ function renderGasketBulk(o) {
   // are none of that type yet); blank with a "mixed" hint when they differ
   const cur = inScope.length ? commonGasketText(inScope) : gasketSpecText(systemGasket(o.system).panel[gkBulkType]);
   const selBtns = types.filter(t => counts[t]).map(t =>
-    `<button class="tk-btn tk-btn--ghost tk-btn--sm" data-gk-select="${t}">All ${escHtml(PANEL_TYPE_LABEL[t])} <span class="gk-chip-n">${counts[t]}</span></button>`).join('');
+    `<button class="tk-btn tk-btn--ghost tk-btn--sm" data-gk-select="${t}">All ${escHtml(panelTypeLabel(o.system, t))} <span class="gk-chip-n">${counts[t]}</span></button>`).join('');
   return `
     <div class="gk-bulk" id="gk-bulk">
       <div class="gk-bulk__row">
         <span class="gk-bulk__label">Set gasket</span>
         <span>for every</span>
-        <select id="gk-type" class="tk-cell-select">${types.map(t => `<option value="${t}" ${t === gkBulkType ? 'selected' : ''}>${escHtml(PANEL_TYPE_LABEL[t])}</option>`).join('')}</select>
+        <select id="gk-type" class="tk-cell-select">${types.map(t => `<option value="${escAttr(t)}" ${t === gkBulkType ? 'selected' : ''}>${escHtml(panelTypeLabel(o.system, t))}</option>`).join('')}</select>
         <span>panel in</span>
         <select id="gk-scope" class="tk-cell-select">
           <option value="this" ${gkBulkScope === 'this' ? 'selected' : ''}>this elevation (${panels.filter(p => p.t0 === gkBulkType).length})</option>
@@ -2308,7 +2702,7 @@ function renderGasketBulk(o) {
         ${viewerPanelSel.size ? `<button class="tk-btn tk-btn--ghost tk-btn--sm" id="gk-clear-sel">Clear selection</button>` : ''}
         <span class="gk-chip-n">· or Shift/Ctrl-click panels on the diagram</span></div>` : ''}
       <div class="gk-chip-n">Format <span class="mono">PART×loops</span>, comma separated; leave empty for no gasket.
-        ${gkBulkScope === 'system' ? `"All ${escHtml(o.system)} elevations" sets the ${escHtml(o.system)} default for ${escHtml(PANEL_TYPE_LABEL[gkBulkType])} and clears per-panel gasket edits on that type.` : ''}</div>
+        ${gkBulkScope === 'system' ? `"All ${escHtml(o.system)} elevations" sets the ${escHtml(o.system)} default for ${escHtml(panelTypeLabel(o.system, gkBulkType))} and clears per-panel gasket edits on that type.` : ''}</div>
     </div>`;
 }
 function renderMultiPanelEditor(o) {
@@ -2323,11 +2717,11 @@ function renderMultiPanelEditor(o) {
     <div class="gk-multi">
       <div class="gk-multi__row">
         <b>${sel.length} panels selected</b>
-        <span style="font-size:12px;color:#888;">${Object.entries(counts).map(([t, n]) => `${n} ${escHtml(PANEL_TYPE_LABEL[t] || t)}`).join(' · ')}</span>
+        <span style="font-size:12px;color:#888;">${Object.entries(counts).map(([t, n]) => `${n} ${escHtml(panelTypeLabel(o.system, t))}`).join(' · ')}</span>
         ${switchable ? `<label>Make them all
           <select id="vpm-type" class="tk-cell-select">
             <option value="" ${types.length > 1 ? 'selected' : ''}>${types.length > 1 ? '— mixed —' : '— keep —'}</option>
-            ${PANEL_TYPE_CHOICES.map(t => `<option value="${t}" ${types.length === 1 && types[0] === t ? 'selected' : ''}>${escHtml(PANEL_TYPE_LABEL[t])}</option>`).join('')}
+            ${(sel.some(p => p.manual) ? panelTypeKeys(o.system) : switchablePanelTypes(o.system)).map(t => `<option value="${t}" ${types.length === 1 && types[0] === t ? 'selected' : ''}>${escHtml(panelTypeLabel(o.system, t))}</option>`).join('')}
           </select></label>` : ''}
       </div>
       ${editable.length ? `<div class="gk-multi__row">
@@ -2351,7 +2745,7 @@ function renderPanelEditor(o) {
     ? (systemGasket(o.system).doorPart
         ? `A door's gasket is the two jambs (${escHtml(systemGasket(o.system).doorPart)}, full height) — counted once, in the run below the diagram. Nothing to set on the panel itself.`
         : `${escHtml(o.system)} has no door-jamb gasket run — nothing to set here.`)
-    : `${escHtml(PANEL_TYPE_LABEL[p.t0] || p.t0)} panels are locked — no gasket, nothing to set.`}</div>`;
+    : `${escHtml(panelTypeLabel(o.system, p.t0))} panels are locked — no gasket, nothing to set.`}</div>`;
   const rows = p.gaskets.map((g, i) => `
     <div style="display:flex;align-items:center;gap:6px;">
       <input class="tk-cell-input mono" data-gpart="${i}" value="${escAttr(g.part)}" placeholder="Part #" style="width:110px;" />
@@ -2366,11 +2760,11 @@ function renderPanelEditor(o) {
         <b>Panel ${formatNumber(p.x2 - p.x1)}" × ${formatNumber(p.y2 - p.y1)}"</b>
         ${p.typeSwitchable ? `<label>This panel is
           <select id="vp-type" class="tk-cell-select">
-            ${(p.manual ? PANEL_ALL_TYPES : PANEL_TYPE_CHOICES).map(t => `<option value="${t}" ${t === p.t0 ? 'selected' : ''}>${PANEL_TYPE_LABEL[t]}</option>`).join('')}
+            ${(p.manual ? panelTypeKeys(o.system) : switchablePanelTypes(o.system)).map(t => `<option value="${t}" ${t === p.t0 ? 'selected' : ''}>${escHtml(panelTypeLabel(o.system, t))}</option>`).join('')}
           </select>
         </label>
-        <span style="font-size:11px;color:#888;">${p.manual ? 'drawn by hand' : 'auto-detected: ' + escHtml(PANEL_TYPE_LABEL[p.autoT0] || p.autoT0)}</span>`
-        : `<span style="font-size:12px;">${escHtml(PANEL_TYPE_LABEL[p.t0] || p.t0)} panel</span>`}
+        <span style="font-size:11px;color:#888;">${p.manual ? 'drawn by hand' : 'auto-detected: ' + escHtml(panelTypeLabel(o.system, p.autoT0))}</span>`
+        : `<span style="font-size:12px;">${escHtml(panelTypeLabel(o.system, p.t0))} panel</span>`}
         ${p.overridden ? `<button class="tk-btn tk-btn--ghost tk-btn--sm" id="vp-reset">↺ Reset this panel to auto</button>` : ''}
         <button class="tk-btn tk-btn--ghost tk-btn--sm" id="vp-del">🗑 ${p.manual ? 'Delete this panel' : 'Not a panel — remove'}</button>
         <button class="tk-btn tk-btn--ghost tk-btn--sm" id="vp-close">Done</button>
@@ -2513,7 +2907,7 @@ function renderViewer(openingId) {
     // #gasket-any-system: the two ways this diagram can be blank, each said plainly rather than
     // left as an empty black rectangle. Neither is a dead end — both are things Leo can fix here.
     const _sgNow = systemGasket(o.system);
-    const _specEmpty = !GASKET_PANEL_TYPES.some(t => _sgNow.panel[t].length) && !_sgNow.perimeterPart && !_sgNow.doorPart;
+    const _specEmpty = !Object.values(_sgNow.panel).some(l => l.length) && !_sgNow.perimeterPart && !_sgNow.doorPart;
     const _emptyHint = !(o.panels || []).length
       ? `<div style="margin-top:6px;padding:6px 9px;border-radius:6px;background:#1e293b;color:#cbd5e1;font-size:12px;">
            No panels here yet — the detector found none, or this opening was typed in by hand.
@@ -2522,12 +2916,12 @@ function renderViewer(openingId) {
       : _specEmpty
       ? `<div style="margin-top:6px;padding:6px 9px;border-radius:6px;background:#1e293b;color:#cbd5e1;font-size:12px;">
            <b>${escHtml(o.system)}</b> has no gasket parts set, so these panels bill nothing yet.
-           Set them once for the whole system under <b>Accessories → Gasket defaults</b>, or click a panel to set just that one.
+           Set them once for the whole system under <b>Panel Types</b> (or with the bar below), or click a panel to set just that one.
          </div>`
       : '';
     legend.innerHTML = `
       <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px;align-items:center;">
-        ${['glass', 'panel', 'louver', 'door'].map(t => `<span><span style="display:inline-block;width:12px;height:12px;background:${PANEL_TYPE_FILL[t]};margin-right:5px;"></span>${PANEL_TYPE_LABEL[t]}${t === 'louver' && !systemGasket(o.system).panel.louver.length ? ' (no gasket)' : ''}${t === 'door' && systemGasket(o.system).doorPart ? ` (gasket = 2 jambs, ${systemGasket(o.system).doorPart})` : ''}</span>`).join('')}
+        ${panelTypesFor(o.system).filter(t => t.builtin || (o.panels || []).some(p => p.t0 === t.key)).map(t => `<span><span style="display:inline-block;width:12px;height:12px;background:${t.color};margin-right:5px;"></span>${escHtml(t.label)}${t.key === 'louver' && !t.gaskets.length ? ' (no gasket)' : ''}${t.key === 'door' && _sgNow.doorPart ? ` (gasket = 2 jambs, ${escHtml(_sgNow.doorPart)})` : ''}</span>`).join('')}
         ${partKeys.map(p => `<span><span style="display:inline-block;width:16px;height:0;border-top:2px dashed ${gasketPartColor(p)};margin-right:5px;vertical-align:middle;"></span>${escHtml(p)}</span>`).join('')}
         ${systemGasket(o.system).perimeterPart ? `<span><span style="display:inline-block;width:16px;height:0;border-top:2px solid #eab308;margin-right:5px;vertical-align:middle;"></span>${escHtml(systemGasket(o.system).perimeterPart)} storefront perimeter (×1 / zone)</span>` : ''}
         ${(o.gasketDoorLF || 0) > 0 && systemGasket(o.system).doorPart ? `<span><span style="display:inline-block;width:16px;height:0;border-top:2px solid #f472b6;margin-right:5px;vertical-align:middle;"></span>${escHtml(systemGasket(o.system).doorPart)} door jambs (full height, ×2)</span>` : ''}
@@ -2543,12 +2937,12 @@ function renderViewer(openingId) {
       </div>` : ''}
       <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;">
         <span style="color:#888;">✏ Draw a panel:</span>
-        ${PANEL_ALL_TYPES.map(t => `<button class="tk-btn tk-btn--sm ${viewerDrawType === t ? 'tk-btn--accent' : 'tk-btn--ghost'}" data-draw="${t}">${PANEL_TYPE_LABEL[t]}</button>`).join('')}
+        ${panelTypesFor(o.system).map(t => `<button class="tk-btn tk-btn--sm ${viewerDrawType === t.key ? 'tk-btn--accent' : 'tk-btn--ghost'}" data-draw="${escAttr(t.key)}"><span style="display:inline-block;width:9px;height:9px;background:${t.color};margin-right:4px;"></span>${escHtml(t.label)}</button>`).join('')}
         ${viewerDrawType ? `<button class="tk-btn tk-btn--ghost tk-btn--sm" data-draw="">✕ stop drawing</button>` : ''}
         ${nDrawn || nHidden ? `<span style="color:#888;">· ${nDrawn} drawn${nHidden ? `, ${nHidden} removed` : ''}</span>` : ''}
       </div>
       <div style="margin-top:4px;font-size:11px;color:#999;">${viewerDrawType
-        ? `Drag a rectangle on the elevation to add a <b>${escHtml(PANEL_TYPE_LABEL[viewerDrawType])}</b> panel — edges snap to the nearest framing member, panel edge or opening edge within ${PANEL_SNAP_IN}". A drawn door bills the same two-jamb run as a detected one.`
+        ? `Drag a rectangle on the elevation to add a <b>${escHtml(panelTypeLabel(o.system, viewerDrawType))}</b> panel — edges snap to the nearest framing member, panel edge or opening edge within ${PANEL_SNAP_IN}". A drawn door bills the same two-jamb run as a detected one.`
         : 'Click a panel to change what it is, to change the gasket it takes, or to remove it. Use ✏ above where the detector missed a panel or a door — hand-drawn panels survive re-import.'}</div>
       ${_emptyHint}`;
     if (editBox) editBox.innerHTML = renderGasketBulk(o) + renderPanelEditor(o);
@@ -2707,15 +3101,27 @@ function renderViewer(openingId) {
       ${o._reclassifiedDrift.map(d => `${escHtml(d.from)} → ${escHtml(d.to)}`).join(', ')}.
       Use Version history above to restore the previous version if this wasn't intended.</div>`;
   }
-  // #door-glass-stop: the two glass stops per door are derived, not drawn — say what they are.
-  const _doors = openingDoors(o);
-  if (_doors.length) {
-    const _gsParts = doorGlassStopParts(o.system);
-    html += _gsParts.length
-      ? `<div style="margin:6px 0;font-size:12px;"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${cutColor(DOOR_GLASS_STOP_ROLE, o.system)};margin-right:5px;"></span>
-           <b>Door glass stop</b> (auto, 2 per door): ${_doors.map(d => `2 × ${formatNumber(d.height)}″`).join(' · ')}
-           → ${_gsParts.map(p => escHtml(p.partNumber)).join(', ')} <span style="color:#999;">· no need to split the door jamb</span></div>`
-      : `<div style="margin:6px 0;font-size:12px;color:#c2410c;">🚪 ${_doors.length} door${_doors.length === 1 ? '' : 's'} here, but no ${escHtml(o.system)} part has the role <b>${DOOR_GLASS_STOP_ROLE}</b> — tick it on that system's glass stop in Parts Database to bill 2 glass stops per door.</div>`;
+  // #edge-parts: what the panel types put around the panels of this elevation (not drawn as pieces —
+  // they are cut to each panel's clear opening), and any member whose role ALSO carries that part.
+  {
+    const ed = panelEdgeData(o);
+    if (ed.pieces.length) {
+      const by = new Map();
+      for (const ep of ed.pieces) {
+        const k = ep.part + '|' + ep.type;
+        if (!by.has(k)) by.set(k, { part: ep.part, desc: ep.desc, type: ep.type, lens: [] });
+        for (let i = 0; i < ep.count; i++) by.get(k).lens.push(ep.length);
+      }
+      html += `<div style="margin:6px 0;font-size:12px;"><b>Panel edge parts</b> <span style="color:#999;">(from panel types, cut to each panel's clear opening)</span>`
+        + [...by.values()].map(g => {
+            const cnt = new Map(); for (const L of g.lens) cnt.set(L, (cnt.get(L) || 0) + 1);
+            return `<div style="margin-left:10px;">${escHtml(g.part)} ${escHtml(g.desc || '')} · <i>${escHtml(g.type)}</i>: `
+              + [...cnt.entries()].sort((a, b) => b[0] - a[0]).map(([L, n]) => `${n} × ${formatNumber(L)}″`).join(' · ') + `</div>`;
+          }).join('') + `</div>`;
+    }
+    if (ed.doubles.length) html += `<div style="margin:6px 0;padding:6px 9px;border-radius:6px;background:#7c2d12;color:#fed7aa;font-size:12px;">
+      ⚠ Possible double count: ${ed.doubles.map(d => `<b>${escHtml(d.part)}</b> is an edge part of ${escHtml(d.type)} panels <i>and</i> part of the role <b>${escHtml(d.role)}</b> on a member beside one`).join('; ')}.
+      Take it off one of the two — usually the role (Parts Database), or set that piece back to its plain role if you split it by hand to add a glass stop.</div>`;
   }
   if (manual.length) {
     html += `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;font-size:12px;">`
@@ -2744,7 +3150,7 @@ function renderViewer(openingId) {
   if (editBox) editBox.innerHTML = html;
 
   const agg = {};
-  for (const c of cuts.concat(doorGlassStopCuts(o))) {
+  for (const c of cuts) {
     const dp = cutDisplayPosition(c, o.system);
     if (!agg[dp]) agg[dp] = { len: 0, n: 0 };
     agg[dp].len += c.length * (c.count || 1);
@@ -2778,7 +3184,9 @@ document.addEventListener('click', e => {
   // ---- #panel-gasket (2026-08-20): panel map interactions ----
   if (viewerShowGasket && viewerOpeningId != null) {
     const o = state.openings.find(x => x.id === viewerOpeningId);
-    const after = () => { if (o) recomputeOpeningGaskets(o); renderReport(); renderViewer(viewerOpeningId); };
+    // #door-split: a door struck out / deleted / brought back by a reset changes its jambs too
+    const _doorsBefore = o ? effectiveDoorRegions(o) : null;
+    const after = () => { if (o) { syncDoorJambs(o, _doorsBefore); recomputeOpeningGaskets(o); } renderReport(); renderViewer(viewerOpeningId); };
     // ✏ draw-mode toggle
     const drawBtn = e.target.closest && e.target.closest('[data-draw]');
     if (drawBtn && o) {
@@ -2966,7 +3374,9 @@ document.addEventListener('change', e => {
     if (e.target.id === 'gk-type') gkBulkType = e.target.value;
     else if (e.target.id === 'gk-scope') gkBulkScope = e.target.value;
     else if (e.target.value) {
+      const before = effectiveDoorRegions(o);
       setTypeForPanels(o, (o.panels || []).filter(p => viewerPanelSel.has(p.k)), e.target.value);
+      syncDoorJambs(o, before);   // "make them all → Door" cuts their jambs; away from Door joins them again
       recomputeOpeningGaskets(o); renderReport();
     }
     renderViewer(viewerOpeningId);
@@ -2977,8 +3387,9 @@ document.addEventListener('change', e => {
     const panel = o && (o.panels || []).find(x => x.k === viewerPanelKey);
     if (!o || !panel) return;
     if (e.target.id === 'vp-type') {
-      const t = e.target.value;
+      const t = e.target.value, before = effectiveDoorRegions(o);
       setPanelOverride(o.mark, viewerPanelKey, { t0: (t === panel.autoT0 ? null : t), gaskets: null });
+      syncDoorJambs(o, before);
     } else if (e.target.hasAttribute('data-gpart') || e.target.hasAttribute('data-gloops')) {
       const next = panel.gaskets.map(g => ({ part: g.part, loops: g.loops }));
       const i = +(e.target.getAttribute('data-gpart') ?? e.target.getAttribute('data-gloops'));
@@ -3042,7 +3453,7 @@ function readSpecField(id) {
 function applyBulkGasketBar(o) {
   const spec = readSpecField('gk-spec');
   if (spec == null) return;
-  const label = PANEL_TYPE_LABEL[gkBulkType] || gkBulkType;
+  const label = panelTypeLabel(o.system, gkBulkType);
   if (gkBulkScope === 'system') {
     const hits = typeGasketOverrides(o.system, gkBulkType);
     const marks = [...new Set(hits.map(h => h.o.mark))];
@@ -3113,10 +3524,12 @@ document.addEventListener('keydown', e => {
     const r = viewerDrawRect; viewerDrawRect = null;
     const o = opening();
     if (!o || !r) { repaint(); return; }
+    const before = effectiveDoorRegions(o);
     const k = addManualPanel(o.mark, r, viewerDrawType);
     if (k) setPanelSel([k]);                    // land in the editor on the panel just drawn
+    syncDoorJambs(o, before);                   // a drawn door cuts its jambs like a detected one
     recomputeOpeningGaskets(o);
-    renderReport();
+    renderReport(); renderMeta();
     renderViewer(viewerOpeningId);
   });
 })();
@@ -3553,21 +3966,20 @@ const ACC_RULES = {
 // bare text box. Placeholder + tooltip now say which one is expected.
 const ACC_POSITIONS_HINT = {
   per_part: '(part numbers)', per_part_len: '(part numbers)',
-  per_panel: 'Glass, Metal Panel, Louver, Door',
+  per_panel: 'Glass, Metal Panel, Louver, Door, or your own types',
 };
 const ACC_POSITIONS_HELP = {
   per_part: 'PART NUMBERS this rule hangs off (e.g. E1-3504) — not roles.',
   per_part_len: 'PART NUMBERS whose total length is divided by the o.c. spacing — not roles.',
-  per_panel: 'PANEL TYPES: Glass, Metal Panel, Louver, Door. Empty = Glass + Metal Panel. Not roles, and not part numbers.',
+  per_panel: 'PANEL TYPES by name: Glass, Metal Panel, Louver, Door, or any type made under Panel Types. Empty = Glass + Metal Panel. Not roles, and not part numbers.',
 };
-const ACC_PANEL_TYPE_ALIAS = { 'glass': 'glass', 'metal panel': 'panel', 'metal': 'panel', 'imp-1': 'panel', 'imp1': 'panel', 'panel': 'panel', 'louver': 'louver', 'door': 'door' };
 const ACC_PART_REF_RULES = ['per_part', 'per_part_len'];
 
 function computeAccessories() {
   // 按系统聚合: 每个 system 一份 {pos, lites, openingsQty}; system '' 视为全部洞口(旧通用行为)
   const bySys = {};
-  const agg = (sys) => bySys[sys] || (bySys[sys] = { pos: {}, lites: 0, openingsQty: 0, panels: {} });
-  const allOpen = { pos: {}, lites: 0, openingsQty: 0, panels: {} };
+  const agg = (sys) => bySys[sys] || (bySys[sys] = { pos: {}, lites: 0, openingsQty: 0, panels: {}, chains: [] });
+  const allOpen = { pos: {}, lites: 0, openingsQty: 0, panels: {}, chains: [] };
   const tally = (g, o, q) => {
     g.openingsQty += q;
     g.lites += (parseFloat(o.lites) || 0) * q;
@@ -3577,12 +3989,16 @@ function computeAccessories() {
     if (Array.isArray(o.panelCells) && !Array.isArray(o.panels)) recomputeOpeningGaskets(o);
     if (Array.isArray(o.panelCells)) g.hasPanelMap = true;
     for (const p of (o.panels || [])) g.panels[p.t0] = (g.panels[p.t0] || 0) + q;
-    for (const c of expandOpeningCuts(o)) {
+    const cuts = expandOpeningCuts(o);
+    for (const c of cuts) {
       const p = g.pos[c.position] || (g.pos[c.position] = { inches: 0, pieces: 0, lens: [] });
       p.inches += c.length * c.count * q;
       p.pieces += c.count * q;
       for (let i = 0; i < c.count * q; i++) p.lens.push(c.length);
     }
+    // #one-piece: remember split members so a piece-count / spacing rule counts them once
+    for (const list of chainLists(memberChains(cuts)))
+      g.chains.push({ q, segs: list.map(i => ({ position: cuts[i].position, length: cuts[i].length })) });
   };
   for (const o of scopedOpenings()) {
     const q = o.qty || 1;
@@ -3591,12 +4007,24 @@ function computeAccessories() {
   }
   const ruleRows = (state.accessories || []).map(a => {
     if (ACC_PART_REF_RULES.includes(a.rule)) return { acc: a, qty: 0, basis: '', _deferred: true };
-    const g = (a.system === '' || a.system === undefined) ? allOpen : (bySys[a.system] || { pos: {}, lites: 0, openingsQty: 0, panels: {} });
+    const g = (a.system === '' || a.system === undefined) ? allOpen : (bySys[a.system] || { pos: {}, lites: 0, openingsQty: 0, panels: {}, chains: [] });
     const pos = g.pos, lites = g.lites, openingsQty = g.openingsQty, panelsByType = g.panels || {};
-    const sel = (a.positions && a.positions.length) ? a.positions : Object.keys(pos).filter(p => !DERIVED_ROLES.has(p));
+    const sel = (a.positions && a.positions.length) ? a.positions : Object.keys(pos);
     let inches = 0, pieces = 0, lens = [];
     for (const p of sel) if (pos[p]) {
       inches += pos[p].inches; pieces += pos[p].pieces; lens = lens.concat(pos[p].lens);
+    }
+    // #one-piece: consecutive selected segments of one split member are one piece of their combined length
+    {
+      const selSet = new Set(sel);
+      for (const ch of (g.chains || [])) for (const run of chainRuns(ch.segs.map((_, k) => k), k => selSet.has(ch.segs[k].position))) {
+        if (run.length < 2) continue;
+        pieces -= (run.length - 1) * ch.q;
+        for (let r = 0; r < ch.q; r++) {
+          for (const k of run) { const at = lens.indexOf(ch.segs[k].length); if (at >= 0) lens.splice(at, 1); }
+          lens.push(run.reduce((t, k) => t + ch.segs[k].length, 0));
+        }
+      }
     }
     const param = parseFloat(a.param) || 0;
     const mn = parseFloat(a.min) || 0;
@@ -3609,17 +4037,18 @@ function computeAccessories() {
       basis = `${formatNumber(lites)} lites × ${param}`;
     } else if (a.rule === 'per_panel') {
       const want = (a.positions && a.positions.length)
-        ? a.positions.map(t => ACC_PANEL_TYPE_ALIAS[String(t).trim().toLowerCase()]).filter(Boolean)
+        ? a.positions.map(t => panelTypeKeyFromLabel(a.system || '', t)).filter(Boolean)
         : ['glass', 'panel'];
+      const lbl = k => panelTypeLabel(a.system || SYSTEMS_LIST()[0], k);
       const n = want.reduce((t, k) => t + (panelsByType[k] || 0), 0);
       qty = Math.ceil(param * n);
       const bad = want.length !== (a.positions || []).length;
-      basis = `${n} panel${n === 1 ? '' : 's'} (${want.map(k => PANEL_TYPE_LABEL[k] || k).join(' + ')}) × ${param}`;
+      basis = `${n} panel${n === 1 ? '' : 's'} (${want.map(lbl).join(' + ')}) × ${param}`;
       // #per-panel-zero: three different reasons a /panel rule reads 0, each with a different fix.
       if (!n) {
-        if (bad || !want.length) { warn = `Positions must be panel TYPES for a / panel rule — ${PANEL_ALL_TYPES.map(t => PANEL_TYPE_LABEL[t]).join(' / ')}. "${(a.positions || []).join(', ')}" matches none.`; }
+        if (bad || !want.length) { warn = `Positions must be panel TYPES for a / panel rule — ${panelTypesFor(a.system || SYSTEMS_LIST()[0]).map(t => t.label).join(' / ')}. "${(a.positions || []).join(', ')}" matches none.`; }
         else if (!g.hasPanelMap) { warn = 'these elevations have no panel map — re-import the DXF, or draw panels in the 🧵 Gasket diagram'; }
-        else { warn = `no ${want.map(k => PANEL_TYPE_LABEL[k] || k).join(' / ')} panels in scope`; }
+        else { warn = `no ${want.map(lbl).join(' / ')} panels in scope`; }
       }
     } else if (a.rule === 'per_opening') {
       qty = Math.ceil(param * openingsQty);
@@ -3718,120 +4147,213 @@ function computeAccessories() {
 }
 
 
-// ---------- Gasket defaults by system (#gasket-any-system, 2026-08-24) ----------
-// Leo: "I need gasket view for all systems … this tool needs to be an independent tool that
-// doesn't rely on position detection algorithm. It's expected to manually set panels/pieces/
-// gaskets". So what a panel takes stopped being a fact about 750XT and 45TU baked into the code,
-// and became a per-system setting anyone can type. Changing it flows straight through every
-// AUTO-typed and hand-drawn panel that has no per-panel override of its own — the override layer
-// is untouched, so nothing Leo set by hand is disturbed.
-let _gdSystem = null;
-function gdSystem() {
+// ---------- Panel Types (#panel-types, 2026-10-06) ----------
+// The one place that says what each kind of panel takes, per system: its gasket and its edge parts.
+// Replaces the old "Gasket defaults" box (which only held gaskets, and only in this browser).
+// Changing a type flows through every panel of that type that has no per-panel override.
+let _ptSystem = null;
+function ptSystem() {
   const list = SYSTEMS_LIST();
-  if (_gdSystem && list.includes(_gdSystem)) return _gdSystem;
+  if (_ptSystem && list.includes(_ptSystem)) return _ptSystem;
   const inUse = (state.openings || []).map(o => o.system).filter(s => list.includes(s));
   return inUse[0] || list[0] || '';
 }
-function renderGasketDefaults() {
-  const host = document.getElementById('gasket-defaults');
-  if (!host) return;
-  const list = SYSTEMS_LIST();
-  const sys = gdSystem();
-  if (!sys) { host.innerHTML = ''; return; }
-  const g = systemGasket(sys), custom = isSystemGasketCustom(sys);
-  const row = (t, label, hint) => `
-    <label style="display:flex;align-items:center;gap:8px;">
-      <span style="width:150px;flex:none;color:var(--af-fg-3,#888);">${label}</span>
-      <input class="tk-cell-input mono" data-gd="${t}" value="${escAttr(gasketSpecText(g.panel[t]))}"
-             placeholder="${escAttr(hint)}" style="flex:1;min-width:0;" />
-    </label>`;
-  host.innerHTML = `
-    <details class="gd-box" ${custom ? 'open' : ''} style="margin-bottom:12px;border:1px solid var(--af-line,#ddd);border-radius:8px;background:var(--af-bg-2,#f6f6f6);">
-      <summary style="padding:8px 12px;cursor:pointer;font-size:13px;">
-        <b>Gasket defaults</b> — <span class="mono">${escHtml(sys)}</span>
-        <span style="color:var(--af-fg-3,#888);font-size:12px;">
-          · ${GASKET_PANEL_TYPES.filter(t => g.panel[t].length).map(t => `${PANEL_TYPE_LABEL[t]} ${escHtml(gasketSpecText(g.panel[t]))}`).join(' · ') || 'nothing set — panels bill no gasket'}
-          ${custom ? ' · <b>edited</b>' : ''}
-        </span>
-      </summary>
-      <div style="padding:2px 12px 12px;font-size:12px;display:grid;gap:6px;">
-        <p style="margin:2px 0 6px;color:var(--af-fg-3,#888);">
-          What a panel of each type takes, for every elevation on this system. Type any part number —
-          a system the tool has never seen is configured here, not in the code. Per-panel edits made in
-          a 🧵 Gasket diagram override these and are left alone.
-        </p>
-        <label style="display:flex;align-items:center;gap:8px;">
-          <span style="width:150px;flex:none;color:var(--af-fg-3,#888);">System</span>
-          <select id="gd-system" class="tk-cell-select">${list.map(s => `<option value="${escAttr(s)}" ${s === sys ? 'selected' : ''}>${escHtml(s)}</option>`).join('')}</select>
-        </label>
-        ${row('glass', 'Glass panel', 'E2-0127×1, E2-0120×1')}
-        ${row('panel', 'Metal panel', 'E2-0127×1, E2-0120×1')}
-        ${row('louver', 'Louver', '(usually none)')}
-        ${row('door', 'Door panel', '(none — a door bills its two jambs below)')}
-        <label style="display:flex;align-items:center;gap:8px;">
-          <span style="width:150px;flex:none;color:var(--af-fg-3,#888);">Storefront perimeter</span>
-          <input class="tk-cell-input mono" data-gd="perimeterPart" value="${escAttr(g.perimeterPart || '')}" placeholder="(no perimeter run)" style="width:160px;" />
-          <span style="color:var(--af-fg-3,#888);">×1 around each independent zone</span>
-        </label>
-        <label style="display:flex;align-items:center;gap:8px;">
-          <span style="width:150px;flex:none;color:var(--af-fg-3,#888);">Door jambs</span>
-          <input class="tk-cell-input mono" data-gd="doorPart" value="${escAttr(g.doorPart || '')}" placeholder="(no door run)" style="width:160px;" />
-          <span style="color:var(--af-fg-3,#888);">×2, full height — no header, no threshold</span>
-        </label>
-        <label style="display:flex;align-items:center;gap:8px;">
-          <span style="width:150px;flex:none;color:var(--af-fg-3,#888);">Coil per box (LF)</span>
-          <input class="tk-cell-input mono" id="gd-boxlf" value="${escAttr(gasketBoxLFText())}" placeholder="E2-0127:250, E2-0120:500" style="flex:1;min-width:0;" />
-        </label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
-          ${custom ? `<button class="tk-btn tk-btn--ghost tk-btn--sm" id="gd-reset">↺ Reset ${escHtml(sys)} to seed</button>` : ''}
-          <span style="color:var(--af-fg-3,#888);align-self:center;">Format: <span class="mono">PART×loops</span>, comma separated. A bare part number means ×1.</span>
-        </div>
-      </div>
-    </details>`;
-}
-// One handler for the whole block: read every field back, write the spec, re-derive every
-// opening's gasket, redraw. Cheap enough to do on each change, and it means the numbers in the
-// table below never lag the field you just typed in.
-function commitGasketDefaults() {
-  const host = document.getElementById('gasket-defaults');
-  if (!host) return;
-  const sys = gdSystem();
-  const spec = { panel: {}, perimeterPart: null, doorPart: null };
-  for (const t of GASKET_PANEL_TYPES) {
-    const el = host.querySelector(`[data-gd="${t}"]`);
-    spec.panel[t] = parseGasketSpecText(el ? el.value : '');
+function panelTypeUse(sys, key) {
+  let n = 0;
+  for (const o of (state.openings || [])) {
+    if (o.system !== sys) continue;
+    if (Array.isArray(o.panelCells) && !Array.isArray(o.panels)) recomputeOpeningGaskets(o);
+    n += (o.panels || []).filter(p => p.t0 === key).length;
   }
-  const pEl = host.querySelector('[data-gd="perimeterPart"]'), dEl = host.querySelector('[data-gd="doorPart"]');
-  spec.perimeterPart = pEl ? pEl.value.trim() : '';
-  spec.doorPart = dEl ? dEl.value.trim() : '';
-  const boxEl = document.getElementById('gd-boxlf');
-  if (boxEl) state.gasketBoxLF = parseGasketBoxLFText(boxEl.value);
-  setSystemGasket(sys, spec);
+  return n;
+}
+// Re-drawing this section throws its fields away — and with them the caret, the text being typed and
+// where Tab or a click was taking you (review 2026-10-06: Tab out of a field, and the next field's
+// typing was lost). So it is not re-drawn while one of its fields has the keyboard, nor in answer to
+// a field's own change (the field already shows what was typed); it catches up once focus leaves the
+// section, or with the next button press inside it.
+let _ptRedrawPending = false, _ptHold = false;
+function _ptBusy(host) {
+  const a = document.activeElement;
+  return !!(a && host.contains(a) && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName));
+}
+// A field's change event fires as it loses focus — very often on the mousedown of a click somewhere
+// else. Re-drawing anything in that instant replaces the very button being clicked and the click is
+// lost, so a field's consequences are drawn once that click (if one is under way) has landed.
+let _ptrDown = false;
+function afterPointer(fn) {
+  if (_ptrDown) document.addEventListener('pointerup', () => setTimeout(fn, 0), { once: true, capture: true });
+  else setTimeout(fn, 0);
+}
+function _ptCatchUp() {
+  afterPointer(() => {
+    const host = document.getElementById('panel-types');
+    if (host && _ptRedrawPending && !_ptBusy(host)) renderPanelTypes();
+  });
+}
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('pointerdown', () => { _ptrDown = true; }, true);
+  document.addEventListener('pointerup', () => { _ptrDown = false; }, true);
+  document.addEventListener('pointercancel', () => { _ptrDown = false; }, true);
+  document.addEventListener('focusout', e => {
+    if (!_ptRedrawPending || !e.target || !e.target.closest || !e.target.closest('#panel-types')) return;
+    const to = e.relatedTarget, host = document.getElementById('panel-types');
+    if (to && host && host.contains(to)) return;          // still inside the section
+    _ptCatchUp();
+  });
+}
+function renderPanelTypes() {
+  const host = document.getElementById('panel-types');
+  if (!host) return;
+  if (_ptHold || _ptBusy(host)) { _ptRedrawPending = true; return; }
+  _ptRedrawPending = false;
+  const _focus = _ptFocusKey(host);
+  const list = SYSTEMS_LIST(), sys = ptSystem();
+  if (!sys) { host.innerHTML = ''; return; }
+  const pc = panelConfigFor(sys);
+  const sel = document.getElementById('pt-system');
+  if (sel) {
+    const html = list.map(x => `<option value="${escAttr(x)}" ${x === sys ? 'selected' : ''}>${escHtml(x)}</option>`).join('');
+    if (sel.innerHTML !== html) sel.innerHTML = html;
+    sel.value = sys;
+  }
+  const card = t => {
+    const used = panelTypeUse(sys, t.key);
+    const edges = t.edges.map((e, i) => `
+      <div class="pt-edge" data-ei="${i}">
+        <input class="tk-cell-input mono" data-pe="part" value="${escAttr(e.part)}" placeholder="Part #" style="width:110px;" />
+        <input class="tk-cell-input" data-pe="desc" value="${escAttr(e.desc)}" placeholder="e.g. Glass stop" style="width:140px;" />
+        <select class="tk-cell-select" data-pe="on">${Object.entries(EDGE_ON).map(([k, v]) => `<option value="${k}" ${k === e.on ? 'selected' : ''}>${v}</option>`).join('')}</select>
+        <span class="pt-muted">×</span><input class="tk-cell-input num" data-pe="qty" type="number" min="1" step="1" value="${e.qty}" style="width:56px;" title="pieces per edge" />
+        <span class="pt-muted">±</span><input class="tk-cell-input num" data-pe="adj" type="number" step="0.125" value="${e.adj}" style="width:70px;" title="inches added to (or taken off) every piece; 0 = exactly the clear opening" /><span class="pt-muted">″</span>
+        <button class="tk-btn tk-btn--ghost tk-btn--sm" data-pe-del title="Remove this edge part">×</button>
+      </div>`).join('');
+    return `
+      <div class="pt-card" data-pt="${escAttr(t.key)}">
+        <div class="pt-card__head">
+          <input type="color" data-pt-f="color" value="${escAttr(t.color)}" title="Colour on the gasket diagram" />
+          ${t.builtin ? `<b>${escHtml(t.label)}</b> <span class="pt-tag">built-in</span>`
+                      : `<input class="tk-cell-input" data-pt-f="label" value="${escAttr(t.label)}" style="width:180px;font-weight:600;" />`}
+          <span class="pt-muted">${used ? `${used} panel${used === 1 ? '' : 's'} in this job` : 'not used yet'}</span>
+          ${t.builtin ? '' : `<button class="tk-btn tk-btn--ghost tk-btn--sm" data-pt-del style="margin-left:auto;">Delete type</button>`}
+        </div>
+        <div class="pt-row"><span class="pt-k">Gasket</span>
+          ${t.key === 'door'
+            ? `<span class="pt-muted">none on the door leaf — a door bills its two jambs (Door jambs, below)</span>`
+            : `<input class="tk-cell-input mono" data-pt-f="gaskets" value="${escAttr(gasketSpecText(t.gaskets))}" placeholder="no gasket — e.g. E2-0127×1, E2-0120×1" style="flex:1;min-width:200px;" />`}
+        </div>
+        <div class="pt-row pt-row--top"><span class="pt-k">Edge parts</span>
+          <div class="pt-edges">${edges || '<span class="pt-muted">none</span>'}
+            <div><button class="tk-btn tk-btn--ghost tk-btn--sm" data-pe-add>+ Edge part</button></div>
+          </div>
+        </div>
+      </div>`;
+  };
+  host.innerHTML = `
+    <div class="pt-list">${pc.types.map(card).join('')}</div>
+    <div class="pt-foot">
+      <button class="tk-btn tk-btn--accent tk-btn--sm" id="pt-add">+ New panel type</button>
+      <label>Storefront perimeter <input class="tk-cell-input mono" data-ptg="perimeterPart" value="${escAttr(pc.perimeterPart || '')}" placeholder="(no run)" style="width:110px;" /></label>
+      <label>Door jambs <input class="tk-cell-input mono" data-ptg="doorPart" value="${escAttr(pc.doorPart || '')}" placeholder="(no run)" style="width:110px;" /></label>
+      <label>Coil per box (LF) <input class="tk-cell-input mono" id="gd-boxlf" value="${escAttr(gasketBoxLFText())}" placeholder="E2-0127:250, E2-0120:500" style="width:220px;" /></label>
+    </div>
+    <div class="pt-muted" style="padding:0 16px 12px;">Gasket: <span class="mono">PART×loops</span>, one loop = the panel's perimeter. Edge parts are cut to the panel's clear opening (DLO) on the edges you pick, each panel its own — e.g. glass stop all round a by-others panel. Types are shared company-wide; assign them on the 🧵 Gasket diagram.</div>`;
+  _ptRefocus(host, _focus);
+}
+// A button in the section keeps the keyboard across a redraw (Tab onto "+ Edge part", then Enter):
+// the same control in the new markup is found by what it is — card, row, field — and focused again.
+function _ptFocusKey(host) {
+  const a = document.activeElement;
+  if (!a || a === host || !host.contains(a)) return null;
+  const card = a.closest('[data-pt]'), row = a.closest('[data-ei]');
+  const at = ['data-pe', 'data-pt-f', 'data-ptg', 'data-pe-add', 'data-pe-del', 'data-pt-del', 'id'].find(n => a.hasAttribute(n));
+  return at ? { pt: card && card.getAttribute('data-pt'), ei: row && row.getAttribute('data-ei'), at, v: a.getAttribute(at) } : null;
+}
+function _ptRefocus(host, k) {
+  if (!k) return;
+  const q = v => String(v).replace(/["\\]/g, '\\$&');
+  let scope = host;
+  if (k.pt != null) scope = host.querySelector(`[data-pt="${q(k.pt)}"]`);
+  if (scope && k.ei != null) scope = scope.querySelector(`[data-ei="${q(k.ei)}"]`) || scope;
+  const el = scope && scope.querySelector(k.v ? `[${k.at}="${q(k.v)}"]` : `[${k.at}]`);
+  if (el && typeof el.focus === 'function') el.focus();
+}
+// One handler for every field: read the change into the live config, then let every opening of
+// that system re-derive its panels.
+function commitPanelTypes(sys, mutate) {
+  const pc = materializePanelConfig(sys);
+  mutate(pc);
+  state.panelConfig[sys] = normPanelConfig(pc);
   for (const o of (state.openings || [])) if (o.system === sys) recomputeOpeningGaskets(o);
-  save(); renderReport();
-  if (viewerOpeningId != null) renderViewer(viewerOpeningId);
+  save();
+  const refresh = () => { renderPanelTypes(); renderReport(); renderMeta(); if (viewerOpeningId != null) renderViewer(viewerOpeningId); };
+  if (_ptHold) afterPointer(refresh); else refresh();   // a field's change: see afterPointer
 }
 document.addEventListener('change', e => {
-  if (!e.target.closest || !e.target.closest('#gasket-defaults')) return;
-  if (e.target.id === 'gd-system') { _gdSystem = e.target.value; renderGasketDefaults(); return; }
-  commitGasketDefaults();
+  if (!e.target || !e.target.closest) return;
+  if (e.target.id === 'pt-system') { _ptSystem = e.target.value; renderPanelTypes(); return; }
+  if (!e.target.closest('#panel-types')) return;
+  _ptHold = true;
+  try { panelTypeFieldChanged(e); } finally { _ptHold = false; }
 });
+function panelTypeFieldChanged(e) {
+  const sys = ptSystem();
+  if (e.target.id === 'gd-boxlf') { state.gasketBoxLF = parseGasketBoxLFText(e.target.value); save(); afterPointer(renderReport); return; }
+  const g = e.target.getAttribute('data-ptg');
+  if (g) { commitPanelTypes(sys, pc => { pc[g] = e.target.value.trim() || null; }); return; }
+  const cardEl = e.target.closest('[data-pt]');
+  if (!cardEl) return;
+  const key = cardEl.getAttribute('data-pt');
+  const f = e.target.getAttribute('data-pt-f'), pe = e.target.getAttribute('data-pe');
+  commitPanelTypes(sys, pc => {
+    const t = pc.types.find(x => x.key === key);
+    if (!t) return;
+    if (f === 'color') t.color = e.target.value;
+    else if (f === 'label') { const v = e.target.value.trim(); if (v) t.label = v; }
+    else if (f === 'gaskets') t.gaskets = parseGasketSpecText(e.target.value);
+    else if (pe) {
+      const i = +e.target.closest('[data-ei]').getAttribute('data-ei');
+      const ed = t.edges[i]; if (!ed) return;
+      if (pe === 'part') ed.part = e.target.value.trim().toUpperCase();
+      else if (pe === 'desc') ed.desc = e.target.value.trim();
+      else if (pe === 'on') ed.on = e.target.value;
+      else if (pe === 'qty') ed.qty = Math.max(1, Math.round(+e.target.value || 1));
+      else if (pe === 'adj') ed.adj = +e.target.value || 0;
+    }
+  });
+}
 document.addEventListener('click', e => {
-  if (!e.target.closest) return;
-  if (e.target.closest('#gd-reset')) {
-    resetGasketDefaultsForCurrentSystem();
+  if (!e.target || !e.target.closest || !e.target.closest('#panel-types')) return;
+  const sys = ptSystem();
+  if (e.target.closest('#pt-add')) {
+    const name = (prompt(`New panel type for ${sys} — name it (e.g. By Others, Spandrel):`) || '').trim();
+    if (!name) return;
+    if (panelTypesFor(sys).some(t => t.label.toLowerCase() === name.toLowerCase())) { alert(`${sys} already has a type called "${name}".`); return; }
+    commitPanelTypes(sys, pc => { pc.types.push({ key: 'x' + uid(), label: name, gaskets: [], edges: [] }); });
+    return;
+  }
+  const cardEl = e.target.closest('[data-pt]');
+  if (!cardEl) return;
+  const key = cardEl.getAttribute('data-pt');
+  if (e.target.closest('[data-pe-add]')) {
+    commitPanelTypes(sys, pc => { const t = pc.types.find(x => x.key === key); if (t) t.edges.push({ part: '', desc: 'Glass stop', on: 'all', qty: 1, adj: 0 }); });
+    return;
+  }
+  const del = e.target.closest('[data-pe-del]');
+  if (del) {
+    const i = +del.closest('[data-ei]').getAttribute('data-ei');
+    commitPanelTypes(sys, pc => { const t = pc.types.find(x => x.key === key); if (t) t.edges.splice(i, 1); });
+    return;
+  }
+  if (e.target.closest('[data-pt-del]')) {
+    const t = panelType(sys, key), used = panelTypeUse(sys, key);
+    if (!t || !confirm(`Delete the ${sys} panel type "${t.label}"?` + (used ? `\n\n${used} panel(s) use it — detected ones go back to what the drawing said, drawn ones become Glass.` : ''))) return;
+    commitPanelTypes(sys, pc => { pc.types = pc.types.filter(x => x.key !== key); });
   }
 });
-function resetGasketDefaultsForCurrentSystem() {
-  const sys = gdSystem();
-  resetSystemGasket(sys);
-  for (const o of (state.openings || [])) if (o.system === sys) recomputeOpeningGaskets(o);
-  save(); renderGasketDefaults(); renderReport();
-  if (viewerOpeningId != null) renderViewer(viewerOpeningId);
-}
 
 function renderAccessories() {
-  renderGasketDefaults();
+  renderPanelTypes();
   const tbody = document.getElementById('acc-tbody');
   if (!tbody) return;
   let rows = computeAccessories();
@@ -3939,9 +4461,9 @@ function expandOpeningCuts(o) {
       length: parseFloat(c.length) || 0,
       count: parseInt(c.count) || 1,
       src: c.src || null,                          // 连续件(continuous)跑长合并要用几何
-    })).filter(c => c.position && c.length > 0 && c.count > 0).concat(doorGlassStopCuts(o));
+    })).filter(c => c.position && c.length > 0 && c.count > 0);
   }
-  const cuts = doorGlassStopCuts(o);
+  const cuts = [];
   if (o.width  > 0) cuts.push({ position: 'Head', length: o.width, count: 1 });
   if (o.width  > 0) cuts.push({ position: 'Sill', length: o.width, count: 1 });
   if (o.height > 0) cuts.push({ position: 'Jamb', length: o.height, count: 2 });
@@ -4181,7 +4703,7 @@ function buildFrameDiagramBody(o, x0, yTop) {
   let body = '';
   for (const p of (o.panels || o.panelCells || [])) {
     const t0 = p.t0 || 'glass';
-    body += dxfRect(PX(p.x1), PY(p.y1), PX(p.x2), PY(p.y2), 'FRAME-' + sanitizeDxfLayer(PANEL_TYPE_LABEL[t0] || t0));
+    body += dxfRect(PX(p.x1), PY(p.y1), PX(p.x2), PY(p.y2), 'FRAME-' + sanitizeDxfLayer(panelTypeLabel(o.system, t0)));
   }
   for (const c of (o.cuts || [])) {
     if (!c.src) continue;
@@ -4559,8 +5081,87 @@ function initCutGroupsModal() {
 // #cutting-diagram: factored out of buildReport() so a single opening can be
 // packed on its own (per-elevation diagram/DXF export) using the exact same matching rules
 // as the project-wide order list — never a second, diverging implementation.
+// ============================================================
+//  #one-piece (2026-10-06, Leo: "Yes, always"): a member that has been split — by a door, or by hand
+//  to give part of it a different role — is still ONE extrusion for every part both halves share.
+//  Collinear segments that touch end to end (same line, same width, gap ≤ CHAIN_EPS) form a chain;
+//  for each part, consecutive segments whose roles all carry it are billed as one piece of their
+//  combined length. A part only one segment's role carries is cut for that segment alone (the
+//  pressure plate that changes beside a door). Accessory rules that count pieces or space anchors
+//  along a member see the chain as one member too.
+//  Two members that only LOOK collinear never touch: a horizontal between them leaves a gap the
+//  size of its own depth, far more than CHAIN_EPS.
+// ============================================================
+const CHAIN_EPS = 0.75;
+const EDGE_ROLE_PREFIX = 'Edges · ';   // By Role report: panel edge parts show as "Edges · <type>"
+function memberChains(cuts) {
+  const groups = new Map();
+  (cuts || []).forEach((c, i) => {
+    if (!c || !c.src || (parseInt(c.count) || 1) !== 1) return;
+    const s = c.src, vert = s.h > s.w;
+    const k = vert ? `v|${Math.round(s.x * 4) / 4}|${Math.round(s.w * 4) / 4}` : `h|${Math.round(s.y * 4) / 4}|${Math.round(s.h * 4) / 4}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push({ i, a: vert ? s.y : s.x, b: vert ? s.y + s.h : s.x + s.w });
+  });
+  const out = new Array((cuts || []).length).fill(null);
+  let id = 0;
+  for (const list of groups.values()) {
+    list.sort((p, q) => p.a - q.a);
+    let chain = [];
+    const flush = () => { if (chain.length > 1) { const cid = id++; chain.forEach((m, ord) => { out[m.i] = { id: cid, ord }; }); } chain = []; };
+    for (const m of list) {
+      const last = chain[chain.length - 1];
+      if (last && Math.abs(m.a - last.b) <= CHAIN_EPS) chain.push(m);
+      else { flush(); chain.push(m); }
+    }
+    flush();
+  }
+  return out;
+}
+// The chains as ordered lists of cut indexes.
+function chainLists(chainOf) {
+  const m = new Map();
+  chainOf.forEach((ch, i) => { if (!ch) return; if (!m.has(ch.id)) m.set(ch.id, []); m.get(ch.id)[ch.ord] = i; });
+  return [...m.values()].map(l => l.filter(i => i != null));
+}
+// Within one chain: the runs of consecutive segments for which `want(i)` holds.
+function chainRuns(list, want) {
+  const runs = []; let cur = [];
+  for (const i of list) { if (want(i)) cur.push(i); else { if (cur.length) runs.push(cur); cur = []; } }
+  if (cur.length) runs.push(cur);
+  return runs;
+}
 function collectOpeningIntoBuckets(o, buckets, posTotals, unresolved) {
   const cuts = expandOpeningCuts(o);
+  // #one-piece: how many of each (segment, part)'s pieces are billed inside a joined run instead of
+  // on their own. A part may be needed more than once on some roles (roleQty, e.g. 2 on a plain
+  // mullion, 1 on a door jamb): the run takes the count every segment shares as full-length pieces,
+  // and whatever a segment needs beyond that is cut for that segment alone — never more, never less.
+  const joinedQ = new Map();
+  const joinedPieces = [];   // { part, length, q, roles }
+  const roleQtyOf = (p, c) => (p.roleQty && +p.roleQty[c.position] > 0) ? +p.roleQty[c.position] : 1;
+  {
+    const chainOf = memberChains(cuts);
+    const partsFor = c => state.parts.filter(p => p.system === o.system && Array.isArray(p.roles) && p.roles.includes(c.position) && !p.continuous);
+    for (const list of chainLists(chainOf)) {
+      const byPart = new Map();
+      for (const i of list) for (const p of partsFor(cuts[i])) { const k = p.partNumber + '\u0001' + p.description; if (!byPart.has(k)) byPart.set(k, p); }
+      for (const [k, p] of byPart) {
+        for (const run of chainRuns(list, i => partsFor(cuts[i]).some(x => x.partNumber + '\u0001' + x.description === k))) {
+          if (run.length < 2) continue;
+          const left = new Map(run.map(i => [i, roleQtyOf(p, cuts[i])]));
+          const peel = seg => {
+            if (seg.length < 2) return;
+            const q = Math.min(...seg.map(i => left.get(i)));
+            joinedPieces.push({ part: p, length: seg.reduce((t, i) => t + cuts[i].length, 0), q, roles: seg.map(i => cuts[i].position) });
+            for (const i of seg) { left.set(i, left.get(i) - q); joinedQ.set(i + '\u0001' + k, (joinedQ.get(i + '\u0001' + k) || 0) + q); }
+            for (const sub of chainRuns(seg, i => left.get(i) > 1e-9)) peel(sub);
+          };
+          peel(run);
+        }
+      }
+    }
+  }
   // 连续件跑长(如 750XT 的 C Face Cover 连续覆盖 sill,不被竖梃打断——subsill 同逻辑):
   // 同 position 同一行的相邻段合并(缝隙≤8" 即竖梃宽),跑长 = 合并后的整段跨度。
   const contRuns = pos => {
@@ -4595,6 +5196,9 @@ function collectOpeningIntoBuckets(o, buckets, posTotals, unresolved) {
       pt[c.position] = (pt[c.position] || 0) + totalLen;
     }
     for (const match of matches) {
+      // #one-piece: what this segment's run already bills is not cut again here
+      const q = roleQtyOf(match, c) - (joinedQ.get(cuts.indexOf(c) + '\u0001' + match.partNumber + '\u0001' + match.description) || 0);   // #4: per-role part quantity
+      if (!(q > 1e-9)) continue;
       const key = match.system + '|' + match.partNumber;
       if (!buckets.has(key)) {
         buckets.set(key, {
@@ -4608,11 +5212,37 @@ function collectOpeningIntoBuckets(o, buckets, posTotals, unresolved) {
         });
       }
       const b = buckets.get(key);
-      const q = (match.roleQty && +match.roleQty[c.position] > 0) ? +match.roleQty[c.position] : 1;   // #4: per-role part quantity
       b.totalInches += totalLen * q;
       for (let i = 0; i < nPieces * q; i++) b.pieces.push(c.length);
       b.rolesUsed.add(c.position);
     }
+  }
+  // #edge-parts: pieces the panel types put around each panel (glass stop …), at DLO length
+  for (const ep of panelEdgeData(o).pieces) {
+    const lib = state.parts.find(x => x.system === o.system && x.partNumber === ep.part && (!ep.desc || x.description === ep.desc))
+             || state.parts.find(x => x.system === o.system && x.partNumber === ep.part);
+    const key = o.system + '|' + ep.part;
+    if (!buckets.has(key)) buckets.set(key, { system: o.system, partNumber: ep.part, description: (lib && lib.description) || ep.desc || 'Panel edge part',
+      rolesUsed: new Set(), totalInches: 0, pieces: [], stockInches: (lib && lib.stockInches) || STOCK_INCHES });
+    const b = buckets.get(key), n = (o.qty || 1) * ep.count;
+    b.totalInches += ep.length * n;
+    for (let i = 0; i < n; i++) b.pieces.push(ep.length);
+    b.rolesUsed.add(ep.type + ' edges');
+    if (posTotals) {
+      const pt = posTotals[o.system] || (posTotals[o.system] = {});
+      const k = EDGE_ROLE_PREFIX + ep.type;
+      pt[k] = (pt[k] || 0) + ep.length * n;
+    }
+  }
+  // #one-piece: the joined runs — one piece each, at their combined length
+  for (const jp of joinedPieces) {
+    const match = jp.part, key = match.system + '|' + match.partNumber;
+    if (!buckets.has(key)) buckets.set(key, { system: match.system, partNumber: match.partNumber, description: match.description,
+      rolesUsed: new Set(), totalInches: 0, pieces: [], stockInches: match.stockInches || STOCK_INCHES });
+    const b = buckets.get(key), n = (o.qty || 1) * jp.q;
+    b.totalInches += jp.length * n;
+    for (let i = 0; i < n; i++) b.pieces.push(jp.length);
+    for (const r of jp.roles) b.rolesUsed.add(r);
   }
   // 连续件(continuous: true, 如 C Face Cover): 每个角色按跑长出料
   for (const match of state.parts.filter(p => p.system === o.system && p.continuous && Array.isArray(p.roles))) {
@@ -4720,6 +5350,7 @@ document.addEventListener('click', e => {
   const g = e.target.closest && e.target.closest('#report-body .role-group');
   if (!g) return;
   const k = g.dataset.rolegroup;
+  if (!k) return;                       // an "Edges · <type>" row — nothing to expand
   if (reportExpanded.has(k)) reportExpanded.delete(k); else reportExpanded.add(k);
   renderReport();
 });
@@ -4864,6 +5495,7 @@ function renderReport() {
     html += `<tr class="sys-break"><td colspan="4">${escHtml(sys)}</td></tr>`;
     const posOfSys = posTotals[sys] || {};
     const positions = POSITIONS.filter(p => (posOfSys[p] || 0) > 0 || rows.some(r => r.system === sys && r.rolesUsed.includes(p)) || (state.customRoles || []).includes(p));
+    const edgeRows = Object.keys(posOfSys).filter(k => k.startsWith(EDGE_ROLE_PREFIX)).sort();
     for (const pos of positions) {
       const assigned = state.parts.filter(p => p.system === sys && (p.roles || []).includes(pos));
       const key = sys + '|' + pos;
@@ -4905,6 +5537,12 @@ function renderReport() {
         }
       }
     }
+    for (const k of edgeRows) html += `
+        <tr class="role-group" title="Edge parts from the panel type — set them under Panel Types">
+          <td><span style="font-weight:600;">⧉ ${escHtml(k.slice(EDGE_ROLE_PREFIX.length))} edges</span> <span class="roles">· panel type</span></td>
+          <td class="num" style="font-weight:600;">${formatNumber(posOfSys[k] || 0)}″</td>
+          <td class="num"></td><td class="num"></td>
+        </tr>`;
   }
 
   html += `</tbody></table></div>`;
@@ -5552,6 +6190,15 @@ function parseRawDxfOpenings(text, opts) {
     if (!hasDoorBlocks && system !== '750XT')
       for (const d of (cuts._geoDoors || []))
         doorRegions.push({ kind: 'GEOMETRIC', minX: d.minX, maxX: d.maxX, headY: d.headY, minY: d.floorY });
+    // #door-split review fix (2026-10-06): the geometry signature is taken from the drawing AS DRAWN —
+    // before any door cuts a jamb — so edit-sets saved by builds that never cut jambs still match it.
+    const _sigCuts = cuts.map(k => ({ position: k.position, length: k.length, count: k.count, src: k.src ? { ...k.src } : null }));
+    const _doors = doorSets(mark, system, doorRegions);
+    const _freshPinMoves = [];   // pins follow their cut pieces only if the import is accepted (appendParsedOpenings)
+    applyDoorJambs(cuts, _doors, system, { pins: pinnedCuts(cuts, mark, c.bbox), louverBand, pinMoves: _freshPinMoves });
+    // The per-system role touches below run on the live cuts AND on the signature copy (whose shape
+    // they also decide: the 750XT transom de-dupe, and which pieces merge as one role later).
+    const parsedRoleFixups = cuts => {
     // 750XT(AC3): 位置集严格按 750XT parts.xlsx——没有 Transom Bar / Door Jamb At
     // Transom / Corner 专位。门上横档 = Horizontal (X)(棕,见 2.png);门侧竖梃全高
     // 一根 Door Jamb(红,transom 分段去重合回);宽竖梃(≥3.5")= Vertical (wide),
@@ -5575,13 +6222,7 @@ function parseRawDxfOpenings(text, opts) {
     }
     // Louver-area members → (X)/(Lv) variants (still counted; only the part role changes).
     if (louverBand) {
-      const XMAP = { 'Head': 'Head (X)', 'Sill': 'Sill (X)', 'Horizontal': 'Horizontal (X)', 'Jamb': 'Jamb (X)', 'Vertical': 'Vertical (X)', 'Vertical (wide)': 'Vertical (wide X)', 'Door Jamb': 'Vertical (X)' };
-      for (const cut of cuts) {
-        if (!cut.src || !XMAP[cut.position]) continue;
-        const cx = cut.src.x + cut.src.w / 2;
-        if (cx >= louverBand.minX - 10 && cx <= louverBand.maxX + 10 &&
-            (cut.src.y + cut.src.h) >= louverBand.minY - 5 && cut.src.y <= louverBand.maxY + 5) cut.position = XMAP[cut.position];
-      }
+      for (const cut of cuts) if (cut.src && LOUVER_XMAP[cut.position] && inLouverBand(cut.src, louverBand)) cut.position = LOUVER_XMAP[cut.position];
       // 750XT: louver 带最低一排横料 = Sill (X)。门立面里门框竖梃比窗台低,会把带底
       // 挤出 sill 判定、错标成 Horizontal (X)——按带内最低行统一纠正(门上横档不在带内,不受影响)。
       if (system === '750XT') {
@@ -5594,6 +6235,9 @@ function parseRawDxfOpenings(text, opts) {
         }
       }
     }
+    };
+    parsedRoleFixups(cuts);
+    parsedRoleFixups(_sigCuts);
     // #S3 (confirmed 2026-07-16/17): IMP-1 panel framing logic — ONLY the verticals that fully
     // span across a panel band get relabeled: the band's own left/right boundary member →
     // `Jamb (IMP-1)`, an interior mullion crossing through the band → `Vertical (IMP-1)` (wide
@@ -5619,15 +6263,18 @@ function parseRawDxfOpenings(text, opts) {
     // acts on a WHOLE (unsplit) vertical that fully spans a band, so already-split/relabeled
     // restored pieces pass through unchanged; only stale unsplit pieces get (re)classified.
     classifyRoles(cuts, { system, bbox: c.bbox, imp1Bands, louverBand, doorRegions, mark });
-    // #persist (#1): fingerprint of THIS parse (geometry only, role-independent).
-    const _freshSig = elevGeoSig(cuts);
+    // #persist (#1): fingerprint of THIS parse (geometry only, role-independent) — of the drawing as
+    // drawn, before the door split (see _sigCuts above).
+    classifyRoles(_sigCuts, { system, mark, sigOnly: true });
+    const _freshSig = elevGeoSig(_sigCuts);
     // If a full saved edit-set exists for this mark and the DXF geometry is unchanged,
     // restore it wholesale (splits/merges/role/length edits all survive), THEN re-run the same
     // classification pipeline on the restored cuts so role labels stay live. Otherwise fall
     // back to the lighter remembered role overrides (legacy roleEdits).
     const _saved = state.elevEdits && state.elevEdits[mark];
     let _reclassifiedDrift = null;   // #fix (2026-07-19): surfaced to the viewer — see renderViewer
-    if (_saved && geoSigMatches(_saved.geoSig, cuts) && Array.isArray(_saved.cuts) && _saved.cuts.length) {
+    let _pinMoves = _freshPinMoves;
+    if (_saved && geoSigMatches(_saved.geoSig, _sigCuts) && Array.isArray(_saved.cuts) && _saved.cuts.length) {
       // #role-pins-v2: the saved cuts carry ABSOLUTE rects from whenever they were saved. The
       // signature matched on RELATIVE geometry, so if the elevation has since been moved on the
       // sheet those rects are in the old coordinate space — restoring them verbatim would put the
@@ -5640,8 +6287,13 @@ function parseRawDxfOpenings(text, opts) {
       cuts.length = 0;
       for (const sc of _saved.cuts) cuts.push({ position: sc.position, length: sc.length, count: sc.count || 1,
         src: sc.src ? { ...sc.src, x: sc.src.x + _dx, y: sc.src.y + _dy } : null });
-      const _beforeReclass = cuts.map(cc => cc.position);
-      classifyRoles(cuts, { system, bbox: c.bbox, imp1Bands, louverBand, doorRegions, mark });
+      const _beforeReclass = new Map(cuts.filter(cc => cc.src).map(cc => [srcKey(cc.src), cc.position]));
+      // #door-split: an edit-set saved before jambs were cut at the door head is brought up to date
+      // once; one saved since says how the user wants its jambs (merged back included) and is kept.
+      const _doorLog = [];
+      _pinMoves = [];
+      classifyRoles(cuts, { system, bbox: c.bbox, imp1Bands, louverBand, doorRegions, mark,
+                            doors: doorRuleCurrent(_saved) ? null : _doors, doorLog: _doorLog, pinMoves: _pinMoves });
       // #fix (2026-07-19, Leo — SF01 data loss): the automatic reclassification above can still
       // change a piece that was never explicitly pinned via the dropdown (e.g. a hand-tuned split
       // whose role happened to match old logic but not the new geometry rule). Rather than let
@@ -5649,7 +6301,8 @@ function parseRawDxfOpenings(text, opts) {
       // changed from your saved version" — a visible warning instead of a silent overwrite, which
       // is what let SF01 slip through uncaught.
       const drift = [];
-      cuts.forEach((cc, i) => { if (_beforeReclass[i] != null && cc.position !== _beforeReclass[i]) drift.push({ src: cc.src, from: _beforeReclass[i], to: cc.position }); });
+      cuts.forEach(cc => { const was = cc.src ? _beforeReclass.get(srcKey(cc.src)) : null; if (was != null && cc.position !== was) drift.push({ src: cc.src, from: was, to: cc.position }); });
+      drift.push(..._doorLog);   // cut pieces have new rectangles, so the check above cannot see them
       if (drift.length) { _reclassifiedDrift = drift; console.warn('[classify] ' + drift.length + ' piece(s) in ' + mark + ' changed from the saved version on reclassify:', drift); }
       _savedRoleReport.delete(mark);
     } else {
@@ -5679,6 +6332,7 @@ function parseRawDxfOpenings(text, opts) {
       // that wasn't pinned via the dropdown — surfaced as a warning banner in the viewer instead
       // of silently overwriting the saved version. Local-only (not part of the synced schema).
       _reclassifiedDrift,
+      _pinMoves,   // applied and dropped by appendParsedOpenings once the import is accepted
     });
     const _ex = buildElevExport(mark, c, alumPool, louverBand, doorRegions, structuralPolys, panelStrips, byOthersZones, cuts, system);
     // #M2-v2: geometry (viewBox/base/elements) is now owned by the tracker's own
@@ -5936,11 +6590,10 @@ function dxfDetectCuts(outline, alumProfiles, doorSubframe, opts) {
         if (floor750 != null && v.minY < floor750 - 2) addCut('Jamb (X)', v.height, 1, v);
         else addCut('Jamb', v.height, 1, v);
       } else {
-        const upper = Math.max(0, v.maxY - myDoor.minY);
-        const lower = Math.max(0, myDoor.minY - v.minY);
-        // 边门框(同时是 elevation 最边 jamb)的 transom 以上段打标记: 450 出料时按 Jamb 计
-        if (upper > 0.5) addCut('Door Jamb At Transom', upper, 1, v, isJamb ? { edgeDoorJamb: true } : null);
-        if (lower > 0.5) addCut('Door Jamb', lower, 1, v);
+        // #door-split (2026-10-06): one full-height piece here; splitJambsAtDoors() cuts it at the
+        // door head into Door Jamb (below) + Vertical / Jamb (above) with REAL geometry for each
+        // half. The old version emitted both halves with the same full-height rectangle.
+        addCut('Door Jamb', v.height, 1, v);
       }
     } else if (isJamb) {
       addCut('Jamb', v.height, 1, v);
@@ -6305,6 +6958,15 @@ async function appendParsedOpenings(result, sys) {
   if (sys) openings.forEach(o => { o.system = sys; });
   if (is1600(sys)) openings.forEach(reclassify1600);
   state.openings.push(...openings);
+  // #door-split: a role pin on a jamb that was cut at the door head moves onto its piece — now that
+  // the import is accepted — and the pins are laid on again so the viewer's pin report is current
+  for (const o of openings) {
+    const mv = o._pinMoves || [];
+    delete o._pinMoves;
+    if (!mv.length) continue;
+    for (const m of mv) { m.pin.ry = m.ry; m.pin.h = m.h; }
+    applyRolePins(o.cuts, o.mark, o.system, o._bands && o._bands.bbox);
+  }
   renderOpenings(); renderReport(); renderMeta(); save();
   // M2: auto-push elevations parsed this batch (manual "→ Tracker" button stays as a force-re-push fallback).
   if (ELEV_EXPORTS.size && window.__fb) { try { await exportElevationsToTracker(); } catch (e) { console.warn('[M2] auto-push failed:', e); } }
@@ -6539,6 +7201,10 @@ function resetAll() {
     + 'cut groups and gasket defaults all stay.\n\nContinue?')) return;
   const carry = {};
   for (const k of kept) carry[k] = state[k];
+  // Panel types (with their gasket defaults and edge parts) are company-wide library data, shared
+  // through the cloud: dropping them here would make ensurePanelConfigs() push the built-in defaults
+  // over everyone's. The one-time seed marks go with them so nothing is re-seeded.
+  for (const k of ['panelConfig', 'systemSeeds']) if (state[k] && Object.keys(state[k]).length) carry[k] = state[k];
   state = Object.assign({ partsDbVersion: PARTS_DB_VERSION, parts: cloneSeedParts(),
                           openings: [], accessories: cloneSeedAccessories() }, carry);
   renderAll();
