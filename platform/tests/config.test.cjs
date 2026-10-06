@@ -92,5 +92,12 @@ ok(/_project:\s*\(window\.PROJECT \|\| \{\}\)\.hubId/.test(cs), 'core/cloud-sync
 ok(/meta\/project/.test(cs) && /if \(!projectOk\) return;/.test(cs), 'core/cloud-sync.js checks /meta/project and never pushes before it matched');
 ok(/p\/\$\{pid\}\/photos\//.test(read('core/app.js')), 'core/app.js stores photos under p/<project>/photos/');
 
+// The takeoff tool's project picker lists every project, and only ids that have a database.
+{
+  const m = read('takeoff/app.js').match(/const HUB_PROJECTS = \[([\s\S]*?)\];/);
+  const ids = m ? [...m[1].matchAll(/id:\s*'([^']+)'/g)].map(x => x[1]).sort() : [];
+  ok(JSON.stringify(ids) === JSON.stringify(REG.projects.map(p => p.id).sort()), `takeoff/app.js HUB_PROJECTS (${ids}) matches platform/projects.json`);
+}
+
 console.log(`config: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

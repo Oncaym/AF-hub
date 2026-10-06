@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Takeoff Tool — Advanced Facade</title>
 <link rel="stylesheet" href="colors_and_type.css" />
-<link rel="stylesheet" href="styles.css?v=20261006c" />
+<link rel="stylesheet" href="styles.css?v=20261007a" />
 </head>
 <body>
 
@@ -18,6 +18,9 @@
       <span class="tk-header__eyebrow">Material Takeoff Tool</span>
     </div>
     <span class="tk-header__spacer"></span>
+    <label class="tk-hubbar" title="The project that → Tracker sends this takeoff to">Project
+      <select id="hub-project" class="tk-input tk-input--sm"></select></label>
+    <button class="tk-btn tk-btn--ghost tk-btn--sm" id="hub-signin" type="button"></button>
     <a class="tk-btn tk-btn--ghost tk-btn--sm" href="/" title="Back to the AF hub">← Hub</a>
   </div>
 </header>
@@ -151,7 +154,7 @@
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
             Import DXF
           </button>
-          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="export-elev" title="Push this import's takeoff to the tracker (cloud elevGeo, one per unit)">
+          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="export-elev" title="Send this import's takeoff (and any elevation the tracker doesn't have yet) to the selected project's tracker">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
             → Tracker
           </button>
@@ -411,12 +414,13 @@
 
 </main>
 
-<script src="firebase-init.js?v=20260713g"></script>
-<script src="systems.js?v=20261006c"></script>
+<script src="../af-hub-config.js"></script>
+<script src="firebase-init.js?v=20261007a"></script>
+<script src="systems.js?v=20261007a"></script>
 <script src="role-sections.js?v=20260713f"></script>
 <script src="part-sections.js?v=20260904g"></script>
 <script src="xlsx-writer.js?v=20260904g"></script>
-<script src="app.js?v=20261006c"></script>
-<script src="cloud-sync.js?v=20261006c"></script>
+<script src="app.js?v=20261007a"></script>
+<script src="cloud-sync.js?v=20261007a"></script>
 </body>
 </html>

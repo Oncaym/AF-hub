@@ -80,7 +80,7 @@
 <script src="firebase-config.js?v=20261006a"></script>
 <script src="project-config.js?v=20260805y"></script>
 <script src="../core/cloud-sync.js?v=20261006a"></script>
-<script src="elev-cloud.js?v=20261006a"></script>
+<script src="elev-cloud.js?v=20261007a"></script>
 
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
@@ -1729,15 +1729,19 @@ function importDxfInTracker(e){
     } catch(err){ alert('DXF parse failed: ' + err); e.target.value=''; return; }
     if(!results || !results.length){ alert('0 elevations found in ' + file.name); e.target.value=''; return; }
     window.ELEVATIONS = window.ELEVATIONS || {};
-    var haveFs = (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length && firebase.firestore);
+    // 2026-10-07: into this project's own database (/elevGeo, key '.'→','), stamped like a state
+    // save; update() leaves the takeoff tool's `takeoff` child alone.
+    var u = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
+    var haveFs = !!(u && firebase.database && window.PROJECT && PROJECT.hubId);
     var pushes = [];
+    var clean = function(v){ return JSON.parse(JSON.stringify(v, function(k, x){ return (typeof x === 'number' && !isFinite(x)) ? null : x; })); };
     results.forEach(function(r){
       window.ELEVATIONS[r.key] = { viewBox: r.viewBox, name: r.name, base: r.base, elements: r.elements };
       if (haveFs) {
-        pushes.push(firebase.firestore().collection('elevGeo').doc(String(r.key)).set({
-          viewBox: r.viewBox, name: r.name, base: r.base, elements: r.elements,
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true }));
+        pushes.push(firebase.database().ref('elevGeo/' + String(r.key).replace(/[.#$\[\]\/]/g, ',')).update(clean({
+          key: String(r.key), viewBox: r.viewBox, name: r.name, base: r.base, elements: r.elements,
+          _project: PROJECT.hubId, _by: u.email, _ts: Date.now()
+        })));
       }
     });
     var marks = results.map(function(r){ return r.key; }).join(', ');
@@ -1769,7 +1773,7 @@ function importDxfInTracker(e){
       <a class="btn" href="chat.html" title="Natural-language chat updater">💬 Chat</a>
       <a class="btn" href="warehouse.html" title="Warehouse"><span data-i18n="btn_warehouse">📦 Warehouse</span></a>
       <button class="btn" type="button" onclick="openDrawings()" title="Project drawings"><span data-i18n="btn_drawings">📐 Drawings</span></button>
-      <a class="btn" href="/takeoff/" title="打开内嵌 Takeoff Tool（在里面 Import DXF）/ Open the embedded takeoff tool (import DXF there)">🛠 Takeoff Tool</a>
+      <a class="btn" href="../takeoff/" title="打开内嵌 Takeoff Tool（在里面 Import DXF）/ Open the embedded takeoff tool (import DXF there)">🛠 Takeoff Tool</a>
       <input type="file" id="trackerDxfFile" accept=".dxf" style="display:none" onchange="importDxfInTracker(event)">
       <button class="btn" type="button" onclick="document.getElementById('trackerDxfFile').click()" title="Import a DXF — parses elevation regions in-page, no takeoff tool needed">⬆ Import DXF</button>
       <button class="btn btn-primary" onclick="openAddLog()" data-om-id="17a02737:21"><span data-i18n="btn_add_log" data-om-id="17a02737:22">+ Add Daily Log</span></button>

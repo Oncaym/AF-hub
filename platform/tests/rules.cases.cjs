@@ -42,7 +42,7 @@ const c = (name, as, op, path, value, want, data) => cases.push({ name, as, op, 
 const readers = [['EDITOR', true], ['FOREMAN', true], ['STAFF', true], ['STAFF_UP', true], ['GC', true], ['VIEWER', true],
   ['STRANGER', false], ['FAKE', false], ['ANON', false], ['NOBODY', false]];
 for (const [who, want] of readers)
-  for (const p of ['/state', '/meta', '/history', '/gcItems', '/triage', '/warehouse', '/presence'])
+  for (const p of ['/state', '/meta', '/history', '/gcItems', '/triage', '/warehouse', '/presence', '/elevGeo'])
     c(`read ${p} as ${who}`, who, 'read', p, undefined, want);
 c('root not readable even by an editor', 'EDITOR', 'read', '/', undefined, false);
 c('allowlist not listable', 'EDITOR', 'read', '/allowlist', undefined, false);
@@ -106,5 +106,15 @@ c('editor receives a warehouse item', 'EDITOR', 'set', '/warehouse/items/w1', { 
 c('staff cannot receive a warehouse item', 'STAFF', 'set', '/warehouse/items/w1', { where: 'rack A', receivedAt: NOW, receivedBy: P.STAFF.email, status: 'in_stock' }, false);
 c('editor sets a triage piece', 'EDITOR', 'set', '/triage/friday/pieces/T1', { status: 'ok' }, true);
 c('gc cannot set a triage piece', 'GC', 'set', '/triage/friday/pieces/T1', { status: 'ok' }, false);
+
+// elevGeo (takeoff "-> Tracker" / tracker DXF import)
+const geo = (who, project, extra) => Object.assign({ key: 'SF04.1', viewBox: '0 0 10 10', takeoff: { system: '750XT' }, _project: project, _by: who.email, _ts: NOW }, extra || {});
+c('editor pushes an elevation', 'EDITOR', 'set', '/elevGeo/SF04,1', geo(P.EDITOR, 'ac3'), true);
+c('foreman on the allowlist pushes an elevation', 'FOREMAN', 'set', '/elevGeo/SF04,1', geo(P.FOREMAN, 'ac3'), true);
+c('staff (read-only here) cannot push an elevation', 'STAFF', 'set', '/elevGeo/SF04,1', geo(P.STAFF, 'ac3'), false);
+c('elevation stamped with ANOTHER project is refused', 'EDITOR', 'set', '/elevGeo/SF04,1', geo(P.EDITOR, 'lex'), false);
+c('elevation signed as somebody else is refused', 'EDITOR', 'set', '/elevGeo/SF04,1', geo(P.EDITOR, 'ac3', { _by: P.STAFF.email }), false);
+c('elevation with no project stamp is refused', 'EDITOR', 'set', '/elevGeo/SF04,1', geo(P.EDITOR, undefined), false);
+c('editor cannot overwrite the whole elevGeo node', 'EDITOR', 'set', '/elevGeo', { x: geo(P.EDITOR, 'ac3') }, false);
 
 module.exports = { P, cases, NOW, key };

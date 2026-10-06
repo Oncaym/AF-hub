@@ -6025,30 +6025,88 @@ function buildElevExport(mark, c, pool, louverBand, doorRegions, structuralPolys
   return { key: mark, data: { viewBox: `0 0 ${+(bb.width * s).toFixed(1)} 400`, name: mark, base, elements: els }, gaskets, panelCells };
 }
 
-async function exportElevationsToTracker() {
+// ============================================================
+//  #hub (2026-10-07, Leo: "选择项目 / → Tracker 写入各项目自己的数据库"): the takeoff tool lives at
+//  the hub root and serves every project. "→ Tracker" writes into the PICKED project's own database
+//  (af-hub-8f188-<id>, /elevGeo/<unit>), signed in with the hub account; the database's rules check
+//  the row's project stamp against /meta/project, like every tracker save. The tracker reads the
+//  same node. A new project is one line in HUB_PROJECTS (its id is its database name).
+// ============================================================
+const HUB_PROJECTS = [
+  { id: 'ac3', name: 'Atlantic-Chestnut Building 3' },
+  { id: 'lex', name: '355 Lexington Avenue' },
+];
+const hubDbUrl = id => `https://af-hub-8f188-${id}.firebaseio.com`;
+let _hubProject = '';
+try { _hubProject = localStorage.getItem('takeoff:hubProject') || ''; } catch (_) {}
+function renderHubBar() {
+  const sel = document.getElementById('hub-project'), btn = document.getElementById('hub-signin');
+  if (sel) {
+    const html = `<option value="">— pick —</option>` + HUB_PROJECTS.map(p => `<option value="${escAttr(p.id)}"${p.id === _hubProject ? ' selected' : ''}>${escHtml(p.name)}</option>`).join('');
+    if (sel.innerHTML !== html) sel.innerHTML = html;
+    sel.value = _hubProject;
+  }
+  if (btn) {
+    const u = window.__hub && window.__hub.user;
+    btn.textContent = u ? u.email : 'Sign in (Hub)';
+    btn.title = u ? 'Signed in to the AF Hub — click to sign out' : 'Opens the hub to sign in; this page picks it up by itself';
+  }
+}
+if (typeof window !== 'undefined') window.addEventListener('hub-auth', renderHubBar);
+document.addEventListener('change', e => {
+  if (!e.target || e.target.id !== 'hub-project') return;
+  _hubProject = e.target.value;
+  try { localStorage.setItem('takeoff:hubProject', _hubProject); } catch (_) {}
+  renderHubBar();
+});
+document.addEventListener('click', e => {
+  if (!e.target || !e.target.closest || !e.target.closest('#hub-signin')) return;
+  const h = window.__hub;
+  if (h && h.user) { if (confirm(`Sign ${h.user.email} out of the AF Hub (every project, every tab)?`)) h.signOut(h.auth); }
+  else window.open('/', '_blank');
+});
+// RTDB keys may not hold . # $ [ ] / — nor may any key inside the value. Undefined/NaN go too.
+const rtdbKey = k => String(k).replace(/[.#$\[\]\/]/g, ',');
+function rtdbClean(v) {
+  if (v === undefined || (typeof v === 'number' && !isFinite(v))) return null;
+  if (Array.isArray(v)) return v.map(rtdbClean);
+  if (v && typeof v === 'object') { const o = {}; for (const k in v) { const x = rtdbClean(v[k]); if (x !== null) o[rtdbKey(k)] = x; } return o; }
+  return v;
+}
+async function exportElevationsToTracker(opts) {
+  const quiet = opts && opts.quiet;
   const st = document.getElementById('export-status');
-  const say = (t, err) => { if (st) { st.textContent = t; st.className = 'tk-dxf__status ' + (err ? 'is-err' : 'is-ok'); } };
+  const say = (t, err) => { if (st && !(quiet && err)) { st.textContent = t; st.className = 'tk-dxf__status ' + (err ? 'is-err' : 'is-ok'); } };
   if (!ELEV_EXPORTS.size) return say('Import DXF (geometry parse) first, then export elevations', true);
-  if (!window.__fb) return say('Cloud not connected — check the connection and reload the page', true);
+  const proj = HUB_PROJECTS.find(p => p.id === _hubProject);
+  if (!proj) return say('Pick the project to send to (top right), then press → Tracker', true);
+  const h = window.__hub;
+  if (!h || !h.user) return say('Sign in to the AF Hub first (top right), then press → Tracker', true);
   try {
-    const fb = window.__fb;
-    say('Pushing…');
-    // #M2-v2: merge ONLY the `.takeoff` subfield (system/cuts/gaskets) — the geometry fields
-    // (viewBox/base/elements) are the tracker's own dxf-elevations.js import's responsibility
-    // now; a plain merge of a doc containing just `{takeoff:{...}}` leaves sibling top-level
-    // fields (viewBox/base/elements) untouched. If a mark has no takeoff data (shouldn't
-    // happen — computed alongside every opening) skip it rather than writing an empty doc.
+    say(`Sending to ${proj.name}…`);
+    const db = h.getDatabase(h.app, hubDbUrl(proj.id));
+    const meta = (await h.get(h.ref(db, 'meta/project'))).val();
+    if (meta !== proj.id) return say(`Not sent — that database says it is "${meta}", not ${proj.id}`, true);
+    const have = (await h.get(h.ref(db, 'elevGeo'))).val() || {};
+    const up = {}, now = Date.now(), who = h.user.email;
+    let n = 0;
     for (const e of ELEV_EXPORTS.values()) {
       if (!e.takeoff) continue;
-      await fb.setDoc(fb.doc(fb.elevDb || fb.db, 'elevGeo', String(e.key)),
-        { takeoff: Object.assign({}, e.takeoff, { updatedAt: fb.serverTimestamp() }) }, { merge: true });
+      const k = rtdbKey(e.key);
+      const row = { key: String(e.key), takeoff: rtdbClean(Object.assign({}, e.takeoff, { updatedAt: now })), _project: proj.id, _by: who, _ts: now };
+      // the drawing itself only where the tracker has none — its own DXF import owns its geometry
+      if (!(have[k] && have[k].viewBox) && e.data) Object.assign(row, rtdbClean({ viewBox: e.data.viewBox, name: e.data.name, base: e.data.base, elements: e.data.elements }));
+      for (const f in row) up[k + '/' + f] = row[f];
+      n++;
     }
+    await h.update(h.ref(db, 'elevGeo'), up);
     const marks = [...ELEV_EXPORTS.keys()].join(', ');
     if (st) st.title = marks;
-    say(`Pushed ${ELEV_EXPORTS.size} elevations: ${marks}`);
+    say(`Sent ${n} elevations to ${proj.name}: ${marks}`);
   } catch (err) {
     console.error('[elevGeo] push failed:', err);
-    say('Push failed: ' + ((err && err.code) || err), true);
+    say(/PERMISSION_DENIED|permission/i.test(String(err && (err.code || err.message)))
+      ? `Not sent — ${h.user.email} is not an editor of ${proj.name}` : 'Push failed: ' + ((err && (err.code || err.message)) || err), true);
   }
 }
 
@@ -7073,7 +7131,7 @@ async function appendParsedOpenings(result, sys) {
   }
   renderOpenings(); renderReport(); renderMeta(); save();
   // M2: auto-push elevations parsed this batch (manual "→ Tracker" button stays as a force-re-push fallback).
-  if (ELEV_EXPORTS.size && window.__fb) { try { await exportElevationsToTracker(); } catch (e) { console.warn('[M2] auto-push failed:', e); } }
+  if (ELEV_EXPORTS.size && _hubProject && window.__hub && window.__hub.user) { try { await exportElevationsToTracker({ quiet: true }); } catch (e) { console.warn('[M2] auto-push failed:', e); } }
   statusEl.textContent = `+${openings.length} openings added: ${openings.map(o => o.mark).join(', ')}`;
   statusEl.className = 'tk-dxf__status is-ok';
   return true;
@@ -7421,7 +7479,8 @@ function init() {
   document.getElementById('dxf-import').addEventListener('click', importDxfFile);
   document.getElementById('dxf-file').addEventListener('change', onDxfFileChange);
   const exportElevBtn = document.getElementById('export-elev');
-  if (exportElevBtn) exportElevBtn.addEventListener('click', exportElevationsToTracker);
+  if (exportElevBtn) exportElevBtn.addEventListener('click', () => exportElevationsToTracker());
+  renderHubBar();
 
   // Export — one dropdown + one button (see EXPORT_KINDS)
   const projNameInput = document.getElementById('xl-project-name');

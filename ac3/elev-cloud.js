@@ -17,6 +17,36 @@
     projectId: "atlantic-chestnut-3",
     appId: "1:809348858581:web:d7d8a18efd7e3947b7185c"
   };
+  // 2026-10-07: takeoff 搬到 hub 根目录后，"→ Tracker" 写进本项目自己的数据库 /elevGeo
+  // （key = unit id，'.' 换成 ','）。这里优先读它；旧 Firestore 里的条目只在本库没有同名时补上。
+  var fromDb = {}, fromLegacy = {};
+  function publish() {
+    var EL = window.ELEVATIONS = window.ELEVATIONS || {};
+    Object.keys(fromLegacy).forEach(function (k) { if (!fromDb[k]) EL[k] = fromLegacy[k]; });
+    Object.keys(fromDb).forEach(function (k) { EL[k] = fromDb[k]; });
+    try { if (typeof render === 'function') render(); } catch (e) {}
+  }
+  var dbTries = 0, dbOn = false;
+  function startDb() {
+    if (typeof firebase === 'undefined' || !firebase.auth || !firebase.database || !(firebase.apps || []).some(function (a) { return a.name === '[DEFAULT]'; })) {
+      if (++dbTries > 100) return;
+      return setTimeout(startDb, 300);
+    }
+    firebase.auth().onAuthStateChanged(function (u) {
+      if (!u || dbOn) return;
+      dbOn = true;
+      firebase.database().ref('elevGeo').on('value', function (snap) {
+        fromDb = {};
+        var v = snap.val() || {};
+        Object.keys(v).forEach(function (k) {
+          var e = v[k];
+          if (e && e.viewBox && e.elements) fromDb[e.key || k.replace(/,/g, '.')] = e;
+        });
+        if (Object.keys(fromDb).length) console.log('[elevGeo] loaded ' + Object.keys(fromDb).length + ' elevations from the project database');
+        publish();
+      }, function (err) { dbOn = false; console.warn('[elevGeo] project database read failed:', err && err.code); });
+    });
+  }
   var tries = 0;
   function start() {
     if (typeof firebase === 'undefined' || !firebase.firestore) {
@@ -27,18 +57,20 @@
       var app = (firebase.apps || []).filter(function (a) { return a.name === 'takeoff'; })[0]
              || firebase.initializeApp(TAKEOFF_FIRESTORE, 'takeoff');
       firebase.firestore(app).collection('elevGeo').onSnapshot(function (snap) {
-        var EL = window.ELEVATIONS = window.ELEVATIONS || {};
+        fromLegacy = {};
         var got = 0;
         snap.forEach(function (d) {
           var v = d.data() || {};
-          if (v.viewBox && v.elements) { EL[d.id] = v; got++; }
+          if (v.viewBox && v.elements) { fromLegacy[d.id] = v; got++; }
         });
-        if (got) console.log('[elevGeo] loaded ' + got + ' cloud elevations');
+        if (got) console.log('[elevGeo] loaded ' + got + ' legacy cloud elevations');
+        publish();
       }, function (err) {
         console.warn('[elevGeo] offline (takeoff Firestore unreachable):', err && err.code);
       });
     } catch (e) { console.warn('[elevGeo] init failed:', e); }
   }
-  if (document.readyState !== 'loading') start();
-  else document.addEventListener('DOMContentLoaded', start);
+  function boot() { start(); startDb(); }
+  if (document.readyState !== 'loading') boot();
+  else document.addEventListener('DOMContentLoaded', boot);
 })();

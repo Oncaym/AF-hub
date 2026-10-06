@@ -826,3 +826,5 @@ button, input, select, textarea {
 .pr-x:hover { color: #c62828; }
 .pr-add { width: 120px; font-size: 12px; padding: 3px 6px; border: 1px dashed var(--af-border-default, #bbb); border-radius: 12px; background: transparent; color: inherit; }
 @media (max-width: 700px) { .pr-role { grid-template-columns: minmax(0, 1fr); } }
+.tk-hubbar { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--af-fg-3, #888); margin-right: 8px; }
+#hub-signin { margin-right: 8px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
