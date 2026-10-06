@@ -13,5 +13,9 @@
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
       ]
     }
+  ],
+  "redirects": [
+    { "source": "/ac3/takeoff", "destination": "/takeoff/", "permanent": true },
+    { "source": "/ac3/takeoff/:path*", "destination": "/takeoff/:path*", "permanent": true }
   ]
 }
