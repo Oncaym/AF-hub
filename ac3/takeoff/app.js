@@ -541,29 +541,141 @@ function partRowHtml(p) {
     </tr>`;
 }
 
-// 零件表按系统折叠; 默认只展开"当前在用系统"(有 opening 的); 用户点标题可切换。
-let _partsExpandInit = false;
-const partsExpanded = new Set();
-function renderParts() {
-  const tbody = document.getElementById('parts-tbody');
-  if (!state.parts.length) {
-    tbody.innerHTML = `<tr class="is-empty"><td colspan="6">No parts defined — add a row to begin.</td></tr>`;
+// #parts-roles (2026-10-06, Leo: "不要把part/role分左右，改成role/part两种标签页"): one section, one
+// system at a time, two tabs. Roles is where the work happens — every role of the system in a fixed
+// order (it never jumps when a part is added), its parts as chips, and one box to type a part # into:
+// an existing number attaches that part, a new one creates the part on the spot. "+ New role" makes
+// the role and lands in its box, so role → part is two typed names and two Enters.
+// Parts is the plain table, for descriptions, stock, continuous and the full role grid.
+let _prSystem = null, _prTab = 'roles';
+try { _prTab = localStorage.getItem('takeoff:prTab') || 'roles'; } catch (_) {}
+const _prNewRoles = new Set();   // sys|role made here this session — shown before any part is on it
+function prSystem() {
+  const list = SYSTEMS_LIST();
+  if (_prSystem && list.includes(_prSystem)) return _prSystem;
+  const inUse = (state.openings || []).map(o => o.system).find(x => list.includes(x));
+  return (_prSystem = inUse || list[0] || '');
+}
+// Re-drawing a list while one of its boxes is being typed in throws the box away (and, before the
+// cloud fix below, the text with it). It waits until focus leaves the list.
+const _deferredRenders = new Map();
+function _typingIn(host) {
+  const a = document.activeElement;
+  return !!(a && host && host.contains(a) && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && !/^(checkbox|radio|button|color)$/.test(a.type))));
+}
+function renderUnlessTyping(hostId, fn) {
+  const h = document.getElementById(hostId);
+  if (_typingIn(h)) { _deferredRenders.set(hostId, fn); return true; }
+  _deferredRenders.delete(hostId);
+  return false;
+}
+if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('focusout', e => {
+  for (const [id, fn] of _deferredRenders) {
+    const h = document.getElementById(id);
+    if (!h || !h.contains(e.target) || (e.relatedTarget && h.contains(e.relatedTarget))) continue;
+    afterPointer(() => { if (_deferredRenders.get(id) === fn && !_typingIn(h)) { _deferredRenders.delete(id); fn(); } });
+  }
+});
+function rolesForSystem(sys) {
+  const set = new Set();
+  for (const p of state.parts) if (p.system === sys) for (const r of p.roles || []) set.add(r);
+  for (const o of state.openings || []) if (o.system === sys) for (const c of o.cuts || []) set.add(c.position);
+  if (hasManualRecognizedList(sys)) for (const r of state.recognizedRoles[sys] || []) set.add(r);
+  for (const k of _prNewRoles) if (k.startsWith(sys + '|')) set.add(k.slice(sys.length + 1));
+  const order = POSITIONS_LIST(), at = r => { const i = order.indexOf(r); return i < 0 ? 1e6 : i; };
+  return [...set].filter(Boolean).sort((a, b) => (at(a) - at(b)) || a.localeCompare(b));
+}
+function renderPartsRoles(force) {
+  const sel = document.getElementById('pr-system');
+  const sys = prSystem();
+  if (sel) {
+    const html = SYSTEMS_LIST().map(x => `<option value="${escAttr(x)}"${x === sys ? ' selected' : ''}>${escHtml(x)}</option>`).join('');
+    if (sel.innerHTML !== html) sel.innerHTML = html;
+    sel.value = sys;
+  }
+  document.querySelectorAll('[data-prtab]').forEach(b => b.classList.toggle('is-on', b.getAttribute('data-prtab') === _prTab));
+  const rolesHost = document.getElementById('pr-roles'), partsHost = document.getElementById('pr-parts');
+  if (partsHost) partsHost.style.display = _prTab === 'parts' ? '' : 'none';
+  if (!rolesHost) return;
+  rolesHost.style.display = _prTab === 'roles' ? '' : 'none';
+  if (_prTab !== 'roles' || (!force && renderUnlessTyping('pr-roles', () => renderPartsRoles()))) return;
+  const parts = state.parts.filter(p => p.system === sys);
+  const len = {};
+  for (const o of scopedOpenings()) if (o.system === sys) for (const c of o.cuts || []) len[c.position] = (len[c.position] || 0) + (+c.length || 0) * (c.count || 1) * (o.qty || 1);
+  const row = r => {
+    const on = parts.filter(p => (p.roles || []).includes(r));
+    const chips = on.map(p => `<span class="pr-chip" title="${escAttr(p.description || '')}"><b class="mono">${escHtml(p.partNumber || '(no #)')}</b>${p.description ? ` <span class="pr-desc">${escHtml(p.description)}</span>` : ''}
+        ×<input class="pr-qty" data-roleqty="${escAttr(p.id + '|' + r)}" type="number" min="1" step="1" value="${(p.roleQty && p.roleQty[r]) || 1}" title="How many of this part per piece in this role" />
+        <button class="pr-x" data-pr-unlink="${escAttr(p.id + '|' + r)}" title="Take ${escAttr(p.partNumber)} off ${escAttr(r)}">×</button></span>`).join('');
+    const warn = !on.length && len[r] > 0;
+    return `<div class="pr-role${warn ? ' is-warn' : ''}" data-prrole="${escAttr(r)}">
+      <div class="pr-role__name"><span>${escHtml(r)}</span><button class="pr-x" data-renamerole="${escAttr(sys + '|' + r)}" title="Rename role">✎</button>
+        <span class="pr-len">${len[r] ? formatNumber(len[r]) + '″' : ''}${warn ? ' · no part' : ''}</span></div>
+      <div class="pr-role__parts">${chips}<input class="pr-add mono" list="pr-dl" data-pr-add="${escAttr(r)}" placeholder="+ part #" title="Type a part # and press Enter — a number not in the list becomes a new part (text after it = description)" /></div>
+    </div>`;
+  };
+  rolesHost.innerHTML = `
+    <div class="pr-newrole"><input id="pr-newrole" class="tk-input tk-input--sm" placeholder="+ New role — type a name, Enter" /></div>
+    <datalist id="pr-dl">${parts.filter(p => p.partNumber).map(p => `<option value="${escAttr(p.partNumber)}">${escHtml(p.description || '')}</option>`).join('')}</datalist>
+    <div class="pr-list">${rolesForSystem(sys).map(row).join('') || '<p class="tk-section__sub">No roles yet.</p>'}</div>`;
+}
+function prFocusAdd(role) {
+  const el = [...document.querySelectorAll('#pr-roles [data-pr-add]')].find(x => x.getAttribute('data-pr-add') === role);
+  if (el) el.focus();
+}
+function prAttach(role, text) {
+  const sys = prSystem();
+  const m = String(text || '').trim().match(/^(\S+)\s*(?:[—–-]\s*)?(.*)$/);
+  if (!m) return;
+  const pn = m[1].toUpperCase(), desc = m[2].trim();
+  let p = state.parts.find(x => x.system === sys && String(x.partNumber).toUpperCase() === pn);
+  if (!p) { p = { id: uid(), system: sys, partNumber: pn, description: desc, roles: [] }; state.parts.push(p); }
+  if (!(p.roles || []).includes(role)) p.roles = [...(p.roles || []), role];
+  save(); renderParts(true); renderReport(); renderMeta();
+  prFocusAdd(role);
+}
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || !e.target || !e.target.closest || !e.target.closest('#pr-roles')) return;
+  if (e.target.id === 'pr-newrole') {
+    e.preventDefault();
+    const name = e.target.value.trim(), sys = prSystem();
+    if (!name) return;
+    if (!POSITIONS_LIST().includes(name)) (state.customRoles = state.customRoles || []).push(name);
+    _prNewRoles.add(sys + '|' + name);
+    save(); renderParts(true);
+    if (viewerOpeningId != null) renderViewer(viewerOpeningId);
+    prFocusAdd(name);
     return;
   }
-  const systems = SYSTEMS_LIST();
-  _partsExpandInit = true;   // #2: default all system groups collapsed (no auto-expand)
-  const bySys = {};
-  for (const p of state.parts) (bySys[p.system] = bySys[p.system] || []).push(p);
-  const order = systems.concat(Object.keys(bySys).filter(s => !systems.includes(s)));
-  let html = '';
-  for (const sys of order) {
-    const parts = bySys[sys];
-    if (!parts || !parts.length) continue;
-    const open = partsExpanded.has(sys);
-    html += `<tr class="sys-group" data-sysgroup="${escAttr(sys)}"><td colspan="6" style="cursor:pointer; font-weight:600; background:var(--af-bg-2,#f1f1f1); user-select:none;">${open ? '▾' : '▸'} ${escHtml(sys || '(no system)')} <span style="color:var(--af-fg-3); font-weight:400;">· ${parts.length} parts</span></td></tr>`;
-    if (open) for (const p of parts) html += partRowHtml(p);
+  const add = e.target.getAttribute('data-pr-add');
+  if (add != null) { e.preventDefault(); if (e.target.value.trim()) prAttach(add, e.target.value); }
+});
+document.addEventListener('change', e => {
+  if (!e.target) return;
+  if (e.target.id === 'pr-system') { _prSystem = e.target.value; renderParts(true); return; }
+  // picking from the list (no Enter) attaches too
+  const add = e.target.getAttribute && e.target.getAttribute('data-pr-add');
+  if (add != null && e.target.value.trim() && state.parts.some(p => p.system === prSystem() && String(p.partNumber).toUpperCase() === e.target.value.trim().toUpperCase())) prAttach(add, e.target.value);
+});
+document.addEventListener('click', e => {
+  if (!e.target || !e.target.closest) return;
+  const tab = e.target.closest('[data-prtab]');
+  if (tab) { _prTab = tab.getAttribute('data-prtab'); try { localStorage.setItem('takeoff:prTab', _prTab); } catch (_) {} renderParts(true); return; }
+  const un = e.target.closest('[data-pr-unlink]');
+  if (un) {
+    const sp = un.getAttribute('data-pr-unlink').split('|'); const role = sp.pop(), pid = sp.join('|');
+    const p = state.parts.find(x => x.id === pid);
+    if (p) { p.roles = (p.roles || []).filter(r => r !== role); if (p.roleQty) delete p.roleQty[role]; _prNewRoles.add(p.system + '|' + role); save(); renderParts(true); renderReport(); renderMeta(); }
   }
-  tbody.innerHTML = html;
+});
+function renderParts(force) {
+  renderPartsRoles(force);
+  const tbody = document.getElementById('parts-tbody');
+  if (!tbody || (!force && renderUnlessTyping('parts-tbody', () => renderParts()))) return;
+  const sys = prSystem();
+  const parts = state.parts.filter(p => p.system === sys);
+  tbody.innerHTML = parts.length ? parts.map(partRowHtml).join('')
+    : `<tr class="is-empty"><td colspan="6">No ${escHtml(sys)} parts — add one below.</td></tr>`;
 }
 
 // ---------- Openings (Cut Schedule by opening) ----------
@@ -5637,21 +5749,13 @@ function onPartsChange(e) {
   if (!p) return;
   const field = e.target.dataset.field;
   if (!field) return;
-  if (field === 'system') p.system = e.target.value;
+  if (field === 'system') { p.system = e.target.value; renderParts(true); }   // the row moves to that system's list
   else if (field === 'partNumber') p.partNumber = e.target.value.trim();
   else if (field === 'description') p.description = e.target.value;
   renderReport(); renderMeta(); save();
 }
 
 function onPartsClick(e) {
-  // 系统分组标题: 折叠/展开
-  const grp = e.target.closest('.sys-group');
-  if (grp) {
-    const sys = grp.dataset.sysgroup;
-    if (partsExpanded.has(sys)) partsExpanded.delete(sys); else partsExpanded.add(sys);
-    renderParts();
-    return;
-  }
   // "↔ 连续" 开关(连续件: 下料按整跑合并, 见 buildReport 的 contRuns)
   const cont = e.target.closest('[data-cont]');
   if (cont) {
@@ -5719,11 +5823,11 @@ function onOpeningsClick(e) {
 
 // ---------- Add part ----------
 function addPart() {
-  const sys = (state.openings.find(o => o.system) || {}).system || SYSTEMS_LIST()[0] || 'IR501T';
+  const sys = prSystem() || SYSTEMS_LIST()[0] || 'IR501T';
   const p = { id: uid(), system: sys, partNumber: '', description: '', roles: [] };
   state.parts.push(p);
-  partsExpanded.add(sys);   // 确保新 part 所在系统组展开, 否则被折叠藏起来看不见
-  renderParts(); save();
+  _prTab = 'parts';
+  renderParts(true); save();
   // focus 新行的 partNumber(按 id 精确取, 防空)
   const inp = document.querySelector(`#parts-tbody tr[data-id="${p.id}"] input[data-field="partNumber"]`);
   if (inp) inp.focus();

@@ -179,6 +179,7 @@
   }
 
   // ---------- 写入云端(防抖,只写有变化的系统) ----------
+  var lastPushedJSON = null;   // what this browser last wrote — its own echo is not news
   function schedulePush() {
     if (!firstSnapshotDone) return;
     if (pushTimer) clearTimeout(pushTimer);
@@ -209,6 +210,7 @@
       writes.push(fb.setDoc(fb.doc(fb.db, "systems", sysDocId(sys)), data, { merge: true }));
     });
     if (!writes.length) { lastSyncedSystemsJSON = curJSON; setStatus("● Synced", "#1a9e4b"); return Promise.resolve(); }
+    lastPushedJSON = curJSON;
     setStatus("● Saving…", "#d59300");
     return Promise.all(writes).then(function () {
       lastSyncedSystemsJSON = curJSON;
@@ -241,6 +243,16 @@
         if (missing.length) { seedFromDefs(missing); return; }
       }
       var incomingJSON = JSON.stringify(systemsFromDocs(docs));
+      // #typing (2026-10-06, Leo: "加part的时候打字经常跳掉"): our own write coming back, or a
+      // snapshot while local edits are still waiting to be sent, must not overwrite this browser —
+      // it used to put back the text as it was 0.7 s ago and re-draw the row under the cursor.
+      // Local wins; the pending push goes out and the next snapshot agrees.
+      if (incomingJSON === lastPushedJSON || pushTimer) {
+        if (incomingJSON === lastPushedJSON) lastSyncedSystemsJSON = incomingJSON;
+        schedulePush();
+        libraryReady();
+        return;
+      }
       if (incomingJSON === JSON.stringify(systemsFromState())) {
         lastSyncedSystemsJSON = incomingJSON;
         setStatus("● Synced", "#1a9e4b");

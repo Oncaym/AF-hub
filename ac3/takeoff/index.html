@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Takeoff Tool — Advanced Facade</title>
 <link rel="stylesheet" href="colors_and_type.css" />
-<link rel="stylesheet" href="styles.css?v=20261006a" />
+<link rel="stylesheet" href="styles.css?v=20261006c" />
 </head>
 <body>
 
@@ -65,11 +65,16 @@
         <div class="tk-section__title">
           <span class="tk-section__num">01</span>
           <div>
-            <h2 class="tk-section__h">Parts Database</h2>
-            <p class="tk-section__sub">Map each part number to the roles (positions) it covers. One part can cover several roles — they all add up to that part.</p>
+            <h2 class="tk-section__h">Parts &amp; Roles</h2>
+            <p class="tk-section__sub">Roles: type a part # into a role to attach it (a new number becomes a new part). Parts: the full list for one system.</p>
           </div>
         </div>
         <div class="tk-section__actions">
+          <select id="pr-system" class="tk-input tk-input--sm" title="System"></select>
+          <div class="pr-tabs" role="tablist">
+            <button class="pr-tab" data-prtab="roles" role="tab">Roles</button>
+            <button class="pr-tab" data-prtab="parts" role="tab">Parts</button>
+          </div>
           <button class="tk-btn tk-btn--ghost tk-btn--sm" id="reset-all" title="Reset the parts library, accessories and openings to the built-in seed. Your hand edits are kept.">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12a9 9 0 1015.7-6.1L21 3M21 3v6h-6"/></svg>
             Reset
@@ -78,7 +83,8 @@
       </header>
       <div class="tk-section__body">
         <div id="edits-safety"></div>
-        <div class="tk-table-wrap">
+        <div id="pr-roles"></div>
+        <div class="tk-table-wrap" id="pr-parts">
           <table class="tk-table">
             <thead>
               <tr>
@@ -406,11 +412,11 @@
 </main>
 
 <script src="firebase-init.js?v=20260713g"></script>
-<script src="systems.js?v=20261006a"></script>
+<script src="systems.js?v=20261006c"></script>
 <script src="role-sections.js?v=20260713f"></script>
 <script src="part-sections.js?v=20260904g"></script>
 <script src="xlsx-writer.js?v=20260904g"></script>
-<script src="app.js?v=20261006a"></script>
-<script src="cloud-sync.js?v=20261006a"></script>
+<script src="app.js?v=20261006c"></script>
+<script src="cloud-sync.js?v=20261006c"></script>
 </body>
 </html>
