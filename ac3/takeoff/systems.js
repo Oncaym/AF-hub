@@ -11,7 +11,9 @@
 //      750XT / 45TU are seeded in app.js (SEED_SYSTEM_GASKET); a block here overrides that.
 //  rule: per_piece | per_spacing | per_lf | per_lite | per_opening | per_part | per_part_len | per_panel
 //  per_part / per_part_len: `positions` holds PART NUMBERS, not roles (see ACC_RULES in app.js).
-//  per_panel:                `positions` holds PANEL TYPES — Glass / IMP-1 / Louver / Door.
+//  per_panel:                `positions` holds PANEL TYPES — Glass / Metal Panel / Louver / Door.
+//  Door Glass Stop: a derived role — 2 pieces per door, length = door height (app.js
+//    doorGlassStopCuts). Put it on the part that is the door's glass stop for that system.
 //  app.js 读取本对象构建 SEED_PARTS / SEED_ACCESSORIES(自动补 system 与 id)。
 // ============================================================
 (function () {
@@ -32,7 +34,7 @@
         { partNumber: '575T217', description: '12" Long Thermal Filler',            roles: ['Head', 'Jamb'], stockInches: 144 },
         { partNumber: '575T500', description: 'Jamb',                               roles: ['Jamb'] },
         { partNumber: '575T511', description: 'Horizontal',                         roles: ['Horizontal'] },
-        { partNumber: '575504',  description: 'Glass Stop',                         roles: ['Horizontal', 'Sill'] },
+        { partNumber: '575504',  description: 'Glass Stop',                         roles: ['Horizontal', 'Sill', 'Door Glass Stop'] },
         { partNumber: '575T513', description: 'Standard Sill',                      roles: ['Sill'] },
         { partNumber: '575T537', description: 'Sill Flashing',                      roles: ['Subsill'] },
         { partNumber: '575205',  description: 'End Dam',                            roles: ['Sill'] },
@@ -58,7 +60,7 @@
     '450': {
       parts: [
         { partNumber: '450126',   description: 'Shim Support',                   roles: ['Head', 'Jamb'] },
-        { partNumber: '450CG004', description: 'Glass Stop',                     roles: ['Head', 'Horizontal', 'Sill'] },
+        { partNumber: '450CG004', description: 'Glass Stop',                     roles: ['Head', 'Horizontal', 'Sill', 'Door Glass Stop'] },
         { partNumber: '450CG003', description: 'Head',                           roles: ['Head'] },
         { partNumber: '450CG011', description: 'Tube Horizontal',               roles: ['Horizontal'] },
         { partNumber: '450CG014', description: 'Sill',                           roles: ['Sill'] },
@@ -159,7 +161,7 @@
         { partNumber: 'AS-3907',  description: 'Permimeter Pressure Plate',  roles: ['Head (X)', 'Sill (X)', 'Jamb (X)', 'Jamb', 'Door Jamb', 'Sill (normal)'] },
         { partNumber: 'E9-1206',  description: 'Face Cover',                 roles: ['Head', 'Head (X)', 'Sill (X)', 'Sill (normal)', 'Horizontal', 'Horizontal (Glass & Glass)', 'Horizontal (X)', 'Jamb', 'Jamb (X)', 'Door Jamb', 'Vertical', 'Vertical (X)'] },
         { partNumber: 'A',        description: 'Pressure Plate',             roles: ['Head', 'Head (X)', 'Horizontal (X)'] },
-        { partNumber: 'A',        description: 'Pocket Filler',              roles: ['Sill (X)', 'Jamb (X)', 'Vertical (X)', 'Vertical (wide X)'] }, // Vertical (Lv)/(X)/(wide X): ×2 per mullion(占位, 换真号时按 ×2 处理)
+        { partNumber: 'A',        description: 'Glazing Pocket Filler',      roles: ['Sill (X)', 'Jamb (X)', 'Vertical (X)', 'Vertical (wide X)', 'Door Glass Stop'] }, // Vertical (Lv)/(X)/(wide X): ×2 per mullion(占位, 换真号时按 ×2 处理)
         { partNumber: 'AS-3906',  description: 'Pressure Plate',             roles: ['Head', 'Horizontal', 'Horizontal (Glass & Glass)', 'Horizontal (X)', 'Vertical', 'Vertical (X)'] },
         { partNumber: 'BE9-3910', description: 'Horizontal/Vertical',        roles: ['Horizontal', 'Horizontal (Glass & Glass)', 'Horizontal (X)', 'Jamb', 'Jamb (X)', 'Door Jamb', 'Vertical', 'Vertical (X)'] },
         { partNumber: 'B',        description: 'Permimeter Pressure Plate',  roles: ['Sill'] },
@@ -185,20 +187,20 @@
         // at each end of every horizontal. Leo's sheet carried this as a flat "44 openings × 8";
         // 4 horizontals × 2 ends is the same 8, and per-piece is exact on irregular elevations.
         { partNumber: 'E1-3504', description: 'Standard Shear Block (5-1/4" depth)', rule: 'per_piece',
-          positions: ['Head', 'Head (X)', 'Sill', 'Sill (X)', 'Sill (Glass)', 'Sill (IMP-1)', 'Horizontal',
+          positions: ['Head', 'Head (X)', 'Sill', 'Sill (X)', 'Sill (Glass)', 'Sill (Metal Panel)', 'Horizontal',
                       'Horizontal (X)', 'Horizontal(Y)', 'Horizontal (Glass & Glass)', 'Transom Bar'],
           param: 2, min: 0, unit: 'ea' },
         // Leo 2026-08-20: "install setting block chairs and rubber/silicone setting blocks at the
         // 1/4 points of the daylight opening (D.L.O.) along the sill or intermediate horizontal
         // member — so 2 for each panel (not just lite because imp-1 panel needs setting block too)".
-        // Hence per_panel × 2 over Glass + IMP-1: two blocks per panel, at the quarter points.
+        // Hence per_panel × 2 over Glass + Metal Panel (IMP-1 renamed 2026-10-05): two blocks per panel.
         // Louver and door panels take none. Reads the panel map, so a hand-drawn or re-typed panel
         // moves this count with it. Deliberately NOT in the parts library: as parts they would be
         // FFD-nested onto 24′ bar and drawn on the cutting diagram.
         { partNumber: 'E1-3603', description: 'Setting Block Chair (2 per panel @ 1/4 points of D.L.O.)',
-          rule: 'per_panel', positions: ['Glass', 'IMP-1'], param: 2, min: 0, unit: 'ea' },
+          rule: 'per_panel', positions: ['Glass', 'Metal Panel'], param: 2, min: 0, unit: 'ea' },
         { partNumber: 'E2-0513', description: 'Setting Block (2 per panel @ 1/4 points of D.L.O.)',
-          rule: 'per_panel', positions: ['Glass', 'IMP-1'], param: 2, min: 0, unit: 'ea' },
+          rule: 'per_panel', positions: ['Glass', 'Metal Panel'], param: 2, min: 0, unit: 'ea' },
         // --- Fastener --- (all hang off another part; `positions` = part numbers)
         // p6 + p26/p27 STEP 5 + p47: "(2) HF-2510-W1 fasteners per block"
         { partNumber: 'HF-2510-W1', description: '1/4"-20 x 5/8" HWHS Type F — shear block to vertical',
@@ -238,7 +240,7 @@
         { partNumber: 'AS-0411',  description: 'Single Acting Door Jamb',  roles: ['Door Jamb'] },
         { partNumber: 'E9-1019',  description: 'Deep Pocket Filler',       roles: ['Door Jamb'] },
         { partNumber: 'BE9-2556', description: 'Horizontal',               roles: ['Horizontal'] },
-        { partNumber: 'E9-1015',  description: 'Glass Stop',               roles: ['Horizontal', 'Sill'] },
+        { partNumber: 'E9-1015',  description: 'Glass Stop',               roles: ['Horizontal', 'Sill', 'Door Glass Stop'] },
         { partNumber: 'BE9-2579', description: 'Sill',                     roles: ['Sill'] },
         { partNumber: 'AS-0412',  description: 'Single Acting Door Head',  roles: ['Transom Bar'] },
         { partNumber: 'E9-0413',  description: 'Transom Glass Stop',       roles: ['Transom Bar'] },

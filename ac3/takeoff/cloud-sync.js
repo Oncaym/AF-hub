@@ -58,9 +58,13 @@
   }
 
   // 本地 state(扁平 parts/accessories,带 system 字段)→ 按系统分组的主数据 map
+  // seeds = one-time library passes already applied to that system (e.g. "door-glass-stop"), kept
+  // in the shared doc so a pass runs once company-wide instead of once per browser.
+  function cleanSeeds(arr) { return Array.isArray(arr) ? arr.map(String).filter(Boolean).sort() : []; }
   function systemsFromState() {
     var bySys = {};
-    function bucket(s) { return bySys[s] || (bySys[s] = { parts: [], accessories: [] }); }
+    var seeds = state.systemSeeds || {};
+    function bucket(s) { return bySys[s] || (bySys[s] = { parts: [], accessories: [], seeds: cleanSeeds(seeds[s]) }); }
     (state.parts || []).forEach(function (p) {
       var s = p.system || "";
       if (!s) return;                 // 无系统的零件不进云
@@ -80,7 +84,7 @@
     docs.forEach(function (d) {
       var name = d.data && d.data.name;
       if (!name) return;
-      m[name] = { parts: cleanParts(d.data.parts), accessories: cleanAccessories(d.data.accessories) };
+      m[name] = { parts: cleanParts(d.data.parts), accessories: cleanAccessories(d.data.accessories), seeds: cleanSeeds(d.data.seeds) };
     });
     return m;
   }
@@ -95,9 +99,10 @@
         if (oa !== ob) return oa - ob;
         return String(a.id).localeCompare(String(b.id));
       });
-      var parts = [], accessories = [];
+      var parts = [], accessories = [], seeds = {};
       docs.forEach(function (d) {
         var name = (d.data && d.data.name) || d.id;
+        seeds[name] = cleanSeeds(d.data && d.data.seeds);
         cleanParts(d.data && d.data.parts).forEach(function (p) {
           var np = { id: uid(), system: name, partNumber: p.partNumber, description: p.description, roles: p.roles.slice() };
           if (p.stockInches != null) np.stockInches = p.stockInches;
@@ -111,6 +116,7 @@
       });
       state.parts = parts;
       state.accessories = accessories;
+      state.systemSeeds = seeds;
       lastSyncedSystemsJSON = JSON.stringify(systemsFromState());
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
       renderAll();
@@ -137,6 +143,7 @@
         order: oi >= 0 ? oi : 999,
         parts: cleanParts(d.parts),
         accessories: cleanAccessories(d.accessories),
+        seeds: ["door-glass-stop"],          // systems.js already carries the role on its glass stop
         updatedAt: fb.serverTimestamp()
       }, { merge: true });
     });
@@ -173,6 +180,7 @@
         order: oi >= 0 ? oi : 999,
         parts: cur[sys].parts,
         accessories: cur[sys].accessories,
+        seeds: cur[sys].seeds,
         updatedAt: fb.serverTimestamp()
       }, { merge: true }));
     });
@@ -212,14 +220,24 @@
       if (incomingJSON === JSON.stringify(systemsFromState())) {
         lastSyncedSystemsJSON = incomingJSON;
         setStatus("● Synced", "#1a9e4b");
-        return;
+      } else {
+        applySystemsDocs(docs);
+        setStatus("● Synced", "#1a9e4b");
       }
-      applySystemsDocs(docs);
-      setStatus("● Synced", "#1a9e4b");
+      libraryReady();
     }, function (err) {
       console.error("[cloud] snapshot error:", err);
       setStatus("● Offline (using local library)", "#c62828");
+      libraryReady();
     });
+  }
+
+  // Tell app.js the shared library is in (once) — library-level one-time passes wait for this.
+  var readySent = false;
+  function libraryReady() {
+    if (readySent) return;
+    readySent = true;
+    if (typeof onPartsLibraryReady === "function") setTimeout(onPartsLibraryReady, 0);
   }
 
   // ---------- 启动 ----------
@@ -241,10 +259,14 @@
 
   if (window.__fb) {
     start();
+  } else if (window.__fbError) {          // Firebase already failed before this script ran
+    setStatus("● Cloud connection failed (using local library)", "#c62828");
+    libraryReady();
   } else {
     window.addEventListener("fb-ready", start, { once: true });
     window.addEventListener("fb-error", function () {
       setStatus("● Cloud connection failed (using local library)", "#c62828");
+      libraryReady();
     }, { once: true });
   }
 })();

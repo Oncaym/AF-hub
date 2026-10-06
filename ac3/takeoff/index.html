@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Atlantic-Chestnut 3 — Takeoff Tool</title>
+<title>Takeoff Tool — Advanced Facade</title>
 <link rel="stylesheet" href="colors_and_type.css" />
-<link rel="stylesheet" href="styles.css?v=20260904g" />
+<link rel="stylesheet" href="styles.css?v=20261005a" />
 </head>
 <body>
 
@@ -26,11 +26,15 @@
 <div class="tk-projectbar">
   <div>
     <h1 class="tk-projectbar__title">Storefront Takeoff</h1>
-    <p class="tk-projectbar__sub">Define part roles, enter openings (or paste from a DXF text extraction), and the consolidated 24′ stock count updates live. Aggregation is part-centric: Head and Jamb sharing one Part Number are summed into a single total.</p>
-    <div class="tk-project-ctrl" style="margin-top:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-      <span style="font:600 11px var(--af-font-sans,system-ui); letter-spacing:.12em; text-transform:uppercase; color:var(--af-fg-3,#888);">Parts Library</span>
-      <span id="cloud-status" style="font-size:12px; color:var(--af-fg-3,#888);">● Connecting…</span>
-      <span style="font-size:11px; color:var(--af-fg-3,#aaa);">— Parts + accessory rules per system are cloud-shared; openings stay local</span>
+    <p class="tk-projectbar__sub">Import an elevation DXF, check each elevation in the viewer (framing, gasket, cutting), and the order list on the right updates live. Parts that share a part number are summed into one line.</p>
+    <div class="tk-project-ctrl">
+      <label class="tk-project-name">Project
+        <input id="xl-project-name" class="tk-input tk-input--sm" placeholder="Project name" title="Printed on every Excel sheet and used in export file names" />
+      </label>
+      <span class="tk-project-ctrl__sep"></span>
+      <span class="tk-eyebrow">Parts library</span>
+      <span id="cloud-status" class="tk-cloud-status">● Connecting…</span>
+      <span class="tk-muted">shared company-wide · openings stay in this browser</span>
     </div>
   </div>
   <div class="tk-projectbar__meta">
@@ -62,11 +66,11 @@
           <span class="tk-section__num">01</span>
           <div>
             <h2 class="tk-section__h">Parts Database</h2>
-            <p class="tk-section__sub">Map each Part Number to one or more positions. A single part can cover Head + Jamb — both will aggregate to that part.</p>
+            <p class="tk-section__sub">Map each part number to the roles (positions) it covers. One part can cover several roles — they all add up to that part.</p>
           </div>
         </div>
         <div class="tk-section__actions">
-          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="reset-all" title="Reset to seed">
+          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="reset-all" title="Reset the parts library, accessories and openings to the built-in seed. Your hand edits are kept.">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12a9 9 0 1015.7-6.1L21 3M21 3v6h-6"/></svg>
             Reset
           </button>
@@ -90,13 +94,13 @@
         </div>
         <div class="tk-addbar">
           <input id="parts-file" type="file" accept=".csv,.json,.txt" hidden />
-          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="import-parts" title="Import CSV/JSON part list">
+          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="import-parts" title="Import a CSV/JSON part list (replaces the library)">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
             Import Parts
           </button>
-          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="layer-config" title="Configure DXF layer names">
+          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="layer-config" title="DXF layer names the importer reads">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
-            Layer Config
+            DXF Layers
           </button>
           <button class="tk-btn tk-btn--ghost tk-btn--sm" id="add-part">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -106,14 +110,14 @@
       </div>
     </section>
 
-    <!-- ===== 01b — RECOGNIZED ROLES (manual per-system allow-list, #2 2026-07-20) ===== -->
+    <!-- ===== 02 — RECOGNIZED ROLES ===== -->
     <section class="tk-section">
       <header class="tk-section__head">
         <div class="tk-section__title">
-          <span class="tk-section__num">01b</span>
+          <span class="tk-section__num">02</span>
           <div>
             <h2 class="tk-section__h">Recognized Roles</h2>
-            <p class="tk-section__sub">Curate which roles the auto-classifier may output for a system. Remove a role you've retired and it stops being produced — and stale pins holding it are dropped, so it won't resurface on re-import. Leave a system uncurated to use its full parts-derived set.</p>
+            <p class="tk-section__sub">Which roles the auto-classifier may give a piece, per system. Leave a system uncurated to use every role its parts cover.</p>
           </div>
         </div>
         <div class="tk-section__actions">
@@ -125,34 +129,23 @@
       </div>
     </section>
 
-    <!-- ===== 01c — TEMPLATES (teach-by-example classification, §16, 2026-07-20) ===== -->
+    <!-- ===== 03 — OPENINGS ===== -->
     <section class="tk-section">
       <header class="tk-section__head">
         <div class="tk-section__title">
-          <span class="tk-section__num">01c</span>
-          <div>
-            <h2 class="tk-section__h">Templates</h2>
-            <p class="tk-section__sub">Teach the tool by example: open a correctly-classified elevation in the viewer below and click "Save as Template". On a future import with the same top-to-bottom fill layout, pick the template in the viewer and it assigns the roles for you — no Claude needed.</p>
-          </div>
-        </div>
-      </header>
-      <div class="tk-section__body">
-        <div id="tmpl-list"></div>
-      </div>
-    </section>
-
-    <!-- ===== 02 — OPENINGS / CUT SCHEDULE ===== -->
-    <section class="tk-section">
-      <header class="tk-section__head">
-        <div class="tk-section__title">
-          <span class="tk-section__num">02</span>
+          <span class="tk-section__num">03</span>
           <div>
             <h2 class="tk-section__h">Openings</h2>
-            <p class="tk-section__sub">Each opening generates four perimeter cuts (head, sill, two jambs) plus any intermediate horizontals/verticals. Qty multiplies all cuts for that opening.</p>
+            <p class="tk-section__sub">Import an elevation DXF, or add an opening by hand below. Click 👁 on a row to open it in the viewer.</p>
           </div>
         </div>
         <div class="tk-section__actions">
-          <button class="tk-btn tk-btn--accent tk-btn--sm" id="export-elev" title="Push elevations parsed from this DXF import to the tracker (cloud elevGeo, one per unit, editable)">
+          <input id="dxf-file" type="file" accept=".dxf" hidden />
+          <button class="tk-btn tk-btn--accent tk-btn--sm" id="dxf-import" title="Import elevations from a DXF file">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+            Import DXF
+          </button>
+          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="export-elev" title="Push this import's takeoff to the tracker (cloud elevGeo, one per unit)">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
             → Tracker
           </button>
@@ -160,13 +153,14 @@
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
             Set System
           </button>
-          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="clear-openings" title="Remove all openings">
+          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="clear-openings" title="Remove all openings (saved edits are kept)">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg>
             Clear
           </button>
         </div>
       </header>
       <div class="tk-section__body">
+        <div class="tk-statusline"><span class="tk-dxf__status" id="dxf-status"></span></div>
         <div class="tk-table-wrap">
           <table class="tk-table">
             <thead>
@@ -176,9 +170,9 @@
                 <th class="col-num-sm">Qty</th>
                 <th class="col-num">Width (in)</th>
                 <th class="col-num">Height (in)</th>
-                <th class="col-num-sm" title="Intermediate horizontals">Horiz</th>
-                <th class="col-num-sm" title="Intermediate verticals">Vert</th>
-                <th class="col-num-sm" title="Glass lites (auto-counted from VISION GLASS MARK)">Lites</th>
+                <th class="col-num-sm" title="Intermediate horizontals (used only for openings typed in by hand)">Horiz</th>
+                <th class="col-num-sm" title="Intermediate verticals (used only for openings typed in by hand)">Vert</th>
+                <th class="col-num-sm" title="Glass lites (auto-counted on import; editable)">Lites</th>
                 <th class="col-num">Total (in)</th>
                 <th class="tk-rowdel"></th>
               </tr>
@@ -193,11 +187,7 @@
             <input id="qa-mark" type="text" placeholder="SF-01" />
           </label>
           <label>System
-            <select id="qa-system">
-              <option value="IR501T">IR501T</option>
-              <option value="450">450</option>
-              <option value="750XT">750XT</option>
-            </select>
+            <select id="qa-system"></select>
           </label>
           <label>Width
             <input id="qa-width" type="number" min="0" step="0.125" placeholder="72" />
@@ -213,38 +203,11 @@
             Add Opening
           </button>
         </div>
-
-        <!-- DXF paste -->
-        <div class="tk-dxf">
-          <div class="tk-dxf__head">
-            <span class="tk-dxf__title">DXF / Schedule Paste</span>
-            <span class="tk-dxf__hint">One opening per line · accepts <code>mark · system · WxH · qty</code> or raw DXF text</span>
-          </div>
-          <textarea id="dxf-text" placeholder="SF-01  IR501T  72  96  2
-SF-02, 450, 60x84, qty 3
-ENT-1   IR501T   84&quot; x 108&quot;   x1"></textarea>
-          <div class="tk-dxf__actions">
-            <input id="dxf-file" type="file" accept=".dxf,text/plain" hidden />
-            <button class="tk-btn tk-btn--ghost tk-btn--sm" id="dxf-import">
-              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-              Import DXF
-            </button>
-            <button class="tk-btn tk-btn--accent" id="dxf-parse">
-              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-              Parse + Append
-            </button>
-            <button class="tk-btn tk-btn--ghost tk-btn--sm" id="dxf-sample">
-              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
-              Load Sample
-            </button>
-            <span class="tk-dxf__status" id="qa-status"></span>
-            <span class="tk-dxf__status" id="dxf-status"></span>
-          </div>
-        </div>
+        <div class="tk-statusline"><span class="tk-dxf__status" id="qa-status"></span></div>
       </div>
     </section>
 
-    <!-- ===== ELEVATION VIEWER (traceback) ===== -->
+    <!-- ===== ELEVATION VIEWER ===== -->
     <section class="tk-section" id="viewer-section" style="display:none;">
       <header class="tk-section__head">
         <div>
@@ -260,25 +223,27 @@ ENT-1   IR501T   84&quot; x 108&quot;   x1"></textarea>
         <div id="viewer-legend" style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:10px;font-size:12px;"></div>
         <div id="viewer-box" style="background:#fff;border:1px solid #ddd;border-radius:8px;overflow:auto;"></div>
         <div id="viewer-frame-tools" style="margin-top:8px;"></div>
-        <div style="font-size:11px;color:#999;margin-top:6px;">Click a piece in the elevation (or a chip below) to change position/length/count or delete. Selected pieces get a red grab handle at each end — <b>drag it to lengthen or shorten</b>. Use ✏ above to draw a new piece; edges snap to the framing already there.</div>
+        <div id="viewer-hint" style="font-size:11px;color:#999;margin-top:6px;"></div>
         <div id="viewer-edit"></div>
       </div>
     </section>
 
-    <!-- ===== ACCESSORIES TAKEOFF ===== -->
+    <!-- ===== 04 — ACCESSORIES ===== -->
     <section class="tk-section">
       <header class="tk-section__head">
         <div class="tk-section__title">
           <span class="tk-section__num">04</span>
           <div>
             <h2 class="tk-section__h">Accessories</h2>
-            <p class="tk-section__sub">Gaskets, fasteners, shear/setting blocks, anchors — rule-based off the framing takeoff. Positions blank = all. Gasket rows are taken off <b>per infill panel</b>: set the per-system defaults below, then open an elevation's 🧵 Gasket diagram to draw, re-type or re-spec any individual panel.</p>
+            <p class="tk-section__sub">Gaskets, fasteners, blocks, anchors — rule-based off the framing takeoff. Gasket is taken off <b>per infill panel</b>: set what each panel type takes under Gasket defaults, or open an elevation's 🧵 Gasket diagram to change many panels at once.</p>
           </div>
         </div>
-        <label style="font-size:12px;color:var(--af-fg-3,#888);display:inline-flex;align-items:center;gap:6px;margin-right:10px;" title="A single ×1 run around each independent storefront zone (main glass/IMP-1 zone, plus the louver band if there is one). Independent of the per-panel infill gasket.">
-          <input type="checkbox" id="acc-perimeter-gasket" checked /> storefront perimeter gasket
-        </label>
-        <button class="tk-btn tk-btn--ghost tk-btn--sm" id="acc-add">Add Rule</button>
+        <div class="tk-section__actions">
+          <label class="tk-check" title="A single ×1 run around each independent storefront zone. Independent of the per-panel infill gasket.">
+            <input type="checkbox" id="acc-perimeter-gasket" checked /> storefront perimeter gasket
+          </label>
+          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="acc-add">Add Rule</button>
+        </div>
       </header>
       <div class="tk-section__body">
         <div id="gasket-defaults"></div>
@@ -303,7 +268,6 @@ ENT-1   IR501T   84&quot; x 108&quot;   x1"></textarea>
       </div>
     </section>
 
-
   </div>
 
   <!-- ===== RIGHT COLUMN — REPORT ===== -->
@@ -311,10 +275,10 @@ ENT-1   IR501T   84&quot; x 108&quot;   x1"></textarea>
     <section class="tk-section">
       <header class="tk-section__head tk-report__head">
         <div class="tk-section__title">
-          <span class="tk-section__num">03</span>
+          <span class="tk-section__num">05</span>
           <div>
             <h2 class="tk-section__h">Consolidated Takeoff</h2>
-            <p class="tk-section__sub">By Part Number, across the openings in scope.</p>
+            <p class="tk-section__sub">By part number, across the openings in scope.</p>
           </div>
         </div>
       </header>
@@ -339,65 +303,49 @@ ENT-1   IR501T   84&quot; x 108&quot;   x1"></textarea>
       <div id="report-body"></div>
 
       <div class="tk-report__foot">
+        <div class="tk-export">
+          <select id="export-kind" class="tk-input tk-input--sm" title="What to export">
+            <optgroup label="Excel">
+              <option value="xlsx-elev">Excel — one sheet per elevation</option>
+              <option value="xlsx-group">Excel — one sheet per cut group</option>
+            </optgroup>
+            <optgroup label="Cutting DXF">
+              <option value="dxf-combined">Cutting DXF — all elevations, one file</option>
+              <option value="dxf-groups">Cutting DXF — by cut group, one file</option>
+              <option value="dxf-each">Cutting DXF — one file per elevation</option>
+              <option value="dxf-pooled">Cutting DXF — all openings pooled</option>
+            </optgroup>
+            <optgroup label="Order list">
+              <option value="csv">CSV — order list + accessories</option>
+              <option value="copy">Copy order list to clipboard</option>
+            </optgroup>
+          </select>
+          <button class="tk-btn tk-btn--accent tk-btn--sm" id="export-go">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Export
+          </button>
+          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="cut-groups-config" title="Choose which marks are cut together (auto-grouped by the number before the dot)">Cut groups…</button>
+        </div>
+        <div class="tk-export__hint" id="export-hint"></div>
         <span class="tk-formula">
           <b>stocks</b> = FFD packing (longest-first · backfill offcuts · splice over-length) · +waste% = ⌈ stocks × (1 + waste%) ⌉
         </span>
-        <div class="tk-report__actions">
-          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="copy-report">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-            Copy
-          </button>
-          <button class="tk-btn tk-btn--accent tk-btn--sm" id="export-csv">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-            Export CSV
-          </button>
-          <input id="xl-project-name" class="tk-input tk-input--sm" style="width:110px;" title="Project name printed on every Excel sheet" placeholder="Project" />
-          <button class="tk-btn tk-btn--accent tk-btn--sm" id="export-elev-xlsx" title="One Excel workbook — a sheet per elevation laid out like the 750XT order page, plus an ALL ELEVATIONS sheet with the project totals">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-            Excel — one sheet per elevation
-          </button>
-          <button class="tk-btn tk-btn--accent tk-btn--sm" id="export-group-xlsx" title="A SECOND workbook, grouped for the shop: ONE pooled sheet per cut group (04.1 + 04.2 on shared 24&#39; stock) — a grouped mark gets no sheet of its own, a mark with no sibling keeps its own sheet. The &quot;one sheet per elevation&quot; workbook above is unchanged.">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-            Excel — cut groups (04.1 + 04.2)
-          </button>
-          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="export-cutting-dxf-all" title="One DXF per elevation (separate downloads) — bordered stick bars with cut ticks, layer per part number">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-            Cutting DXF (all elevations)
-          </button>
-          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="export-cutting-dxf-combined" title="One single DXF, landscape: elevations laid out left to right, each column = mark + its frame diagram + its cut list, with every part's cross-section under its name">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-            Cutting DXF (combined, one file)
-          </button>
-          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="export-cutting-dxf-pooled" title="One DXF with ALL openings' parts pooled together (not per elevation) and packed onto 24' stock per part number — project-wide optimized cut list">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-            Cutting DXF (all openings pooled)
-          </button>
-          <button class="tk-btn tk-btn--accent tk-btn--sm" id="export-cutting-dxf-groups" title="One DXF, landscape: one column per ELEVATION GROUP (04.1 + 04.2, 05.1 + 05.2 …). The group&#39;s elevations are drawn side by side above ONE shared cut list — their pieces are pooled onto the same 24&#39; sticks, so an offcut from .1 gets used on .2.">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-            Cutting DXF (by elevation group)
-          </button>
-          <button class="tk-btn tk-btn--ghost tk-btn--sm" id="cut-groups-config" title="Edit which marks are cut together (auto-grouped by the number before the dot — override here)">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 01-2.8 2.8l-.1-.1a1.6 1.6 0 00-2.7 1.1v.3a2 2 0 01-4 0v-.2a1.6 1.6 0 00-2.7-1.1l-.1.1a2 2 0 01-2.8-2.8l.1-.1A1.6 1.6 0 003 15H3a2 2 0 010-4h.2A1.6 1.6 0 004.3 8.3l-.1-.1a2 2 0 012.8-2.8l.1.1A1.6 1.6 0 009 4.6V4a2 2 0 014 0v.2a1.6 1.6 0 002.7 1.1l.1-.1a2 2 0 012.8 2.8l-.1.1A1.6 1.6 0 0021 11h.3a2 2 0 010 4H21z"/></svg>
-            Cut groups
-          </button>
-          </button>
-        </div>
       </div>
     </section>
 
-    <div style="font-size:11px; color:var(--af-fg-3); padding:0 4px; line-height:1.5;">
-      <span style="font-family:var(--af-font-mono); letter-spacing:var(--af-tracking-mono);">NOTE</span> — Saved locally in this browser. Use Export CSV to hand off the takeoff. Mark + system + W×H + Qty is the minimum needed per opening; intermediates are optional.
+    <div class="tk-footnote">
+      Openings and hand edits are saved in this browser; corrected elevations and gasket edits also sync to the cloud. Use <b>⬇ Back up to a file</b> under Parts Database before a long break.
     </div>
 
     <span class="tk-dxf__status" id="export-status" style="text-align:right; padding:0 4px;"></span>
   </div>
 
 
-<!-- Cut Groups dialog (#cut-groups) -->
-<div id="cut-groups-modal" style="display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,.5); align-items:center; justify-content:center;">
-  <div style="background:var(--af-bg-1,#fff); color:var(--af-fg-1,#111); padding:24px; border-radius:6px; max-width:620px; width:92%; max-height:80vh; overflow:auto; font-family:var(--af-font-sans,system-ui);">
+<!-- Cut Groups dialog -->
+<div id="cut-groups-modal" class="tk-modal">
+  <div class="tk-modal__box" style="max-width:620px;">
     <h3 style="margin-top:0;">Cut groups — which elevations are cut together</h3>
-    <p style="font-size:12px; color:var(--af-fg-3,#666);">Marks sharing a group key are packed onto the <b>same 24&prime; stock</b> in the “Cutting DXF (by elevation group)” export and get one pooled Excel sheet. The key is guessed by stripping the trailing <code>.N</code> (<code>SF04.1</code> &rarr; <code>SF04</code>) — type the same key on two marks to merge them, a different key to split them.</p>
+    <p style="font-size:12px; color:var(--af-fg-3,#666);">Marks sharing a group key are packed onto the <b>same 24&prime; stock</b> in the cut-group exports. The key is guessed by stripping the trailing <code>.N</code> (<code>SF04.1</code> &rarr; <code>SF04</code>) — type the same key on two marks to merge them, a different key to split them.</p>
     <div id="cg-body" style="display:grid; gap:6px;"></div>
     <div style="margin-top:16px; display:flex; gap:8px; justify-content:flex-end;">
       <button class="tk-btn tk-btn--ghost tk-btn--sm" id="cg-reset" title="Drop every manual override and go back to the automatic grouping">Reset to auto</button>
@@ -408,32 +356,29 @@ ENT-1   IR501T   84&quot; x 108&quot;   x1"></textarea>
 </div>
 
 <!-- System picker dialog (import + bulk set) -->
-<div id="system-modal" style="display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,.5); align-items:center; justify-content:center;">
-  <div style="background:var(--af-bg-1,#fff); color:var(--af-fg-1,#111); padding:24px; border-radius:6px; max-width:440px; width:90%; font-family:var(--af-font-sans,system-ui);">
+<div id="system-modal" class="tk-modal">
+  <div class="tk-modal__box" style="max-width:440px;">
     <h3 id="system-modal-title" style="margin-top:0;">Select System</h3>
     <p id="system-modal-msg" style="color:var(--af-fg-3,#666); font-size:13px; margin:8px 0 18px;"></p>
     <div id="system-modal-choices" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
   </div>
 </div>
 
-<!-- Layer Config dialog (hidden until opened) -->
-<div id="layer-config-modal" style="display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,.5); align-items:center; justify-content:center;">
-  <div style="background:var(--af-bg-1,#fff); color:var(--af-fg-1,#111); padding:24px; border-radius:6px; max-width:480px; width:90%; font-family:var(--af-font-sans,system-ui);">
-    <h3 style="margin-top:0;">DXF Layer Configuration</h3>
-    <p style="font-size:12px; color:var(--af-fg-3,#666);">Set layer names used in your DXF files. These are used during DXF geometry parsing.</p>
+<!-- DXF layer names dialog -->
+<div id="layer-config-modal" class="tk-modal">
+  <div class="tk-modal__box" style="max-width:480px;">
+    <h3 style="margin-top:0;">DXF layer names</h3>
+    <p style="font-size:12px; color:var(--af-fg-3,#666);">The layers the importer reads. Saved in this browser.</p>
     <div style="display:grid; gap:8px;">
-      <label style="display:flex; flex-direction:column; font-size:12px;">Aluminum profile layer
-        <input id="lc-alum" type="text" style="padding:6px; border:1px solid #ccc; border-radius:3px;"></label>
-      <label style="display:flex; flex-direction:column; font-size:12px;">Door subframe layer
-        <input id="lc-doorSubframe" type="text" style="padding:6px; border:1px solid #ccc; border-radius:3px;"></label>
-      <label style="display:flex; flex-direction:column; font-size:12px;">Outline layer
-        <input id="lc-outline" type="text" style="padding:6px; border:1px solid #ccc; border-radius:3px;"></label>
-      <label style="display:flex; flex-direction:column; font-size:12px;">Door panel layer
-        <input id="lc-door" type="text" style="padding:6px; border:1px solid #ccc; border-radius:3px;"></label>
-      <label style="display:flex; flex-direction:column; font-size:12px;">Fallback layers (comma-separated)
-        <input id="lc-fallbacks" type="text" style="padding:6px; border:1px solid #ccc; border-radius:3px;" placeholder="0,Defpoints"></label>
+      <label class="tk-field">Aluminum profile layer <input id="lc-alum" type="text"></label>
+      <label class="tk-field">Door subframe layer <input id="lc-doorSubframe" type="text"></label>
+      <label class="tk-field">Door threshold (saddle) layer <input id="lc-saddle" type="text"></label>
+      <label class="tk-field">Outline layer <input id="lc-outline" type="text"></label>
+      <label class="tk-field">Door panel layer <input id="lc-door" type="text"></label>
+      <label class="tk-field">Fallback layers (comma-separated) <input id="lc-fallbacks" type="text" placeholder="0,AF_X"></label>
     </div>
     <div style="margin-top:16px; display:flex; gap:8px; justify-content:flex-end;">
+      <button class="tk-btn tk-btn--ghost tk-btn--sm" id="lc-defaults">Defaults</button>
       <button class="tk-btn tk-btn--ghost tk-btn--sm" id="lc-cancel">Cancel</button>
       <button class="tk-btn tk-btn--dark" id="lc-save">Save</button>
     </div>
@@ -443,12 +388,11 @@ ENT-1   IR501T   84&quot; x 108&quot;   x1"></textarea>
 </main>
 
 <script src="firebase-init.js?v=20260713g"></script>
-<script src="systems.js?v=20260904g"></script>
+<script src="systems.js?v=20261005a"></script>
 <script src="role-sections.js?v=20260713f"></script>
 <script src="part-sections.js?v=20260904g"></script>
 <script src="xlsx-writer.js?v=20260904g"></script>
-<script src="app.js?v=20260904g"></script>
-<script src="cloud-sync.js?v=20260713h"></script>
-<script src="tracker-bridge.js?v=20260716c"></script>
+<script src="app.js?v=20261005a"></script>
+<script src="cloud-sync.js?v=20261005a"></script>
 </body>
 </html>

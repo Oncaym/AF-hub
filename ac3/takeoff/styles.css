@@ -1,5 +1,5 @@
 /* ============================================================
-   Hillview Reservoir — Kawneer Takeoff Tool
+   Advanced Facade — Takeoff Tool
    Built on Advanced Facade design tokens
    ============================================================ */
 
@@ -106,7 +106,7 @@ button, input, select, textarea {
 }
 @media (max-width: 1100px) {
   .tk-main {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);   /* plain 1fr lets a wide table stretch the page */
   }
 }
 
@@ -386,57 +386,7 @@ button, input, select, textarea {
   flex-shrink: 0;
 }
 
-/* ---------- DXF PASTE ---------- */
-.tk-dxf {
-  padding: var(--af-space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--af-space-3);
-  background: var(--af-bg-2);
-  border-top: 1px solid var(--af-line);
-}
-.tk-dxf__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: var(--af-space-3);
-}
-.tk-dxf__title {
-  font-family: var(--af-font-sans);
-  font-size: var(--af-fs-eyebrow);
-  font-weight: var(--af-w-semibold);
-  letter-spacing: var(--af-tracking-eyebrow);
-  text-transform: uppercase;
-  color: var(--af-fg-1);
-}
-.tk-dxf__hint {
-  font-size: var(--af-fs-caption);
-  color: var(--af-fg-3);
-}
-.tk-dxf textarea {
-  width: 100%;
-  min-height: 110px;
-  border: 1px solid var(--af-line-strong);
-  background: var(--af-white);
-  font-family: var(--af-font-mono);
-  font-size: 12px;
-  letter-spacing: var(--af-tracking-mono);
-  line-height: 1.5;
-  color: var(--af-fg-1);
-  padding: 10px 12px;
-  resize: vertical;
-  border-radius: var(--af-radius-1);
-}
-.tk-dxf textarea:focus {
-  outline: none;
-  border-color: var(--af-black);
-  box-shadow: 0 0 0 2px rgba(10,10,11,0.06);
-}
-.tk-dxf__actions {
-  display: flex;
-  gap: var(--af-space-2);
-  align-items: center;
-}
+/* ---------- STATUS TEXT ---------- */
 .tk-dxf__status {
   font-family: var(--af-font-mono);
   font-size: 11px;
@@ -581,15 +531,16 @@ button, input, select, textarea {
   min-width: 0;
 }
 .tk-report__foot > * { min-width: 0; max-width: 100%; }
-.tk-report__actions {
+/* One export control instead of eight buttons (Leo, 2026-10-05: "不同人要求不一样，可以用下拉选项代替"). */
+.tk-export {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;   /* each button sized to its own label, not stretched across the panel */
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--af-space-2);
   min-width: 0;
 }
-.tk-report__actions .tk-btn { max-width: 100%; }
-.tk-report__actions .tk-input { max-width: 100%; }
+.tk-export select { flex: 1 1 220px; min-width: 0; max-width: 100%; height: 30px; }
+.tk-export__hint { font-size: 11px; color: var(--af-fg-3); line-height: 1.45; }
 .tk-formula {
   font-family: var(--af-font-mono);
   font-size: 10.5px;
@@ -724,3 +675,112 @@ button, input, select, textarea {
 .tk-table-wrap::-webkit-scrollbar-track { background: var(--af-bg-2); }
 .tk-table-wrap::-webkit-scrollbar-thumb { background: var(--af-fog); border-radius: 0; }
 .tk-table-wrap::-webkit-scrollbar-thumb:hover { background: var(--af-aluminum); }
+
+/* ---------- 2026-10-05 general-tool clean-up ---------- */
+.tk-project-ctrl {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.tk-project-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 11px var(--af-font-sans, system-ui);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--af-fg-3);
+}
+.tk-project-name input { width: 180px; text-transform: none; letter-spacing: 0; font-weight: 400; }
+.tk-project-ctrl__sep { width: 1px; height: 18px; background: var(--af-line); }
+.tk-eyebrow { font: 600 11px var(--af-font-sans, system-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--af-fg-3); }
+.tk-muted { color: var(--af-fg-3); font-size: 11px; }
+.tk-cloud-status { color: var(--af-fg-3); }
+.tk-check { font-size: 12px; color: var(--af-fg-3); display: inline-flex; align-items: center; gap: 6px; }
+.tk-statusline { padding: 0 var(--af-space-4); min-height: 0; display: flex; justify-content: flex-end; }
+.tk-statusline .tk-dxf__status:not(:empty) { padding: 6px 0; }
+.tk-footnote { font-size: 11px; color: var(--af-fg-3); padding: 0 4px; line-height: 1.5; }
+.tk-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0,0,0,.5);
+  align-items: center;
+  justify-content: center;
+}
+.tk-modal__box {
+  background: var(--af-bg-1, #fff);
+  color: var(--af-fg-1, #111);
+  padding: 24px;
+  border-radius: 6px;
+  width: 92%;
+  max-height: 80vh;
+  overflow: auto;
+  font-family: var(--af-font-sans, system-ui);
+}
+.tk-field { display: flex; flex-direction: column; font-size: 12px; gap: 3px; }
+.tk-field input { padding: 6px; border: 1px solid #ccc; border-radius: 3px; }
+
+/* Gasket diagram — bulk edit bar */
+.gk-bulk {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--af-line, #ddd);
+  border-radius: 8px;
+  background: var(--af-bg-2, #f6f6f6);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.gk-bulk__row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.gk-bulk__label { color: var(--af-fg-3, #888); min-width: 64px; }
+.gk-bulk input.mono { min-width: 200px; flex: 1 1 200px; }
+.gk-chip-n { color: var(--af-fg-3, #888); font-weight: 400; }
+
+/* Compact, bordered fields inside the viewer's editors (piece editor, panel editor, bulk bar).
+   .tk-cell-* are built for table cells — full width, borderless — which stacked every control of
+   a toolbar on its own line and left inputs invisible on the grey editor background. */
+#viewer-edit .tk-cell-select,
+#viewer-edit .tk-cell-input {
+  display: inline-block;
+  width: auto;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid var(--af-line-strong, #c9c9c9);
+  background-color: var(--af-white, #fff);
+  border-radius: var(--af-radius-1, 2px);
+  vertical-align: middle;
+}
+#viewer-edit .tk-cell-select { padding-right: 26px; }
+#viewer-edit .gk-bulk .tk-cell-input.mono,
+#viewer-edit .gk-multi .tk-cell-input.mono { flex: 1 1 220px; min-width: 180px; }
+.gk-multi {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 2px solid #ff2d2d;
+  border-radius: 8px;
+  background: var(--af-bg-2, #f6f6f6);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.gk-multi__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* The viewer's legend, map and editors sat flush against the section border. */
+#viewer-section .tk-section__body { padding: 12px 16px 16px; }
+/* Narrow screens: section toolbars wrap under their title instead of pushing the page sideways. */
+@media (max-width: 720px) {
+  .tk-section__head { flex-wrap: wrap; align-items: flex-start; }
+  .tk-section__actions { flex-wrap: wrap; flex-shrink: 1; }
+  .tk-header__inner { gap: var(--af-space-3); padding: 0 16px; }
+  .tk-header__sep, .tk-header__meta { display: none; }
+  .tk-projectbar { flex-wrap: wrap; padding-left: 16px; padding-right: 16px; }
+  .tk-main { padding-left: 16px; padding-right: 16px; }
+  .tk-quickadd label, .tk-quickadd input, .tk-quickadd select { min-width: 0; }
+  .tk-addbar { flex-wrap: wrap; }
+}
