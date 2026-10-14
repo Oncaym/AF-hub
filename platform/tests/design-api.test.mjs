@@ -86,6 +86,7 @@ r = await call({ token: EDITOR, board: 'ac3', mode: 'ask', text: 'what is left?'
 ok(r.code === 200 && r.body.answer === '#1 is still open.' && r.body.actions.length === 1, 'ask: answer and proposed actions come back');
 ok(sent.tool_choice.name === 'answer' && !sent.messages[0].content.some(b => b.type === 'image'), 'ask: no images sent');
 ok(/id=i1 #1 \[open\]/.test(sent.system), 'ask: comments are in the prompt');
+ok(/Counts \(exact[^)]*\): 1 drawings .*by series 100s: 1.* 1 comments — by status open: 1/.test(sent.system), 'ask: exact counts are given, so Claude does not count by itself');
 
 // Discord pull
 r = await call({ token: EDITOR, board: 'ac3', mode: 'pull', context: CTX });

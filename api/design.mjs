@@ -98,9 +98,15 @@ const ASK_TOOL = {
 function systemPrompt(mode, board, ctx) {
   const ds = (ctx.drawings || []).slice(0, 400).map(d => `${d.k} | ${d.no} | ${d.title || ''}${d.rev ? ' | rev ' + d.rev : ''}${d.owner ? ' | with ' + d.owner : ''}${d.status ? ' | ' + d.status : ''}`).join('\n');
   const is = (ctx.issues || []).slice(0, 600).map(i => `id=${i.id} #${i.n} [${i.status}] dwg=${i.dwg || '-'} ${i.where ? '(' + i.where + ') ' : ''}${i.text}${i.owner ? ' | for ' + i.owner : ''}${i.reviewer ? ' | from ' + i.reviewer : ''}${i.fixedRev ? ' | fixed in rev ' + i.fixedRev : ''}`).join('\n');
+  // Counted here, not by the model: long lists are easy to miscount.
+  const tally = (arr, f) => arr.reduce((m, x) => { const k = f(x); if (k) m[k] = (m[k] || 0) + 1; return m; }, {});
+  const fmt = o => Object.entries(o).sort((a, b) => String(a[0]).localeCompare(String(b[0]), undefined, { numeric: true })).map(([k, v]) => `${k}: ${v}`).join(', ') || 'none';
+  const D = ctx.drawings || [], I = ctx.issues || [];
+  const counts = `Counts (exact, use these instead of counting the lists): ${D.length} drawings — by status ${fmt(tally(D, d => d.status))}; by series ${fmt(tally(D, d => { const m = /-(\d)\d*\w*$/.exec(d.no || ''); return m ? m[1] + '00s' : 'other'; }))}. ${I.length} comments — by status ${fmt(tally(I, i => i.status))}.`;
   const common = `You help Advanced Facade's design team (curtain wall / storefront shop drawings) keep track of review comments on project "${board}".
 The person using this is ${ctx.me || 'a designer'}. Today is ${new Date().toISOString().slice(0, 10)}.
 A review comment closes twice: the drafter marks it "fixed" (with the rev), then the reviewer checks and "closes" it. Status words: open = to fix, ask = waiting for the reviewer to explain, fixed = drafter says done, waiting for the reviewer's check, closed = checked.
+${counts}
 Drawing list (key | number | title | …):
 ${ds || '(no drawings yet)'}`;
   if (mode === 'split') {
