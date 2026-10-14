@@ -7,7 +7,7 @@
 <script>/* The desktop helper opens /design/?mini=1: that is now the chat (AF Helper). */
 if (/[?&]mini=1\b/.test(location.search)) location.replace('../assistant/' + location.hash);</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1419'/%3E%3Cpath d='M16 48l6-2 24-24-4-4-24 24z' fill='%234493f8'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="design.css?v=20261015a">
+<link rel="stylesheet" href="design.css?v=20261016a">
 </head>
 <body>
 <header class="top">
@@ -28,6 +28,7 @@ if (/[?&]mini=1\b/.test(location.search)) location.replace('../assistant/' + loc
   <nav class="tabs" id="tabs">
     <button data-tab="review">Review comments<span class="n" id="nReview"></span></button>
     <button data-tab="drawings">Drawings<span class="n" id="nDrawings"></span></button>
+    <a class="tablink" href="schedules.html" data-board-link="schedules.html" title="Excel schedules: import, automatic checks, issues">Schedules (Excel)</a>
   </nav>
   <section id="view"></section>
 </main>
@@ -38,8 +39,8 @@ if (/[?&]mini=1\b/.test(location.search)) location.replace('../assistant/' + loc
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=20261015a"></script>
-<script src="design-cloud.js?v=20261015a"></script>
-<script src="design-app.js?v=20261015a"></script>
+<script src="firebase-config.js?v=20261016a"></script>
+<script src="design-cloud.js?v=20261016a"></script>
+<script src="design-app.js?v=20261016a"></script>
 </body>
 </html>

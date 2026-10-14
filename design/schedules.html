@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Schedules — AF Design Board</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1419'/%3E%3Cpath d='M16 48l6-2 24-24-4-4-24 24z' fill='%234493f8'/%3E%3C/svg%3E">
+<script>/* same light/dark choice as the Design Board */
+try { document.documentElement.dataset.theme = localStorage.getItem('afdesign_theme') === 'day' ? 'light' : 'dark'; } catch (e) { document.documentElement.dataset.theme = 'dark'; }</script>
+<link rel="stylesheet" href="schedules/schedules.css?v=20261016a">
+</head>
+<body>
+<div id="gate" class="gate"><div class="box"><div class="dim">Loading…</div></div></div>
+
+<div id="app" hidden>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <span class="crumb"><a href="./" data-board-link="./">AF Design</a> · Schedules</span>
+      <label class="boardpick" for="boardSel"><span class="sr">Board</span><select id="boardSel" aria-label="Board (project)"></select></label>
+    </div>
+    <nav class="pagetabs" aria-label="Design Board pages">
+      <a href="./" data-board-link="./">Review comments</a>
+      <a href="./?tab=drawings" data-board-link="./?tab=drawings">Drawings</a>
+      <a class="on" href="schedules.html" data-board-link="schedules.html" aria-current="page">Schedules (Excel)</a>
+    </nav>
+    <div class="spacer"></div>
+    <span class="who" id="who"></span>
+    <button class="btn small ghost" id="btnTheme" type="button" title="Light / dark">🌓</button>
+    <button class="btn" id="btnAdd" type="button" title="Put another Excel file on this board, next to the ones already here">Add another file</button>
+    <button class="btn primary" id="btnExport" type="button">Export Excel</button>
+    <input type="file" id="fileAdd" accept=".xlsx" hidden>
+    <input type="file" id="fileVer" accept=".xlsx" hidden>
+    <div class="preview-note warnnote" id="storeWarn" hidden></div>
+  </header>
+
+  <nav class="filebar" id="fileBar" aria-label="Files on this board"></nav>
+  <div class="banner" id="setupBanner" hidden></div>
+
+  <section class="cards" aria-label="Status">
+    <article class="card" id="cardFiles"></article>
+    <article class="card" id="cardIssues"></article>
+    <article class="card" id="cardChecks"></article>
+    <article class="card" id="cardRev"></article>
+  </section>
+
+  <main class="work">
+    <section class="sheetpane" aria-label="Tabs of the selected file">
+      <div class="tabs" id="sheetTabs" role="tablist"></div>
+      <div class="toolbar">
+        <span class="addr" id="addr">—</span>
+        <input class="fbar" id="fbar" placeholder="Select a cell, then type here or double-click the cell" aria-label="Cell value" disabled>
+        <span class="sep"></span>
+        <button class="btn small" id="btnIns" type="button" disabled>Insert row below</button>
+        <button class="btn small" id="btnDel" type="button" disabled>Delete row</button>
+        <button class="btn small" id="btnUndo" type="button" title="Ctrl+Z">Undo</button>
+        <button class="btn small" id="btnFlag" type="button" disabled>New issue here</button>
+        <span id="cellInfo" class="cellinfo"></span>
+      </div>
+      <div class="cmpbar" id="cmpBar" hidden><span class="sw"></span><span id="cmpBarText"></span><button class="linkish" id="btnHlOff" type="button">Turn off</button></div>
+      <div class="gridwrap" id="grid" tabindex="0" aria-label="Sheet cells. Arrow keys move, Enter edits, Delete clears."><div class="empty-sheet">Loading the board…</div></div>
+      <div class="legend">
+        <span><i style="border-width:0 9px 9px 0;border-color:transparent var(--red) transparent transparent"></i> Open issue</span>
+        <span><i style="border-width:0 9px 9px 0;border-color:transparent var(--green) transparent transparent"></i> Closed issue</span>
+        <span><i style="width:8px;height:8px;border-radius:50%;background:var(--red);border:0"></i><i style="width:8px;height:8px;border-radius:50%;background:#d4a72c;border:0"></i><i style="width:8px;height:8px;border-radius:50%;background:#54aeff;border:0"></i> Check: error / warning / info</span>
+        <span><b class="rtag h">H</b> header row <b class="rtag s">Σ</b> subtotal row</span>
+        <span>Drag the edge of a column letter or row number to resize; double-click it to fit</span>
+        <span><i style="width:12px;height:12px;background:var(--changed);outline:1px solid var(--changed-line);border:0"></i> Changed (when highlighted)</span>
+      </div>
+    </section>
+
+    <aside class="side" id="side" aria-label="Issues, checks, history, revisions">
+      <div class="tabs" id="sideTabs" role="tablist"></div>
+      <div class="sidebody" id="sideBody"></div>
+    </aside>
+  </main>
+</div>
+</div>
+
+<dialog id="dlgImport" aria-labelledby="dlgImportH">
+  <div class="dh" id="dlgImportH">Upload a new version</div>
+  <div class="db" id="dlgImportBody"></div>
+  <div class="df"><button class="btn" id="btnImportCancel" type="button">Cancel</button><button class="btn" id="btnImportAlt" type="button" hidden></button><button class="btn primary" id="btnImportOk" type="button">Replace with this version</button></div>
+</dialog>
+<dialog id="dlgExport" aria-labelledby="dlgExportH">
+  <div class="dh" id="dlgExportH">Export <span id="expName"></span></div>
+  <div class="db">
+    <div>Writes the board into the file's own layout: same tabs, merged cells, widths, colors and pictures.</div>
+    <label class="row"><input type="checkbox" id="expPaint" checked> <span>Color issue cells: open issues in their issue color, closed ones in the "closed" color from File setup (or back to no color).</span></label>
+    <label class="row"><input type="checkbox" id="expIssues" checked> <span>Add a <b>Board issues</b> tab: every issue of this file with owner, status, rev and the full reply thread, screenshots included.</span></label>
+  </div>
+  <div class="df"><button class="btn" id="btnExportCancel" type="button">Cancel</button><button class="btn primary" id="btnDoExport" type="button">Export</button></div>
+</dialog>
+<dialog id="dlgSetup" class="wide" aria-labelledby="dlgSetupH">
+  <div class="dh" id="dlgSetupH">File setup</div>
+  <div class="db" id="dlgSetupBody"></div>
+  <div class="df"><button class="btn" id="btnSetupCancel" type="button">Cancel</button><button class="btn primary" id="btnSetupSave" type="button">Save setup</button></div>
+</dialog>
+<dialog id="dlgBoard" aria-labelledby="dlgBoardH">
+  <div class="dh" id="dlgBoardH">New board</div>
+  <div class="db"><label class="col">Project name<input class="mini" id="nbName" placeholder="e.g. MTA Package 7" maxlength="60"></label><div class="sub">A board is one project: its review comments, drawing list and Excel schedules.</div></div>
+  <div class="df"><button class="btn" id="btnBoardCancel" type="button">Cancel</button><button class="btn primary" id="btnBoardOk" type="button">Create board</button></div>
+</dialog>
+<dialog id="dlgView" class="view" aria-label="Screenshot">
+  <div class="db"><img id="viewImg" alt="Screenshot"></div>
+  <div class="df"><button class="btn" id="btnViewClose" type="button">Close</button></div>
+</dialog>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="firebase-config.js?v=20261016a"></script>
+<script src="design-cloud.js?v=20261016a"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="schedules/engine.js?v=20261016a"></script>
+<script src="schedules/ops.js?v=20261016a"></script>
+<script src="schedules/cloud-store.js?v=20261016a"></script>
+<script src="schedules/ui.js?v=20261016a"></script>
+<script>
+document.getElementById('btnTheme').addEventListener('click', function () {
+  var day = document.documentElement.dataset.theme !== 'light';
+  document.documentElement.dataset.theme = day ? 'light' : 'dark';
+  try { localStorage.setItem('afdesign_theme', day ? 'day' : 'dark'); } catch (e) {}
+});
+</script>
+</body>
+</html>

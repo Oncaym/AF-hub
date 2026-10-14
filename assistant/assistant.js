@@ -7,9 +7,12 @@
    session, so the database rules decide what they may read and
    change:
      get_design / get_tracker          read
+     get_schedules                     read (Excel schedules on a Design Board)
      propose_design_comments           ┐ show a confirm card;
      propose_design_changes            │ saved only when the person
-     propose_tracker_update            ┘ presses "Confirm"
+     propose_tracker_update            │ presses "Confirm"
+     propose_schedule_import           │ (Excel → Schedules: new file or new version)
+     propose_schedule_issue_changes    ┘
    Design Boards live in the design database; trackers (AC3, Lex …)
    in their own project databases (platform/projects.json).
    ============================================================ */
@@ -29,6 +32,8 @@
   const SUBSTAT = ['draft', 'submitted', 'under-review', 'approved', 'approved-as-noted', 'revise-resubmit', 'rejected'];
   const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
   const XLSX_JS = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  const EXCELJS = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+  const SOPS = window.ScheduleOps, STORE = window.DesignStore, ENG = window.DesignEngine;
   const MAX_SEND = 3_900_000;
 
   const S = {
@@ -320,10 +325,136 @@
     return { shown_to_person: id, saved: false, problems: bad, note: p.role === 'editor' ? 'Waiting for the person to press Confirm.' : `The person is ${p.role} on ${p.name}; they cannot change it.` };
   }
 
-  const TOOLS = { get_design, get_tracker, propose_design_comments, propose_design_changes, propose_tracker_update };
+  // ------------------------------------------------- Excel schedules --
+  const SCHED_URL = b => '../design/schedules.html#b=' + encodeURIComponent(b);
+  const meShort = () => nameOf(DC.email);
+  async function schedBoard(board) { needBoard(board); const s = await STORE.session(board); return { s, B: s.board() }; }
+  function findFile(B, q) {
+    if (!q) return null;
+    const n = String(q).toLowerCase().replace(/\.xlsx$/, '');
+    return B.files.find(f => f.id === q) || B.files.find(f => f.name.toLowerCase().replace(/\.xlsx$/, '') === n) || B.files.find(f => f.name.toLowerCase().includes(n)) || null;
+  }
+  async function get_schedules({ board, part, file, tab, status, search, limit }) {
+    const { B } = await schedBoard(board);
+    const sum = SOPS.summarize(B, { checks: 40 });
+    const out = { board, page: SCHED_URL(board), files: sum.files.length, open_issues: sum.issues.filter(i => i.status !== 'closed').length };
+    if (!B.files.length) return Object.assign(out, { note: 'No Excel files on this board yet. Attach an .xlsx and ask to put it on the board.' });
+    part = part || 'summary';
+    const f = file ? findFile(B, file) : null;
+    if (file && !f) throw new Error(`No file like "${file}". Files: ${B.files.map(x => x.name).join(', ')}`);
+    if (part === 'summary' || part === 'checks') {
+      out.file_list = sum.files.filter(x => !f || x.id === f.id).map(x => (part === 'summary' ? Object.assign({}, x, { check_list: x.check_list.slice(0, 10) }) : x));
+    }
+    if (part === 'summary' || part === 'issues') {
+      let is = sum.issues.filter(i => (!f || i.file === f.name));
+      if ((status || 'active') === 'active') is = is.filter(i => i.status !== 'closed'); else if (status !== 'all') is = is.filter(i => i.status === status);
+      if (search) is = is.filter(i => hit(search, [i.title, i.tab, i.cells, i.owner, i.last_reply].join(' ')));
+      out.issue_counts = tally(sum.issues.filter(i => !f || i.file === f.name), i => i.status);
+      out.issues = is.slice(0, limit || 150);
+    }
+    if (part === 'cells') {
+      const ff = f || B.files[0];
+      const model = ENG.replay(ff.base, ff.log);
+      const sh = model.sheets.find(x => !tab || x.name.toLowerCase() === String(tab).toLowerCase()) || model.sheets.find(x => x.name.toLowerCase().includes(String(tab || '').toLowerCase())) || model.sheets[0];
+      const rows = [];
+      for (let r = 1; r <= sh.maxRow; r++) {
+        const vals = []; for (let c = 1; c <= sh.maxCol; c++) { const cv = sh.cells[ENG.A1(c, r)]; vals.push(cv ? ENG.txt(cv[0]).replace(/\s+/g, ' ').trim() : ''); }
+        while (vals.length && !vals[vals.length - 1]) vals.pop();
+        if (!vals.length) continue;
+        const line = r + ': ' + vals.join(' | ');
+        if (!search || hit(search, line)) rows.push(line);
+        if (rows.length >= (limit || 300)) break;
+      }
+      Object.assign(out, { file: ff.name, tab: sh.name, tabs: model.sheets.map(x => x.name), columns: 'A, B, C … in order; "row: values"', rows });
+    }
+    return out;
+  }
+
+  async function propose_schedule_import({ board, attachment, mode, version_of, summary }) {
+    needBoard(board);
+    const a = S.atts[(+attachment || 0) - 1];
+    if (!a || !a.xbuf) throw new Error(`Attachment ${attachment} is not an .xlsx file in this conversation. Ask the person to attach the Excel file (.xlsx).`);
+    await loadScript(EXCELJS);
+    const model = await SOPS.readFile(a.xbuf.slice(0), a.name);
+    const { B } = await schedBoard(board);
+    let target = version_of ? findFile(B, version_of) : null;
+    if (version_of && !target) throw new Error(`No file like "${version_of}" on ${board}. Files: ${B.files.map(x => x.name).join(', ') || 'none'}`);
+    const match = SOPS.matchFile(B, model);
+    if (!target && mode !== 'add' && match) target = match.file;
+    if (mode === 'add') target = null;
+    // dry run on a copy, to show what it will do
+    const dry = JSON.parse(JSON.stringify(B));
+    let rows = '', n = 0, sug = 0;
+    const tabs = model.sheets.map(x => x.name);
+    if (target) {
+      const t = dry.files.find(x => x.id === target.id);
+      const before = ENG.replay(t.base, t.log);
+      const r0 = SOPS.computeFile(t, before);
+      const cmp = ENG.compareFiles(before, model, r0.eff);
+      const res = SOPS.newVersion(dry, t, model, a.name, meShort()); n = res.n; sug = res.sug;
+      const lines = cmp.sheets.map(x => {
+        const bits = [];
+        if (x.status === 'added') bits.push('new tab'); if (x.status === 'removed') bits.push('tab not in the new file');
+        const pl = (k, w) => k + ' ' + w + (k === 1 ? '' : 's');
+        if (x.added.length) bits.push(pl(x.added.length, 'row') + ' added'); if (x.removed.length) bits.push(pl(x.removed.length, 'row') + ' removed'); if (x.changed.length) bits.push(pl(x.changed.length, 'row') + ' changed');
+        if (x.cells.length && !x.added.length && !x.removed.length && !x.changed.length) bits.push(pl(x.cells.length, 'cell') + ' changed');
+        return bits.length ? `<div>· <b>${esc(x.sheet)}</b>: ${bits.join(', ')}</div>` : '';
+      }).join('');
+      rows = `<div class="pr">Upload <b>${esc(a.name)}</b> as <b>version ${SOPS.versionsOf(target).length + 1}</b> of <b>${esc(target.name)}</b>${match && match.file.id === target.id ? ` <span class="dim">(${match.m.same} of ${match.m.of} tab names match)</span>` : ' <span class="warn">(tab names do not match well)</span>'}</div>
+        <div class="pr">${lines || 'No differences in the cells.'}${cmp.from.sf !== null || cmp.to.sf !== null ? `<div>SF ${Math.round(cmp.from.sf || 0).toLocaleString()} → ${Math.round(cmp.to.sf || 0).toLocaleString()}</div>` : ''}</div>`;
+    } else {
+      const res = SOPS.addFile(dry, model, a.name, meShort()); n = res.n;
+      const r = SOPS.computeFile(res.file, model);
+      rows = `<div class="pr">Add <b>${esc(a.name)}</b> as a new file · ${tabs.length} tab${tabs.length > 1 ? 's' : ''} (${esc(tabs.slice(0, 6).join(', '))}${tabs.length > 6 ? '…' : ''}) · ${r.tot.rows} rows${r.tot.sf !== null ? ' · ' + Math.round(r.tot.sf).toLocaleString() + ' SF' : ''}</div>`;
+    }
+    rows += `<div class="pr">${n ? `<span class="new">${n} new issue${n > 1 ? 's' : ''}</span> from colored cells` : 'No new issues from colors'}${sug ? ` · <span class="warn">${sug} issue${sug > 1 ? 's' : ''} may be closed (color removed)</span>` : ''}</div>`;
+    const title = `${S.boards[board].name} · Schedules: ${target ? 'new version of ' + target.name : 'add ' + a.name}`;
+    const id = card(title, rows, DC.isEditor(), async () => {
+      const s = await STORE.session(board); const B2 = s.board();
+      const t2 = target ? B2.files.find(x => x.id === target.id) : null;
+      if (target && !t2) throw new Error(target.name + ' was removed from the board meanwhile');
+      const m2 = await SOPS.readFile(a.xbuf.slice(0), a.name);
+      let fid, made;
+      if (t2) { made = SOPS.newVersion(B2, t2, m2, a.name, meShort()); fid = t2.id; }
+      else { made = SOPS.addFile(B2, m2, a.name, meShort()); fid = made.file.id; }
+      await STORE.putTpl(board, fid, a.xbuf.slice(0), a.name, { throws: true });
+      await s.write(B2, { throws: true });
+      return `${t2 ? 'Version ' + t2.versions.length + ' of ' + t2.name : a.name + ' added'}${made.n ? ' · ' + made.n + ' new issues' : ''} — open Schedules to see it`;
+    }, target ? 'Upload new version' : 'Add to board');
+    return { shown_to_person: id, saved: false, action: target ? 'new_version' : 'add', target: target ? target.name : null, new_issues_from_colors: n, close_suggestions: sug, page: SCHED_URL(board),
+      note: DC.isEditor() ? 'Waiting for the person to press the button on the card.' : 'The person is not an editor of the design board; it cannot be saved.' };
+  }
+
+  async function propose_schedule_issue_changes({ board, changes, summary }) {
+    const { B } = await schedBoard(board);
+    const plan = [], bad = [];
+    for (const c of changes || []) {
+      const i = B.issues.find(x => x.id === +c.id);
+      if (!i) { bad.push(`issue ${c.id} does not exist`); continue; }
+      if (c.status && !SOPS.STATUS_LABEL[c.status]) { bad.push(`issue ${c.id}: unknown status ${c.status}`); continue; }
+      if (c.owner && !SOPS.OWNERS.includes(c.owner)) { bad.push(`issue ${c.id}: owner must be one of ${SOPS.OWNERS.join(', ')}`); continue; }
+      const diff = [];
+      if (c.status && c.status !== i.status) diff.push(`status <span class="old">${SOPS.STATUS_LABEL[i.status]}</span> → <span class="new">${SOPS.STATUS_LABEL[c.status]}</span>`);
+      if (c.owner && c.owner !== i.owner) diff.push(`owner <span class="old">${esc(i.owner)}</span> → <span class="new">${esc(c.owner)}</span>`);
+      if (c.reply && String(c.reply).trim()) diff.push(`reply: ${esc(c.reply)}`);
+      if (diff.length) plan.push({ c, label: `#${i.id} ${String(i.title || '').slice(0, 70)}`, diff });
+    }
+    if (!plan.length) return { saved: false, nothing_to_change: true, problems: bad };
+    const html = plan.map(p => `<div class="pr"><b>${esc(p.label)}</b><br>${p.diff.join(' · ')}</div>`).join('') + bad.map(b => `<div class="pr warn">⚠ ${esc(b)}</div>`).join('');
+    const id = card(`${S.boards[board].name} · Schedules: ${summary || 'update issues'}`, html, DC.isEditor(), async () => {
+      const s = await STORE.session(board); const B2 = s.board();
+      let k = 0; plan.forEach(p => { if (SOPS.changeIssue(B2, p.c.id, p.c, meShort())) k++; });
+      if (!k) throw new Error('nothing to change any more');
+      await s.write(B2, { throws: true });
+      return `${k} issue${k > 1 ? 's' : ''} updated`;
+    });
+    return { shown_to_person: id, changes: plan.length, problems: bad, saved: false };
+  }
+
+  const TOOLS = { get_design, get_tracker, get_schedules, propose_design_comments, propose_design_changes, propose_tracker_update, propose_schedule_import, propose_schedule_issue_changes };
   async function runTool(u) {
     const line = document.createElement('div'); line.className = 'tool';
-    line.textContent = ({ get_design: '🔎 reading the design board', get_tracker: '🔎 reading the tracker' }[u.name] || '📝 preparing changes') + '…';
+    line.textContent = ({ get_design: '🔎 reading the design board', get_tracker: '🔎 reading the tracker', get_schedules: '🔎 reading the Excel schedules', propose_schedule_import: '📊 reading the Excel file' }[u.name] || '📝 preparing changes') + '…';
     chat().appendChild(line); scroll();
     try {
       const f = TOOLS[u.name]; if (!f) throw new Error('Unknown tool ' + u.name);
@@ -376,7 +507,8 @@
         const wb = window.XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: 'array' });
         let text = '';
         wb.SheetNames.forEach(sn => { if (text.length < 60000) text += `\n--- sheet "${sn}" ---\n` + window.XLSX.utils.sheet_to_csv(wb.Sheets[sn], { blankrows: false }).slice(0, 60000 - text.length); });
-        a.blocks = [{ type: 'text', text: `attachment ${n} (${a.name}, spreadsheet as CSV):${text}` }];
+        if (/\.xlsx$/i.test(f.name)) a.xbuf = await f.arrayBuffer();
+        a.blocks = [{ type: 'text', text: `attachment ${n} (${a.name}, spreadsheet as CSV${a.xbuf ? '; can be put on a Design Board\'s Schedules with propose_schedule_import' : ''}):${text}` }];
       } else throw new Error(`${f.name}: send pictures, PDF or Excel`);
     } catch (e) { toast(e.message || String(e), true); return; }
     S.atts.push(a); S.pending.push(a); drawAtts();
@@ -461,7 +593,7 @@
   }
   function hello() {
     if (chat().children.length) return;
-    const tips = ['AC3 还剩哪些意见没改？', '我手上有哪些要改的？', 'AC3 这周装了多少？有哪些 issue？', '哪些 submittal 被退回了？'];
+    const tips = ['AC3 还剩哪些意见没改？', '我手上有哪些要改的？', 'AC3 的 Excel 表有哪些问题？', 'AC3 这周装了多少？有哪些 issue？', '哪些 submittal 被退回了？'];
     chat().innerHTML = `<div class="hello"><div style="font-size:16px;color:var(--text)">Hi ${esc(nameOf(DC.email))} — tell me what you need.</div>
       <div>Paste a Discord screenshot to log comments, ask what is left, or tell me what was installed. I show you every change before it is saved.</div>
       <div class="chips">${tips.map(t => `<button class="chip" data-tip="${esc(t)}">${esc(t)}</button>`).join('')}</div></div>`;

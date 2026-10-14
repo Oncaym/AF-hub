@@ -27,9 +27,26 @@ const DESIGN = REG.design.databaseURL, AC3 = REG.projects.find(p => p.id === 'ac
 const RULES = { [DESIGN]: rulesOf(REG.design.rules), [AC3]: rulesOf('project-database.rules.json'), [LEX]: rulesOf('project-database.rules.json') };
 const targaryen = require('targaryen');
 const { chromium } = require('playwright');
+const ExcelJS = require('exceljs');
+import os from 'node:os';
 
 const PW = 'pw-1', LEO = 'leosun@advfacade.com', HENRY = 'henry.kim@advfacade.com';
 const key = e => e.replace(/\./g, ',');
+
+// two versions of an Excel schedule: v1 has a red cell (→ issue), v2 changes a qty and drops the red
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'helper-x-'));
+async function makeXlsx(v) {
+  const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('WALL TYPES');
+  ws.getCell('A1').value = 'TEST — WALL TYPE SCHEDULE'; ws.addRow([]); ws.addRow(['MARK', 'DESCRIPTION', 'WIDTH', 'HEIGHT', 'QTY', 'NOTES']);
+  [['W1', 'Storefront', `5'-0"`, `8'-0"`, 4, ''], ['W2', 'Curtain wall', `6'-0"`, `10'-0"`, 2, 'Verify with arch'], ['W3', 'Window', `4'-0"`, `5'-0"`, v === 2 ? 3 : 6, '']].forEach(r => ws.addRow(r));
+  if (v === 1) ws.getCell('F5').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } };
+  wb.addWorksheet('NOTES').getCell('A1').value = 'notes';
+  const f = path.join(TMP, v === 1 ? 'Wall types.xlsx' : 'Wall types rev1.xlsx'); fs.writeFileSync(f, Buffer.from(await wb.xlsx.writeBuffer())); return f;
+}
+const X1 = await makeXlsx(1), X2 = await makeXlsx(2);
+const EXCELJS_MIN = fs.readFileSync(path.join(path.dirname(require.resolve('exceljs/package.json')), 'dist', 'exceljs.min.js'));
+const SHEETJS_STUB = 'window.XLSX={read:function(){return{SheetNames:["WALL TYPES"],Sheets:{"WALL TYPES":{}}}},utils:{sheet_to_csv:function(){return "MARK,DESCRIPTION,QTY\\nW1,Storefront,4"}}};';
+const attNo = (msgs, name) => { const m = JSON.stringify(msgs).match(new RegExp('attachment (\\d+) \\(' + name.replace(/[.]/g, '\\.'))); return m ? +m[1] : 0; };
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log('  ok   ' + m); } else { fail++; console.log('  FAIL ' + m); } };
 async function until(fn, ms = 5000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (fn()) return true; } catch (e) {} await new Promise(r => setTimeout(r, 50)); } return false; }
@@ -92,10 +109,14 @@ function claude(body) {
     const r = results[0].content;
     const prevUse = msgs[msgs.length - 2].content.find(b => b.type === 'tool_use');
     if (prevUse.name === 'get_tracker' && /SF11A__1/.test(r)) return use('propose_tracker_update', { project: 'ac3', unit_updates: [{ key: 'SF11A__1', status: 'installed', date: '2026-10-15', note: 'Framing 10-15' }], log_entries: [{ date: '2026-10-15', category: 'framing', content: 'SF11A installed' }], summary: 'SF11A installed 10/15' });
+    if (prevUse.name === 'get_schedules' && /"id":1/.test(r)) return use('propose_schedule_issue_changes', { board: 'ac3', changes: [{ id: 1, status: 'asked', owner: 'Architect', reply: 'Asked the architect in RFI 12' }, { id: 9, status: 'closed' }], summary: 'issue 1 asked' });
     if (prevUse.name.startsWith('propose_')) return say('请确认上面的卡片。');
     return say('**AC3** 还有 1 条没改：\n- #1 AC3-103 Change TOB to T.O.HSS（for henry.kim）\n\nTool said: ' + r.slice(0, 120));
   }
   if (/还剩/.test(text)) return use('get_design', { board: 'ac3', status: 'active' });
+  if (/新版本/.test(text)) return use('propose_schedule_import', { board: 'ac3', attachment: attNo(msgs, 'Wall types rev1.xlsx') });
+  if (/导入/.test(text)) return use('propose_schedule_import', { board: 'ac3', attachment: attNo(msgs, 'Wall types.xlsx') });
+  if (/Excel 表/.test(text)) return use('get_schedules', { board: 'ac3', part: 'issues' });
   if (/记成意见/.test(text)) return use('propose_design_comments', { board: 'ac3', comments: [{ dwg: 'AC3-500', where: 'Residential canopy plan', text: 'Dimension 3/4" from the W8X20 beam line', orig: '3/4"가 beam부터라는게 잘 안느껴져요', reviewer: 'SPARK', owner: HENRY, attachments: [1] }], summary: 'from Discord' });
   if (/installed/i.test(text)) return use('get_tracker', { project: 'ac3', part: 'units', filter: 'SF11A' });
   if (/rev 3/.test(text)) return use('propose_design_changes', { board: 'ac3', changes: [{ kind: 'comment', n: 1, status: 'fixed', rev: '3' }, { kind: 'comment', n: 2, status: 'closed' }], summary: '#1 fixed in rev 3' });
@@ -119,6 +140,8 @@ async function open(email, url) {
   await c.exposeFunction('__fb', (op, args) => handle(op, args));
   const fake = fs.readFileSync(path.join(here, 'e2e', 'fake-firebase.js'), 'utf8');
   await c.route(/gstatic\.com\/firebasejs\//, r => r.fulfill({ contentType: 'text/javascript', body: /firebase-app-compat\.js$/.test(r.request().url()) ? fake : '' }));
+  await c.route(/cdnjs\.cloudflare\.com\/ajax\/libs\/exceljs\/4\.4\.0\/exceljs\.min\.js/, r => r.fulfill({ contentType: 'text/javascript', body: EXCELJS_MIN }));
+  await c.route(/cdnjs\.cloudflare\.com\/ajax\/libs\/xlsx\//, r => r.fulfill({ contentType: 'text/javascript', body: SHEETJS_STUB }));
   await c.route(/\/api\/agent$/, r => { const b = JSON.parse(r.request().postData()); r.fulfill({ status: b.token ? 200 : 403, contentType: 'application/json', body: JSON.stringify(b.token ? claude(b) : { error: 'no token' }) }); });
   const p = await c.newPage(); p.on('pageerror', e => errors.push(e.message));
   await p.addInitScript(() => { window.afHelper = { setBadge: n => { window.__badge = n; }, notify: t => { (window.__notes = window.__notes || []).push(t); } }; });
@@ -182,6 +205,39 @@ try {
   ok(st._project === 'ac3' && st._by === LEO && st.log.length === 2 && st.log[1].categories[0] === 'framing' && st.units.length === 2 && st.submittals.length === 1, 'state saved whole, stamped for AC3 by Leo, log added, nothing else lost');
   ok(await until(() => Object.values(DB[AC3].history || {}).some(h => /SF11A installed/.test(h.desc))), 'tracker history row written');
 
+  // 4b. Excel schedules: attach an .xlsx, "导入" → card → confirm → on the board's Schedules (cloud)
+  const sch = () => (DB[DESIGN].schedules && DB[DESIGN].schedules.ac3 && DB[DESIGN].schedules.ac3.chunks) || {};
+  const piece = k => (sch()[k] ? JSON.parse(sch()[k]) : undefined);
+  const fids = () => Object.keys(sch()).map(k => (/^f_([A-Za-z0-9]+)_m$/.exec(k) || [])[1]).filter(Boolean);
+  await p.setInputFiles('#fileIn', X1);
+  await p.waitForSelector('#atts .att');
+  await p.fill('#msg', '把这个 Excel 导入 AC3'); await p.keyboard.press('Enter');
+  await p.waitForSelector('.pcard:not(.done) [data-yes]');
+  const impCard = await p.innerText('.pcard:not(.done)');
+  ok(/Add Wall types\.xlsx as a new file/.test(impCard) && /1 new issue/.test(impCard), 'import card: add Wall types.xlsx, 1 new issue from the red cell');
+  ok(!fids().length, 'nothing on the board before the button');
+  await p.click('.pcard:not(.done) [data-yes]');
+  ok(await until(() => fids().length === 1 && piece('i_1') && piece('i_1').cells.join() === 'F5'), 'after the button: file on AC3 Schedules, issue #1 on F5');
+  ok(await until(() => DB[DESIGN].scheduleFiles && Object.keys(DB[DESIGN].scheduleFiles.ac3 || {}).length === 1), 'original .xlsx stored for export');
+  ok(DB[DESIGN].schedules.ac3.meta._by === LEO && piece('f_' + fids()[0] + '_m').addedBy === 'leosun', 'saved and signed by Leo');
+  await p.fill('#msg', 'AC3 的 Excel 表有哪些问题？'); await p.keyboard.press('Enter');
+  await p.waitForSelector('.pcard:not(.done) [data-yes]');
+  const gs = calls[calls.length - 2].messages.slice(-1)[0].content.find(b => b.type === 'tool_result');
+  ok(gs && /"open_issues":1/.test(gs.content) && /Verify with arch|F5/.test(gs.content), 'get_schedules returned the issue log with exact counts');
+  const ic = await p.innerText('.pcard:not(.done)');
+  ok(/Open[\s\S]*Asked/.test(ic) && /RFI 12/.test(ic) && /issue 9 does not exist/.test(ic), 'issue card: #1 Open → Asked, reply shown; unknown #9 flagged');
+  await p.click('.pcard:not(.done) [data-yes]');
+  ok(await until(() => piece('i_1').status === 'asked' && piece('i_1').owner === 'Architect' && piece('i_1').thread.length === 1), 'after the button: #1 asked, owner Architect, reply in its thread');
+  await p.setInputFiles('#fileIn', X2);
+  await p.waitForFunction(() => document.querySelectorAll('#atts .att').length === 1);
+  await p.fill('#msg', '这是新版本'); await p.keyboard.press('Enter');
+  await p.waitForSelector('.pcard:not(.done) [data-yes]');
+  const vc = await p.innerText('.pcard:not(.done)');
+  ok(/new version of Wall types\.xlsx/.test(vc) && /version 2/.test(vc) && /row|cell/.test(vc), 'same tab names: card offers version 2 of Wall types.xlsx and lists what changed');
+  await p.click('.pcard:not(.done) [data-yes]');
+  ok(await until(() => fids().length === 1 && (piece('f_' + fids()[0] + '_m').versions || []).length === 2), 'after the button: version 2 saved, still one file');
+  ok(await until(() => Object.values(DB[DESIGN].boards.ac3.history || {}).some(h => /Schedules: new version of Wall types\.xlsx/.test(h.desc))), 'Design Board History shows the new version');
+
   if (process.env.SHOTS) await p.screenshot({ path: path.join(process.env.SHOTS, 'helper-chat.png') });
 
   // 5. badge: Henry's to-do count reaches his helper
@@ -196,6 +252,6 @@ try {
   ok(!errors.length, 'no page errors' + (errors.length ? ': ' + errors.join(' | ') : ''));
   ok(denied === 0, `no write refused by the rules (${denied})`);
 } catch (e) { fail++; console.log('  FAIL ' + (e.stack || e.message)); }
-finally { await browser.close(); server.close(); }
+finally { await browser.close(); server.close(); fs.rmSync(TMP, { recursive: true, force: true }); }
 console.log(`assistant e2e: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

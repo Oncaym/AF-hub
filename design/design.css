@@ -53,6 +53,8 @@ main { max-width: 1200px; margin: 0 auto; padding: 12px 16px 60px; }
   background: none; border: none; border-bottom: 2px solid transparent; padding: 8px 14px; cursor: pointer; color: var(--text-dim);
 }
 .tabs button.on { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.tabs a.tablink { padding: 8px 14px; color: var(--text-dim); text-decoration: none; border-bottom: 2px solid transparent; }
+.tabs a.tablink:hover { color: var(--text); }
 .tabs .n { font-size: 12px; color: var(--text-dim); margin-left: 4px; }
 
 .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }

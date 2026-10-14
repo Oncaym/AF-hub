@@ -199,6 +199,7 @@
     S.board = id; S.drawings = {}; S.issues = {}; S.imgs = {}; S.issuesLoaded = false; seenMine = null;
     try { localStorage.setItem('afdesign_board', id); } catch (e) {}
     if (location.hash !== '#b=' + id) history.replaceState(null, '', location.pathname + location.search + '#b=' + id);
+    document.querySelectorAll('[data-board-link]').forEach(a => { a.href = a.dataset.boardLink + '#b=' + id; });
     listen(bref('drawings'), v => { S.drawings = v; render(); });
     listen(bref('issues'), v => { S.issues = v; S.issuesLoaded = true; render(); });
     renderBoardPick(); render();

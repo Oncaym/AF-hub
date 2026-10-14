@@ -16,7 +16,8 @@
   //  Review comments close twice: the drafter marks "fixed", the reviewer
   //  then closes it. A comment can only become "closed" from "fixed" (or stay
   //  closed), so the second check cannot be skipped from any page.
-  //  Nothing under a board can be deleted from a page (newData.exists()).
+  //  Nothing under a board can be deleted from a page (newData.exists()),
+  //  except pieces of an Excel schedule when a file is taken off it.
   //
   //  Tests: platform/tests/design.test.cjs
   // ======================================================================
@@ -64,6 +65,35 @@
             ".write": "auth != null && auth.token.email_verified == true && !data.exists() && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
             ".validate": "newData.hasChildren(['ts', 'user', 'desc']) && newData.child('user').val() == auth.token.email"
           }
+        }
+      }
+    },
+
+    // Excel schedules (design/schedules.html): one board's files and issues,
+    // kept as JSON text pieces so a save only sends what changed.
+    // Pieces can be removed (a file taken off the board); only editors write.
+    "schedules": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      "$board": {
+        "meta": {
+          ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() && newData.exists()",
+          ".validate": "root.child('boardInfo').child($board).exists() && newData.hasChildren(['_by', '_ts']) && newData.child('_by').val() == auth.token.email"
+        },
+        "chunks": {
+          "$key": {
+            ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+            ".validate": "root.child('boardInfo').child($board).exists() && $key.matches(/^[A-Za-z0-9_-]{1,80}$/) && newData.isString() && newData.val().length <= 3600000"
+          }
+        }
+      }
+    },
+    // The original .xlsx of each schedule (base64), used to export in its own layout.
+    "scheduleFiles": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      "$board": {
+        "$file": {
+          ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+          ".validate": "root.child('boardInfo').child($board).exists() && $file.matches(/^[A-Za-z0-9]{1,40}$/) && newData.hasChildren(['data', '_by', '_ts']) && newData.child('data').isString() && newData.child('data').val().length < 9500000 && newData.child('_by').val() == auth.token.email"
         }
       }
     },

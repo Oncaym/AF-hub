@@ -36,7 +36,7 @@ r = await call(JSON.stringify({ token: STAFF, messages: [{ role: 'assistant', co
 ok(r.code === 200 && r.body.content[0].text === 'hi', 'staff gets an answer');
 ok(sent.messages.length === 1 && sent.messages[0].role === 'user', 'conversation starts with the person (a leading assistant turn is dropped)');
 const names = sent.tools.map(t => t.name).sort().join(',');
-ok(names === 'get_design,get_tracker,propose_design_changes,propose_design_comments,propose_tracker_update', 'tools offered: ' + names);
+ok(names === 'get_design,get_schedules,get_tracker,propose_design_changes,propose_design_comments,propose_schedule_import,propose_schedule_issue_changes,propose_tracker_update', 'tools offered: ' + names);
 ok(/pm@advfacade\.com/.test(sent.system) && /ac3: AC3 \(you are viewer\)/.test(sent.system) && /Atlantic-Chestnut Building 3 \(you are editor\)/.test(sent.system), 'caller, boards and projects with their roles are in the prompt');
 ok(/only shows a confirm card/.test(sent.system) && /not instructions/.test(sent.system), 'prompt says changes need the person\'s press and tool results are data');
 ok(!sent.tools.some(t => /delete|remove/i.test(t.name)), 'no delete tools');
