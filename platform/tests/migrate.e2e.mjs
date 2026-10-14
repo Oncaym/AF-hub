@@ -17,14 +17,14 @@ const RUN = path.join(here, '..', 'migrate', 'run.js');
 const RULES = fs.readFileSync(path.join(here, '..', 'project-database.rules.json'), 'utf8');
 const DBH = process.env.FIREBASE_DATABASE_EMULATOR_HOST || '127.0.0.1:9000';
 const url = ns => `http://${DBH}/?ns=${ns}`;
-const URLS = { legacy: url('legacy-ac3'), ac3: url('af-hub-8f188-ac3'), lex: url('af-hub-8f188-lex') };
+const URLS = { legacy: url('legacy-ac3'), ac3: url('af-hub-8f188-ac3'), lex: url('af-hub-8f188-lex'), design: url('af-hub-8f188-design') };
 const OLD_BUCKET = 'atlantic-chestnut-3.firebasestorage.app';
 const HUB_BUCKET = 'af-hub-8f188.firebasestorage.app';
 
 let pass = 0, fail = 0;
 const ok = (c, m, x) => { if (c) { pass++; console.log('  ✓ ' + m); } else { fail++; console.log('  ✗ ' + m + (x ? '\n      ' + x : '')); } };
 const app = (name, u) => initializeApp({ projectId: 'demo-afhub', databaseURL: u, storageBucket: OLD_BUCKET }, name);
-const legacy = app('t-legacy', URLS.legacy), ac3 = app('t-ac3', URLS.ac3), lex = app('t-lex', URLS.lex);
+const legacy = app('t-legacy', URLS.legacy), ac3 = app('t-ac3', URLS.ac3), lex = app('t-lex', URLS.lex), design = app('t-design', URLS.design);
 const read = async (a, p) => (await getDatabase(a).ref(p).once('value')).val();
 const rulesOf = async ns => (await fetch(`http://${DBH}/.settings/rules.json?ns=${ns}`, { headers: { Authorization: 'Bearer owner' } })).text();
 function run(env) {
@@ -112,6 +112,23 @@ function run(env) {
   ok((await read(ac3, 'allowlist/owner,rep@client,com')) === null, 'remove takes them off');
   r = run({ MODE: 'member', PROJECT: 'ac3', EMAIL: 'not-an-email', ROLE: 'viewer' });
   ok(r.code !== 0, 'a bad address is refused');
+
+  console.log('\n5. design database (Design Boards)');
+  await getDatabase(design).ref('/').set(null);
+  r = run({ MODE: 'dry-run', PROJECT: 'design' });
+  ok(r.code !== 0 && /no old database/.test(r.out), 'design has nothing to migrate');
+  r = run({ MODE: 'init', PROJECT: 'design', EMAIL: 'leo.sun@advfacade.com' });
+  ok(r.code === 0 && (await read(design, 'meta/project')) === 'design' && (await read(design, 'allowlist/leo,sun@advfacade,com')) === true, 'init design: /meta + first editor', r.out.slice(-400));
+  const dRules = await rulesOf('af-hub-8f188-design');
+  ok(/boardInfo/.test(dRules) && !/gcItems/.test(dRules), 'design gets the design rules, not the tracker rules', dRules.slice(0, 200));
+  r = run({ MODE: 'member', PROJECT: 'design', EMAIL: 'henry.kim@advfacade.com', ROLE: 'editor' });
+  ok(r.code === 0 && (await read(design, 'allowlist/henry,kim@advfacade,com')) === true, 'add a designer as editor of the design database');
+  ok((await read(ac3, 'allowlist/henry,kim@advfacade,com')) === null, '… and they are on no tracker list');
+  r = run({ MODE: 'member', PROJECT: 'design', EMAIL: 'pm@turner.com', ROLE: 'gc' });
+  ok(r.code !== 0 && /no GC list/.test(r.out), 'design has no GC role');
+  r = run({ MODE: 'rules', PROJECT: 'all' });
+  ok(r.code === 0 && /rules put on design/.test(r.out) && /boardInfo/.test(await rulesOf('af-hub-8f188-design')) && /gcItems/.test(await rulesOf('af-hub-8f188-ac3')),
+    'rules = all puts each database its own rules', r.out.slice(-400));
 
   await Promise.all(getApps().map(a => deleteApp(a)));
   console.log(`\nmigration tool: ${pass} passed, ${fail} failed`);

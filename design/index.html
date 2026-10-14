@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AF Design Board</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1419'/%3E%3Cpath d='M16 48l6-2 24-24-4-4-24 24z' fill='%234493f8'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="design.css?v=20261014a">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><a href="./">✏️ AF Design Board</a></div>
+  <select id="boardPick" title="Project" hidden></select>
+  <span class="grow"></span>
+  <span class="who" id="who"></span>
+  <a class="btn small ghost" href="../" title="All projects (AF Hub)" style="text-decoration:none">Hub</a>
+  <button class="btn small ghost" id="themeBtn" title="Light / dark">🌓</button>
+  <button class="btn small ghost" id="histBtn" hidden>History</button>
+  <button class="btn small ghost" id="outBtn" hidden>Sign out</button>
+</header>
+
+<div id="gate" class="gate"><div class="box"><div class="dim">Loading…</div></div></div>
+
+<main id="app" hidden>
+  <nav class="tabs" id="tabs">
+    <button data-tab="review">Review comments<span class="n" id="nReview"></span></button>
+    <button data-tab="drawings">Drawings<span class="n" id="nDrawings"></span></button>
+  </nav>
+  <section id="view"></section>
+</main>
+
+<div id="modal" class="veil" hidden><div class="box" id="modalBox"></div></div>
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="firebase-config.js?v=20261014a"></script>
+<script src="design-cloud.js?v=20261014a"></script>
+<script src="design-app.js?v=20261014a"></script>
+</body>
+</html>

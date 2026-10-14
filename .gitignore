@@ -21,3 +21,10 @@ report/.trackers/
 
 # Screenshots from a local end-to-end run (SHOTS=...).
 platform/tests/shots/
+
+# Local secrets (e.g. the Discord bot token). This repository is PUBLIC:
+# anything committed here can be read by anyone.
+.secrets/
+
+# Project documents kept next to the code for local tests — client data, not source.
+/AC3 drawing list.pdf

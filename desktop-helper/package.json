@@ -1,0 +1,32 @@
+{
+  "name": "af-helper",
+  "productName": "AF Helper",
+  "version": "0.1.0",
+  "description": "Advanced Facade design team desktop helper: a floating button that opens the Design Board's compact view.",
+  "main": "main.js",
+  "private": true,
+  "author": "Advanced Facade",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.advfacade.afhelper",
+    "productName": "AF Helper",
+    "files": ["main.js", "bubble.html", "bubble.js", "bubble-preload.js", "panel-preload.js", "offline.html", "offline.js", "icon.png", "tray.png"],
+    "directories": { "output": "dist" },
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "icon.ico" },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "AF Helper",
+      "artifactName": "AF-Helper-Setup-${version}.exe"
+    }
+  }
+}

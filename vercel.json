@@ -3,19 +3,41 @@
     {
       "source": "/(hub-report.js|af-hub-config.js)",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
       ]
     },
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
       ]
     }
   ],
   "redirects": [
-    { "source": "/ac3/takeoff", "destination": "/takeoff/", "permanent": true },
-    { "source": "/ac3/takeoff/:path*", "destination": "/takeoff/:path*", "permanent": true }
-  ]
+    {
+      "source": "/ac3/takeoff",
+      "destination": "/takeoff/",
+      "permanent": true
+    },
+    {
+      "source": "/ac3/takeoff/:path*",
+      "destination": "/takeoff/:path*",
+      "permanent": true
+    }
+  ],
+  "functions": {
+    "api/design.mjs": {
+      "maxDuration": 60
+    }
+  }
 }

@@ -5,6 +5,8 @@
 #   member   add / change / remove one person (email + role)
 #   rules    put platform/project-database.rules.json on the project ("all" = every project)
 #   init     start an empty database for a NEW project (email = its first editor)
+#   design   project = design is the design team's database (Design Boards, /design/):
+#            editors and viewers only, its own rules file
 #
 # This repository is public, so its Actions logs are public: the tool never prints
 # a whole email address, and the email you type is read from the run's event file,
@@ -20,7 +22,7 @@ on:
         options: [dry-run, migrate, member, rules, init]
         default: dry-run
       project:
-        description: 'Project id: ac3, lex … (rules: "all" for every project)'
+        description: 'Project id: ac3, lex … or design (Design Boards). rules: "all" for every database'
         type: string
         required: true
       email:

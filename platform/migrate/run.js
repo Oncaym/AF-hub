@@ -16,6 +16,9 @@
                   overwrite) and ALWAYS refuses if it belongs to another project.
    MODE=rules     Put platform/project-database.rules.json on the database(s)
                   (PROJECT=all for every project in platform/projects.json).
+                  PROJECT=design is the design team's database (Design Boards):
+                  it gets platform/design-database.rules.json instead, and
+                  "all" includes it. It has editors and viewers, no GC.
    MODE=init      Start an empty database for a NEW project: rules + /meta +
                   EMAIL as its first editor.
    MODE=member    Add EMAIL to the project as ROLE (editor | gc | viewer), or
@@ -76,9 +79,15 @@ function appFor(name, databaseURL, secret, storageBucket) {
   return initializeApp(opts, name);
 }
 function entry(id) {
+  if (REG.design && id === REG.design.id) return REG.design;
   const p = REG.projects.find(x => x.id === id);
-  if (!p) die(`PROJECT "${id}" is not in platform/projects.json (have: ${REG.projects.map(x => x.id).join(', ')})`);
+  if (!p) die(`PROJECT "${id}" is not in platform/projects.json (have: ${REG.projects.map(x => x.id).concat(REG.design ? [REG.design.id] : []).join(', ')})`);
   return p;
+}
+/* Which rules file a database gets: trackers share project-database.rules.json;
+   the design database names its own. */
+function rulesFor(p) {
+  return p.rules ? fs.readFileSync(path.join(ROOT, p.rules), 'utf8') : RULES;
 }
 
 /* Rules go through REST: Admin SDK setRules where available, the emulator's
@@ -186,6 +195,7 @@ function printMembers(list, oldAccounts, hadGcList) {
 // ─────────────────────────────────────────────────────────────── modes ──
 async function dryRunOrMigrate(dry) {
   const p = entry(PID);
+  if (!p.legacy) die(`"${p.id}" has no old database to move (use MODE=init to start it)`);
   const legacyApp = appFor('legacy', p.legacy.databaseURL, p.legacy.secret, p.legacy.storageBucket);
   const hubApp = appFor(p.id, p.databaseURL, 'HUB_SERVICE_ACCOUNT', REG.storageBucket);
   log(`${dry ? 'DRY RUN' : 'MIGRATE'} — ${p.name} (${p.id})`);
@@ -260,13 +270,13 @@ async function dryRunOrMigrate(dry) {
 }
 
 async function rulesMode() {
-  const ids = PID === 'all' ? REG.projects.map(x => x.id) : [PID];
+  const ids = PID === 'all' ? REG.projects.map(x => x.id).concat(REG.design ? [REG.design.id] : []) : [PID];
   for (const id of ids) {
     const p = entry(id);
     const app = appFor(p.id, p.databaseURL, 'HUB_SERVICE_ACCOUNT');
     const meta = (await getDatabase(app).ref('meta/project').once('value')).val();
     if (meta && meta !== p.id) die(`${p.databaseURL} says it belongs to "${meta}", not "${p.id}"`);
-    await putRules(app, RULES);
+    await putRules(app, rulesFor(p));
     log(`✓ rules put on ${p.id} (${p.databaseURL})${meta ? '' : ' — note: no /meta yet, so no page can save there'}`);
   }
 }
@@ -277,7 +287,7 @@ async function initMode() {
   const app = appFor(p.id, p.databaseURL, 'HUB_SERVICE_ACCOUNT');
   const root = await readRoot(app);
   if (root && Object.keys(root).length && !FORCE) die(`the database already has data (${Object.keys(root).join(', ')})`);
-  await putRules(app, RULES);
+  await putRules(app, rulesFor(p));
   await getDatabase(app).ref('meta').set({ project: p.id, name: p.name, createdAt: Date.now() });
   await getDatabase(app).ref('allowlist/' + C.emailKey(EMAIL)).set(true);
   log(`✓ ${p.id} ready: rules, /meta, editor ${C.maskEmail(EMAIL)} (${await ensureUser(getAuth(app), EMAIL)})`);
@@ -288,6 +298,7 @@ async function memberMode() {
   if (!EMAIL || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(EMAIL)) die('EMAIL is missing or not an email address');
   const node = { editor: 'allowlist', gc: 'gcList', viewer: 'viewers' }[ROLE];
   if (!node && ROLE !== 'remove') die('ROLE must be editor, gc, viewer or remove');
+  if (p.rules && ROLE === 'gc') die(`"${p.id}" has no GC list: use editor or viewer`);
   const app = appFor(p.id, p.databaseURL, 'HUB_SERVICE_ACCOUNT');
   const meta = (await getDatabase(app).ref('meta/project').once('value')).val();
   if (meta !== p.id) die(`${p.databaseURL} is not set up as "${p.id}" (meta: ${meta})`);

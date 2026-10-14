@@ -12,6 +12,7 @@ on:
       - 'ac3/**'
       - 'lex/**'
       - 'platform/**'
+      - 'design/**'
       - 'report/projects.json'
       - 'hub-report.js'
       - '.github/workflows/platform-tests.yml'

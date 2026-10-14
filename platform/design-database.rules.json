@@ -1,0 +1,93 @@
+{
+  // ======================================================================
+  //  AF Hub - rules for the DESIGN database (af-hub-8f188-design).
+  //  One database holds every project's Design Board (/boards/<board>), so a
+  //  project in design (Hillview, FIT Academy) needs no tracker database.
+  //  Installation trackers never read or write here, and the design team is
+  //  on no tracker list: the two are kept apart on purpose.
+  //
+  //  Who is who (the email key is the email with every '.' turned into ','):
+  //    signed in = a real account with a VERIFIED email (anonymous: nothing)
+  //    editor    = on /allowlist                   -> changes every board
+  //    viewer    = on /viewers                     -> reads only
+  //    staff     = verified @advfacade.com address -> reads only
+  //    anyone else -> nothing.
+  //
+  //  Review comments close twice: the drafter marks "fixed", the reviewer
+  //  then closes it. A comment can only become "closed" from "fixed" (or stay
+  //  closed), so the second check cannot be skipped from any page.
+  //  Nothing under a board can be deleted from a page (newData.exists()).
+  //
+  //  Tests: platform/tests/design.test.cjs
+  // ======================================================================
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "meta": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".write": false
+    },
+
+    // The list of boards (one row per project); a board is created by writing
+    // its row here. Its id is a short slug (ac3, hillview).
+    "boardInfo": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      "$board": {
+        ".write": "auth != null && auth.token.email_verified == true && newData.exists() && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+        ".validate": "$board.matches(/^[a-z0-9][a-z0-9-]{1,23}$/) && root.child('meta/project').val() == 'design' && newData.hasChildren(['name', '_by', '_ts']) && newData.child('name').isString() && newData.child('name').val().length <= 80 && newData.child('_by').val() == auth.token.email"
+      }
+    },
+
+    "boards": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      "$board": {
+        "drawings": {
+          "$dwg": {
+            ".write": "auth != null && auth.token.email_verified == true && newData.exists() && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+            ".validate": "newData.hasChildren(['no', 'status', '_by', '_ts']) && newData.child('no').isString() && newData.child('status').val().matches(/^(drafting|review|revise|submitted|returned|approved)$/) && newData.child('_by').val() == auth.token.email"
+          }
+        },
+
+        "issues": {
+          ".indexOn": ["created"],
+          "$id": {
+            ".write": "auth != null && auth.token.email_verified == true && newData.exists() && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+            ".validate": "newData.hasChildren(['n', 'text', 'status', '_by', '_ts']) && newData.child('text').isString() && newData.child('status').val().matches(/^(open|ask|fixed|closed)$/) && newData.child('_by').val() == auth.token.email && (newData.child('status').val() != 'closed' || data.child('status').val() == 'fixed' || data.child('status').val() == 'closed') && (newData.child('status').val() != 'fixed' || newData.hasChildren(['fixedBy', 'fixedAt']))"
+          }
+        },
+
+        // Edit history - append only, each row signed by its author.
+        "history": {
+          ".indexOn": ["ts"],
+          "$pushId": {
+            ".write": "auth != null && auth.token.email_verified == true && !data.exists() && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+            ".validate": "newData.hasChildren(['ts', 'user', 'desc']) && newData.child('user').val() == auth.token.email"
+          }
+        }
+      }
+    },
+
+    // Screenshots, kept apart from /boards so listing a board never downloads them.
+    "images": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      "$board": {
+        "$img": {
+          ".write": "auth != null && auth.token.email_verified == true && !data.exists() && newData.exists() && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+          ".validate": "newData.hasChildren(['data', '_by', '_ts']) && newData.child('data').isString() && newData.child('data').val().beginsWith('data:image/') && newData.child('data').val().length < 1500000 && newData.child('_by').val() == auth.token.email"
+        }
+      }
+    },
+
+    // Membership lists: each person reads only their own entry; the lists are
+    // edited by the admin workflow (Actions -> Project database, project = design).
+    "allowlist": {
+      ".read": false, ".write": false,
+      "$emailKey": { ".read": "auth != null && auth.token.email_verified == true && auth.token.email.replace('.', ',') == $emailKey" }
+    },
+    "viewers": {
+      ".read": false, ".write": false,
+      "$emailKey": { ".read": "auth != null && auth.token.email_verified == true && auth.token.email.replace('.', ',') == $emailKey" }
+    }
+  }
+}

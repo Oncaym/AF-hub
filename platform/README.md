@@ -110,6 +110,26 @@ GitHub → **Actions → Project database → Run workflow**：
 
 **改了规则文件以后**：Actions 跑 `mode = rules`、`project = all`，一次给所有项目数据库上新规则。
 
+## Design Board（设计库，`/design/`）
+
+design team 的图纸和审图意见，**跟安装 tracker 分开**：
+
+- 单独一个数据库 `af-hub-8f188-design`。所有项目的 board 都在里面（`/boardInfo`、`/boards/<项目>`、`/images/<项目>`），所以还没有 tracker 的项目（Hillview 等）也能用。
+- 规则文件是 `design-database.rules.json`。身份只有 editor（`allowlist`）和 viewer（`viewers`），没有 GC；公司员工能看，不能改。
+- design team 只在 design 库的名单上，**不在任何 tracker 名单上**。
+- 一条意见要关两次：drafter 标"已改"（fixed）→ 审图的人确认后"关闭"（closed）。规则保证只有 fixed 才能变成 closed。
+- Claude（拆 Discord 截图、回答问题）走 `api/design.mjs`，用的是 Vercel 上同一个 `ANTHROPIC_API_KEY`。只有 design 库的 editor 能调用。Claude 只提建议，人点按钮才保存。
+- 桌面小精灵在 `desktop-helper/`，见那里的 README。
+
+### 第一次开（约 10 分钟）
+1. **Firebase 控制台**（af-hub-8f188）→ Realtime Database → Create database，名字填 `af-hub-8f188-design`，地区跟其他项目库一样。
+2. **GitHub Desktop：Push**。到 Actions → *Platform tests* 等两个任务变绿。
+3. Actions → **Project database** → Run workflow：`mode = init`，`project = design`，`email = 你的邮箱`。
+4. 加人：`mode = member`，`project = design`，`email = 对方邮箱`，`role = editor`（或 `viewer`）。每个人跑一次。
+5. 打开 https://af-hub-two.vercel.app/design/ ，点 **+ New project board**（名字 Atlantic-Chestnut Building 3，id `ac3`），再到 Drawings 点 **Import drawing list (PDF)**，选 `AC3 drawing list.pdf`。
+
+以后改了 `design-database.rules.json`：`mode = rules`，`project = design`（或 `all`）。
+
 ## 注意
 
 - 这个 GitHub 仓库是**公开的**，Actions 日志谁都能看。所以工具从不在日志里打印完整邮箱，你填的邮箱也不会出现在日志里。

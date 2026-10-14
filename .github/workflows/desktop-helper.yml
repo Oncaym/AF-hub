@@ -1,0 +1,73 @@
+# AF Helper — the design team's Windows desktop helper (desktop-helper/).
+#   Every push that touches it: smoke test (Linux) + build the installer (Windows),
+#   kept as a run artifact.
+#   Run by hand (Actions → AF Helper → Run workflow): the same, and the installer is
+#   published as a GitHub release, so the team downloads it from a plain link:
+#     https://github.com/<owner>/<repo>/releases/latest  →  AF-Helper-Setup-<version>.exe
+#   Bump "version" in desktop-helper/package.json for a new release.
+#   The helper only shows the hub page /design/?mini=1, so most changes need
+#   no new installer at all — only changes to desktop-helper/ do.
+name: AF Helper
+
+on:
+  push:
+    paths:
+      - 'desktop-helper/**'
+      - '.github/workflows/desktop-helper.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: af-helper-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install
+        working-directory: desktop-helper
+        run: |
+          npm install --no-audit --no-fund
+          npm install --no-save --no-audit --no-fund playwright@1.55.0
+      - name: Smoke test (round button, panel, badge, links, origin check)
+        working-directory: desktop-helper
+        run: xvfb-run -a node test/smoke.mjs
+
+  build:
+    needs: smoke
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install
+        working-directory: desktop-helper
+        run: npm install --no-audit --no-fund
+      - name: Build the installer
+        working-directory: desktop-helper
+        run: npx electron-builder --win nsis --x64 --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AF-Helper-Setup
+          path: desktop-helper/dist/*.exe
+      - name: Publish as a release (download link for the team)
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=$(node -p "require('./desktop-helper/package.json').version")
+          T="af-helper-v$V"
+          gh release view "$T" >/dev/null 2>&1 || gh release create "$T" --title "AF Helper $V" \
+            --notes "Design team desktop helper. Download AF-Helper-Setup-$V.exe and double-click it (installs for you only, no admin). If Windows says 'Windows protected your PC', click More info → Run anyway."
+          gh release upload "$T" "desktop-helper/dist/AF-Helper-Setup-$V.exe" --clobber

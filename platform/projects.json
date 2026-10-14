@@ -27,5 +27,13 @@
         "site": "https://355-lexington-dashboard.vercel.app"
       }
     }
-  ]
+  ],
+  "design": {
+    "_about": "The design team's database: every project's Design Board lives in it under /boards/<board>. Not a tracker, so it is kept out of \"projects\" (no report, no tracker folder checks). Rules: design-database.rules.json. Page: /design/.",
+    "id": "design",
+    "name": "AF Design Boards",
+    "folder": "design",
+    "databaseURL": "https://af-hub-8f188-design.firebaseio.com",
+    "rules": "design-database.rules.json"
+  }
 }
