@@ -130,6 +130,16 @@ design team 的图纸和审图意见，**跟安装 tracker 分开**：
 
 以后改了 `design-database.rules.json`：`mode = rules`，`project = design`（或 `all`）。
 
+**一次加多个人**：`email` 里可以填好几个邮箱，用逗号或换行隔开，`role` 对所有人一样。有一个地址写错，整次都不改。
+
+### Discord 自动拉消息（等服务器管理员把 bot 加进频道以后）
+1. bot 在 Developer Portal 里打开 **Message Content Intent**，并且被加进审图频道（View Channel + Read Message History）。
+2. Vercel（af-hub-two）→ Settings → Environment Variables 加两个：
+   - `DISCORD_BOT_TOKEN`：bot 的 token（就是 `.secrets\discord_bot.txt` 里那串；这个文件夹不会被提交）。
+   - `DISCORD_CHANNELS`：`{"ac3":"频道ID"}`，以后别的项目接着加，例如 `{"ac3":"…","hillview":"…"}`。频道 ID：Discord 开发者模式下右键频道 → Copy Channel ID。
+3. Redeploy 一次。之后在 Design Board 的 ✨ Paste from Discord 里点 **⬇ Pull new from Discord**：从上次拉到的地方接着读，Claude 拆成一条条，人确认后才加。
+
+
 ## 注意
 
 - 这个 GitHub 仓库是**公开的**，Actions 日志谁都能看。所以工具从不在日志里打印完整邮箱，你填的邮箱也不会出现在日志里。

@@ -124,6 +124,12 @@ function run(env) {
   r = run({ MODE: 'member', PROJECT: 'design', EMAIL: 'henry.kim@advfacade.com', ROLE: 'editor' });
   ok(r.code === 0 && (await read(design, 'allowlist/henry,kim@advfacade,com')) === true, 'add a designer as editor of the design database');
   ok((await read(ac3, 'allowlist/henry,kim@advfacade,com')) === null, '… and they are on no tracker list');
+  r = run({ MODE: 'member', PROJECT: 'design', EMAIL: 'Spark@AdvFacade.com, drafter.two@advfacade.com\ndrafter.three@gmail.com', ROLE: 'editor' });
+  ok(r.code === 0 && (await read(design, 'allowlist/spark@advfacade,com')) === true && (await read(design, 'allowlist/drafter,two@advfacade,com')) === true &&
+     (await read(design, 'allowlist/drafter,three@gmail,com')) === true, 'several people in one run (commas / new lines)', r.out.slice(-400));
+  ok(!/spark@advfacade\.com|drafter\.two@|drafter\.three@/.test(r.out), '… and the log masks every address');
+  r = run({ MODE: 'member', PROJECT: 'design', EMAIL: 'ok.person@advfacade.com, not-an-email', ROLE: 'viewer' });
+  ok(r.code !== 0 && (await read(design, 'viewers/ok,person@advfacade,com')) === null, 'one bad address in the list: nothing is changed');
   r = run({ MODE: 'member', PROJECT: 'design', EMAIL: 'pm@turner.com', ROLE: 'gc' });
   ok(r.code !== 0 && /no GC list/.test(r.out), 'design has no GC role');
   r = run({ MODE: 'rules', PROJECT: 'all' });

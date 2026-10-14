@@ -159,7 +159,7 @@
     }
     if (pick) pick.addEventListener('change', () => { add([...pick.files]); pick.value = ''; });
   }
-  const pendingThumbs = list => list.map((d, i) => `<span style="position:relative;display:inline-block"><img src="${d}" alt=""><button class="btn small" type="button" data-unpic="${i}" style="position:absolute;top:2px;right:2px;padding:0 6px">×</button></span>`).join('');
+  const pendingThumbs = list => list.map((d, i) => `<span style="position:relative;display:inline-block">${d ? `<img src="${d}" alt="">` : '<span class="ph" title="could not be read"></span>'}<button class="btn small" type="button" data-unpic="${i}" style="position:absolute;top:2px;right:2px;padding:0 6px">×</button></span>`).join('');
 
   // ---------------------------------------------------------- derived data --
   const issuesArr = () => Object.entries(S.issues).map(([id, v]) => Object.assign({ id }, v));
@@ -532,10 +532,10 @@
       issues: issuesArr().map(i => ({ id: i.id, n: i.n, dwg: i.dwg, where: i.where, text: i.text, status: i.status, owner: i.owner, reviewer: i.reviewer, fixedRev: i.fixedRev })),
     };
   }
-  async function claude(mode, text, images) {
+  async function claude(mode, text, images, extra) {
     const token = await DC.idToken();
-    const body = { token, board: S.board, mode, text, context: context() };
-    if (images && images.length) body.images = await Promise.all(images.map(d => shrinkData(d, 1400, 0.75)));
+    const body = Object.assign({ token, board: S.board, mode, text, context: context() }, extra || {});
+    if (images && images.length) body.images = await Promise.all(images.filter(Boolean).map(d => shrinkData(d, 1400, 0.75)));
     const r = await fetch('../api/design', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     let j = {}; try { j = await r.json(); } catch (e) {}
     if (!r.ok) throw new Error(j.error || ('Claude is not available (' + r.status + ')'));
@@ -546,24 +546,41 @@
     const pics = [];
     let props = [];
     const box = openModal(`<h2>Paste from Discord</h2><div class="form">
-      <div class="dim">Paste the conversation (text) and the screenshots. Claude splits them into one comment per change; you check each one before it is added.</div>
+      <div class="dim">Paste the conversation (text) and the screenshots — or pull the new messages straight from the board's Discord channel. Claude splits them into one comment per change; you check each one before it is added.</div>
       <label>Conversation / email</label><textarea id="spTx" autofocus style="min-height:110px" placeholder="Copy the messages from Discord and paste here"></textarea>
       <div class="thumbs" id="spPics"></div>
       <div class="drop">Paste screenshots (Ctrl+V), drop them here, or <label style="display:inline;color:var(--accent-2);cursor:pointer">choose<input type="file" accept="image/*" multiple hidden></label></div>
       <div id="spOut"></div>
-      <div class="foot"><button class="btn ghost" data-x>Cancel</button><button class="btn" id="spGo">✨ Split into comments</button><button class="btn primary" id="spAdd" hidden>Add</button></div></div>`, { wide: true });
+      <div class="foot"><button class="btn" id="spPull" style="margin-right:auto" title="Reads the messages after the last pull from this board's Discord channel">⬇ Pull new from Discord</button><button class="btn ghost" data-x>Cancel</button><button class="btn" id="spGo">✨ Split into comments</button><button class="btn primary" id="spAdd" hidden>Add</button></div></div>`, { wide: true });
     const redraw = () => { box.querySelector('#spPics').innerHTML = pendingThumbs(pics); };
     pictureInput(box, pics, redraw);
     box.addEventListener('click', e => { const u = e.target.closest('[data-unpic]'); if (u) { pics.splice(+u.dataset.unpic, 1); redraw(); } });
     box.querySelector('[data-x]').onclick = closeModal;
     const dopts = sel => '<option value="">— none —</option>' + drawingsArr().map(d => `<option value="${esc(d.k)}" ${sel === d.k ? 'selected' : ''}>${esc(d.no)} — ${esc(d.title || '')}</option>`).join('');
     const out = box.querySelector('#spOut'), go = box.querySelector('#spGo'), add = box.querySelector('#spAdd');
+    let pulledLast = null, pulledMore = false;
+    const saveLast = () => (pulledLast ? db.ref('boardInfo/' + S.board).update(stamp({ discordLast: pulledLast })).then(() => { pulledLast = null; }, fail) : Promise.resolve());
+    const pull = box.querySelector('#spPull');
+    pull.onclick = async () => {
+      pull.disabled = true; pull.textContent = 'Reading Discord…'; out.innerHTML = '';
+      try {
+        const j = await claude('pull', '', null, { after: (S.boards[S.board] || {}).discordLast || null });
+        pics.length = 0; (j.images || []).forEach(d => pics.push(d)); redraw();
+        box.querySelector('#spTx').value = j.transcript || '';
+        pulledLast = j.last_id || null; pulledMore = !!j.more;
+        show(j);
+        if (!(j.comments || []).length) await saveLast();   // nothing to add: mark these messages as read
+      } catch (e) { out.innerHTML = `<div class="card" style="color:var(--red)">${esc(e.message)}</div>`; }
+      pull.disabled = false; pull.textContent = '⬇ Pull new from Discord';
+    };
     go.onclick = async () => {
       const text = box.querySelector('#spTx').value;
-      if (!text.trim() && !pics.length) { toast('Paste the conversation or a screenshot first.', true); return; }
+      if (!text.trim() && !pics.some(Boolean)) { toast('Paste the conversation or a screenshot first.', true); return; }
       go.disabled = true; go.textContent = 'Claude is reading…'; out.innerHTML = '';
-      try {
-        const j = await claude('split', text, pics);
+      try { show(await claude('split', text, pics)); } catch (e) { out.innerHTML = `<div class="card" style="color:var(--red)">${esc(e.message)}</div>`; }
+      go.disabled = false; go.textContent = '✨ Split again';
+    };
+    function show(j) {
         props = (j.comments || []).map(c => Object.assign({ images: [] }, c, { dwg: S.drawings[c.dwg] ? c.dwg : '' }));
         out.innerHTML = (j.note ? `<div class="card" style="border-color:var(--yellow)">${esc(j.note)}</div>` : '') +
           (props.length ? props.map((c, i) => `<div class="card" data-pi="${i}">
@@ -582,9 +599,7 @@
               <option value="fixed" ${c.already_fixed ? 'selected' : ''}>Fixed · to check</option></select></div></div>`).join('')
           : '<div class="empty">Claude found no change requests in this.</div>');
         add.hidden = !props.length; add.textContent = `Add ${props.length} comment${props.length === 1 ? '' : 's'}`;
-      } catch (e) { out.innerHTML = `<div class="card" style="color:var(--red)">${esc(e.message)}</div>`; }
-      go.disabled = false; go.textContent = '✨ Split again';
-    };
+    }
     box.addEventListener('change', e => { if (e.target.classList.contains('spOn')) { const n = box.querySelectorAll('.spOn:checked').length; add.textContent = `Add ${n} comment${n === 1 ? '' : 's'}`; } });
     add.onclick = async () => {
       const rows = [...box.querySelectorAll('[data-pi]')].filter(r => r.querySelector('.spOn').checked);
@@ -609,7 +624,8 @@
           await bref('issues').push().set(stamp(rec));
         }
         log(`Added ${rows.length} comments from Discord (split by Claude)`);
-        closeModal(); toast(rows.length + ' comments added.');
+        await saveLast();
+        closeModal(); toast(rows.length + ' comments added.' + (pulledMore ? ' More Discord messages are waiting: pull again.' : ''));
       } catch (e) { add.disabled = false; fail(e); }
     };
   }
@@ -826,6 +842,24 @@
       const rows = Object.values(v).sort((a, b) => (b.ts || 0) - (a.ts || 0));
       box.querySelector('#hList').innerHTML = rows.map(r => `<div><span class="dim">${new Date(r.ts).toLocaleString()} · ${esc(nameOf(r.user))}</span><br>${esc(r.desc)}</div>`).join('') || '<div class="dim">Nothing yet.</div>';
     } catch (e) { box.querySelector('#hList').textContent = 'Cannot read history: ' + (e.code || e.message); }
+  };
+
+  // ------------------------------------------------------------------ help --
+  $('#helpBtn').onclick = () => {
+    openModal(`<h2>How the Design Board works</h2><div class="hist" style="font-size:14px;line-height:1.55">
+      <p><b>One comment = one change</b>, on one drawing. Each comment closes <b>twice</b>:</p>
+      <ol><li>The drafter fixes it and presses <b>Mark fixed</b> (with the rev it is in).</li>
+      <li>The reviewer checks the drawing and presses <b>Checked · close</b> — or <b>Not fixed · reopen</b>.</li></ol>
+      <p>A ✅ in Discord only means “seen”. Nothing is closed until the reviewer closes it here.</p>
+      <p><b>Adding comments</b></p>
+      <ul><li><b>+ Add comment</b>: pick the drawing, write the change, paste a screenshot with Ctrl+V.</li>
+      <li><b>✨ Paste from Discord</b>: paste the conversation and the screenshots; Claude splits them into comments. You check each one before it is added.</li>
+      <li><b>⬇ Pull new from Discord</b> (inside that window): reads the new messages in this project's Discord channel by itself, once the bot is set up.</li></ul>
+      <p><b>Finding your work</b>: <b>My to-do</b> / <b>Mine</b> = comments you must fix, plus fixed ones waiting for your check. Click a drawing to see its comments and <i>what changed in each rev</i>.</p>
+      <p><b>Ask Claude</b> (box above the list): “what is left on AC3-103?”, “what changed in rev 3?”, “mark #3 fixed in rev 2”. Claude only suggests; a change happens when you press its button.</p>
+      <p><b>On your desktop</b>: the AF Helper round button opens a small version of this page (Ctrl+Shift+Space). Its red number is your to-do count.</p>
+      <p class="dim">Every change is saved with your name — see History.</p></div>
+      <div class="form"><div class="foot"><button class="btn primary" data-x>Got it</button></div></div>`, { wide: true }).querySelector('[data-x]').onclick = closeModal;
   };
 
   // ----------------------------------------------------------------- theme --

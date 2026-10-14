@@ -104,6 +104,12 @@ async function ctx() {
     const b = JSON.parse(r.request().postData() || '{}');
     apiCalls.push(b);
     if (!b.token) return r.fulfill({ status: 403, contentType: 'application/json', body: '{"error":"no token"}' });
+    if (b.mode === 'pull') {
+      const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+      return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        comments: [{ images: [0], dwg: D2, where: 'Residential Typ. Canopy Plan Details', text: 'Dimension the 3/4" from the W8X20 beam line', orig: '3/4"가 beam부터라는게 잘 안느껴져요', reviewer: 'SPARK', owner: DRAFTER }],
+        note: '', images: [png], last_id: b.after ? '2002' : '2001', more: false, transcript: 'SPARK: 이렇게 바꿔주세요 [screenshot 0]' }) });
+    }
     const body = b.mode === 'split'
       ? { comments: [
           { images: [0], dwg: D1, where: 'East Glass Canopy', text: 'Write T.O.HSS for the 6\'-5" dimension', orig: '6\'5"는 저 C beam이 아니고 top HSS tube에요', reviewer: 'SPARK', owner: DRAFTER, already_fixed: true },
@@ -293,6 +299,29 @@ try {
     await p1.setViewportSize({ width: 1200, height: 900 });
   }
 
+  // 4c2. Pull from Discord (stubbed): the comment arrives with its screenshot; the board remembers where it stopped.
+  await p1.click('#splitBtn');
+  await p1.click('#spPull');
+  await p1.waitForSelector('[data-pi="0"]');
+  ok(/이렇게 바꿔주세요/.test(await p1.$eval('#spTx', e => e.value)), 'pull: what was read from Discord is shown');
+  const nBefore = Object.keys(DB.boards.ac3.issues).length;
+  await p1.click('#spAdd');
+  await p1.waitForFunction(() => document.querySelector('#modal').hidden);
+  ok(await until(() => DB.boardInfo.ac3.discordLast === '2001' && Object.keys(DB.boards.ac3.issues).length === nBefore + 1), 'pull: comment added and the last message id saved on the board');
+  const pulledIssue = Object.values(DB.boards.ac3.issues).find(v => /W8X20 beam line/.test(v.text) && v.source === 'discord') || {};
+  ok(Object.keys(pulledIssue.imgs || {}).length === 1, 'pull: the Discord screenshot is kept with the comment');
+  await p1.click('#splitBtn');
+  await p1.click('#spPull');
+  await p1.waitForSelector('[data-pi="0"]');
+  ok(apiCalls[apiCalls.length - 1].after === '2001', 'pull again: starts after the last pulled message');
+  await p1.keyboard.press('Escape');
+  // the earlier comments are untouched by the pull; drop the extra one from the count used below
+  const extra = Object.keys(DB.boards.ac3.issues).length - 4;
+
+  await p1.click('#helpBtn');
+  ok(/closes <b>twice<\/b>|closes twice/i.test(await p1.innerHTML('#modalBox')), 'help window explains the two closes');
+  await p1.keyboard.press('Escape');
+
   // 4d. The desktop helper's compact view (?mini=1): badge and notices.
   console.log('helper view');
   const c6 = await ctx(); const p6 = await c6.newPage(); watch(p6);
@@ -308,11 +337,11 @@ try {
   await p1.fill('#ifText', 'Add the W8X20 beam line to the 3/4" dimension');
   await p1.fill('#ifOwner', DRAFTER);
   await p1.click('#ifGo');
-  await until(() => Object.keys(DB.boards.ac3.issues).length === 5);
+  await until(() => Object.keys(DB.boards.ac3.issues).length === 5 + extra);
   await p6.evaluate(() => window.__fbRefresh && window.__fbRefresh());
   await p6.waitForFunction(b => window.__badge === b + 1, before);
   ok(true, `badge went ${before} → ${before + 1} when a comment for the drafter arrived`);
-  ok(new RegExp('New for you: #5 \\| ' + D2 + ' Add the W8X20').test((await p6.evaluate(() => window.__notes || [])).join('\n')), 'a Windows notice was asked for: "New for you: #5"');
+  ok(new RegExp('New for you: #' + (5 + extra) + ' \\| ' + D2 + ' Add the W8X20').test((await p6.evaluate(() => window.__notes || [])).join('\n')), 'a Windows notice was asked for the new comment');
   ok((await p6.evaluate(() => window.__notes.length)) === 1, 'no notices for what was already there');
   await p6.click('#tabs button[data-tab=links]');
   ok(await p6.$$eval('.links a', a => a.length) === 5, 'links tab lists the hub pages');
@@ -326,7 +355,7 @@ try {
   ok(await p3.isVisible('text=view only'), 'staff: view only');
   ok(!(await p3.$('#addIssue')), 'staff: no "+ Add comment"');
   await p3.click('.chip[data-if=all]');
-  ok(await p3.$$eval('.card', e => e.length) === 5 && !(await p3.$('.card [data-act]')), 'staff sees all 5 comments, no buttons');
+  ok(await p3.$$eval('.card', e => e.length) === 6 && !(await p3.$('.card [data-act]')), 'staff sees all 6 comments, no buttons');
   ok(!(await p3.$('#askForm')) && !(await p3.$('#splitBtn')), 'staff: no Claude buttons (editors only)');
 
   // 6. A tracker foreman: nothing.

@@ -2,6 +2,10 @@
    Design Board — Claude endpoint (/design/ and the desktop helper)
    ============================================================
    POST /api/design
+   mode 'pull' (Discord): the server reads the board's review channel with the
+   bot (env DISCORD_BOT_TOKEN; DISCORD_CHANNELS = {"ac3":"<channel id>", …}),
+   from the message after `after`, and splits it like 'split'. It also returns
+   the screenshots it read (so the page can keep them) and `last_id`.
    Body: {
      token:  Firebase ID token of the signed-in person (required),
      board:  'ac3',
@@ -28,6 +32,7 @@
 const MODEL = process.env.DESIGN_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-5-20250929';
 const DESIGN_DB = 'https://af-hub-8f188-design.firebaseio.com';
 const MAX_IMAGES = 6;
+const DISCORD = 'https://discord.com/api/v10';
 const MAX_BODY_CHARS = 4_200_000;
 
 const SPLIT_TOOL = {
@@ -122,6 +127,50 @@ Answer the person's question from this data only. Be brief. If they ask "what is
 Only propose actions when the person asks for a change ("mark #3 fixed in rev 2", "AC3-103 is submitted", "give AC3-500 to Henry"). A comment can only become closed from fixed.`;
 }
 
+/* Discord → a transcript Claude can read, plus up to MAX_IMAGES screenshots.
+   Oldest first; stops before the image limit so nothing is skipped silently:
+   `more` tells the page to pull again from last_id. */
+async function pullDiscord(board, after) {
+  const token = process.env.DISCORD_BOT_TOKEN;
+  let map = {};
+  try { map = JSON.parse(process.env.DISCORD_CHANNELS || '{}'); } catch (e) { map = {}; }
+  const ch = map[board];
+  if (!token || !ch) return { error: `Discord is not connected for "${board}" yet: set DISCORD_BOT_TOKEN and DISCORD_CHANNELS in Vercel.` };
+  const q = new URLSearchParams({ limit: '100' });
+  if (after) q.set('after', String(after));
+  const r = await fetch(`${DISCORD}/channels/${ch}/messages?${q}`, { headers: { Authorization: 'Bot ' + token } });
+  if (!r.ok) return { error: `Discord said ${r.status}${r.status === 403 ? ' (the bot cannot see that channel)' : r.status === 401 ? ' (bot token is wrong)' : ''}.` };
+  const msgs = (await r.json()).sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
+  const names = {}; msgs.forEach(m => { names[m.id] = (m.author && (m.author.global_name || m.author.username)) || '?'; });
+  const lines = [], shots = [];
+  let last = after || null, more = false;
+  for (const m of msgs) {
+    const pics = (m.attachments || []).filter(a => /^image\//.test(a.content_type || '') || /\.(png|jpe?g|webp|gif)$/i.test(a.filename || ''));
+    if (shots.length + pics.length > MAX_IMAGES && shots.length) { more = true; break; }
+    const who = names[m.id];
+    const reply = m.referenced_message ? ` (reply to ${(m.referenced_message.author && (m.referenced_message.author.global_name || m.referenced_message.author.username)) || '?'})` : '';
+    const reacts = (m.reactions || []).map(x => `${(x.emoji && x.emoji.name) || '?'}×${x.count}`).join(' ');
+    const tags = pics.map((a, i) => `[screenshot ${shots.length + i}]`).join(' ');
+    lines.push(`[${String(m.timestamp || '').slice(0, 16).replace('T', ' ')}] ${who}${reply}: ${m.content || ''} ${tags}${reacts ? ' (reactions: ' + reacts + ')' : ''}`.trim());
+    for (const a of pics) shots.push(a);
+    last = m.id;
+  }
+  if (!more && msgs.length === 100) more = true;   // a full page: there may be newer ones
+  const images = [];
+  for (const a of shots) {
+    const w = a.width || 0, h = a.height || 0, base = a.proxy_url || a.url;
+    let u = base;
+    if (w > 1400 && h) u = base + (base.includes('?') ? '&' : '?') + `width=1400&height=${Math.round(1400 * h / w)}`;
+    let res = await fetch(u);
+    if (!res.ok && u !== a.url) res = await fetch(a.url);
+    if (!res.ok) { images.push(null); continue; }
+    const type = (res.headers.get('content-type') || 'image/png').split(';')[0];
+    const buf = Buffer.from(await res.arrayBuffer());
+    images.push(buf.length < 3_500_000 ? `data:${type};base64,${buf.toString('base64')}` : null);
+  }
+  return { text: lines.join('\n'), images, last_id: last, more, count: msgs.length };
+}
+
 function decodeJwt(t) {
   try { return JSON.parse(Buffer.from(String(t).split('.')[1], 'base64url').toString('utf8')); } catch (e) { return null; }
 }
@@ -150,20 +199,28 @@ export default async function handler(req, res) {
     try { body = JSON.parse(body); } catch (e) { return res.status(400).json({ error: 'Invalid JSON' }); }
   }
   const { token, board, mode, text, images, context } = body || {};
-  if (mode !== 'split' && mode !== 'ask') return res.status(400).json({ error: 'mode must be split or ask' });
+  if (mode !== 'split' && mode !== 'ask' && mode !== 'pull') return res.status(400).json({ error: 'mode must be split, pull or ask' });
   if (!/^[a-z0-9][a-z0-9-]{1,23}$/.test(String(board || ''))) return res.status(400).json({ error: 'board?' });
 
   let who;
   try { who = await isEditor(token); } catch (e) { who = null; }
   if (!who) return res.status(403).json({ error: 'Only design-board editors can use Claude here. Sign in again, or ask Leo to add you.' });
 
-  const imgs = mode === 'split' ? (Array.isArray(images) ? images : []).slice(0, MAX_IMAGES).map(imageBlock).filter(Boolean) : [];
-  const t = String(text || '').slice(0, 20000);
-  if (!t.trim() && !imgs.length) return res.status(400).json({ error: 'Nothing to read: paste the conversation or a screenshot.' });
+  let pulled = null, srcImages = images, srcText = text;
+  if (mode === 'pull') {
+    try { pulled = await pullDiscord(board, body.after); } catch (e) { pulled = { error: 'Could not read Discord: ' + (e.message || e) }; }
+    if (pulled.error) return res.status(400).json({ error: pulled.error });
+    if (!pulled.text.trim()) return res.status(200).json({ comments: [], note: 'No new messages in Discord since the last pull.', images: [], last_id: pulled.last_id, more: false });
+    srcImages = pulled.images; srcText = 'Discord messages (oldest first):\n' + pulled.text;
+  }
+  const split = mode === 'split' || mode === 'pull';
+  const imgs = split ? (Array.isArray(srcImages) ? srcImages : []).slice(0, MAX_IMAGES).map(d => imageBlock(d) || { type: 'text', text: '(this screenshot could not be read)' }) : [];
+  const t = String(srcText || '').slice(0, 20000);
+  if (!t.trim() && !imgs.some(b => b.type === 'image')) return res.status(400).json({ error: 'Nothing to read: paste the conversation or a screenshot.' });
 
   const content = [];
   imgs.forEach((b, i) => { content.push({ type: 'text', text: `Screenshot ${i}:` }); content.push(b); });
-  content.push({ type: 'text', text: mode === 'split' ? (t.trim() ? 'Pasted text:\n' + t : 'Only screenshots were pasted.') : t });
+  content.push({ type: 'text', text: split ? (t.trim() ? (mode === 'pull' ? t : 'Pasted text:\n' + t) : 'Only screenshots were pasted.') : t });
 
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -172,9 +229,9 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 4096,
-        system: systemPrompt(mode, board, Object.assign({}, context || {}, { me: who })),
-        tools: [mode === 'split' ? SPLIT_TOOL : ASK_TOOL],
-        tool_choice: { type: 'tool', name: mode === 'split' ? SPLIT_TOOL.name : ASK_TOOL.name },
+        system: systemPrompt(split ? 'split' : 'ask', board, Object.assign({}, context || {}, { me: who })),
+        tools: [split ? SPLIT_TOOL : ASK_TOOL],
+        tool_choice: { type: 'tool', name: split ? SPLIT_TOOL.name : ASK_TOOL.name },
         messages: [{ role: 'user', content }],
       }),
     });
@@ -187,8 +244,10 @@ export default async function handler(req, res) {
     const use = (data.content || []).find(b => b.type === 'tool_use');
     if (!use) return res.status(502).json({ error: 'Claude did not answer in the expected form' });
     const out = use.input || {};
-    if (mode === 'split') {
-      return res.status(200).json({ comments: Array.isArray(out.comments) ? out.comments : [], note: out.note || '', _model: MODEL, _usage: data.usage || null });
+    if (split) {
+      const r2 = { comments: Array.isArray(out.comments) ? out.comments : [], note: out.note || '', _model: MODEL, _usage: data.usage || null };
+      if (pulled) Object.assign(r2, { images: pulled.images, last_id: pulled.last_id, more: pulled.more, transcript: pulled.text });
+      return res.status(200).json(r2);
     }
     return res.status(200).json({ answer: out.answer || '', actions: Array.isArray(out.actions) ? out.actions : [], _model: MODEL, _usage: data.usage || null });
   } catch (e) {

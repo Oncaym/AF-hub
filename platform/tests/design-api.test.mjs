@@ -18,8 +18,24 @@ const EDITOR = jwt({ email: 'henry.kim@advfacade.com' }), OTHER = jwt({ email: '
 const PNG = 'data:image/png;base64,iVBORw0KGgo=';
 
 let sent = null;
+const DISCORD_MSGS = [
+  { id: '1002', timestamp: '2026-09-28T14:19:00Z', author: { username: 'af_henry', global_name: 'AF_Henry' }, content: '네, 이거는 고쳤습니다.', referenced_message: { author: { username: 'spark' } }, attachments: [] },
+  { id: '1001', timestamp: '2026-09-28T14:16:00Z', author: { username: 'spark', global_name: 'SPARK' }, content: 'tob 대신에 t.o.hss 로 적어주세요',
+    attachments: [{ filename: 'markup.png', content_type: 'image/png', width: 2800, height: 1400, url: 'https://cdn.discordapp.com/a/markup.png?ex=1', proxy_url: 'https://media.discordapp.net/a/markup.png?ex=1' }],
+    reactions: [{ emoji: { name: '✅' }, count: 1 }] },
+];
+let discordHits = [];
 globalThis.fetch = async (url, opts) => {
   url = String(url);
+  if (url.startsWith('https://discord.com/api/v10/channels/')) {
+    discordHits.push(url);
+    if ((opts.headers || {}).Authorization !== 'Bot bot-token') return { ok: false, status: 401, json: async () => ({}) };
+    return { ok: true, json: async () => DISCORD_MSGS.slice() };
+  }
+  if (url.startsWith('https://media.discordapp.net/')) {
+    discordHits.push(url);
+    return { ok: true, headers: { get: () => 'image/png' }, arrayBuffer: async () => Buffer.from('PNGDATA') };
+  }
   if (url.startsWith('https://af-hub-8f188-design.firebaseio.com/allowlist/')) {
     const auth = new URL(url).searchParams.get('auth');
     const isHenry = decodeURIComponent(url).includes('henry,kim@advfacade,com') && auth === EDITOR;
@@ -70,6 +86,27 @@ r = await call({ token: EDITOR, board: 'ac3', mode: 'ask', text: 'what is left?'
 ok(r.code === 200 && r.body.answer === '#1 is still open.' && r.body.actions.length === 1, 'ask: answer and proposed actions come back');
 ok(sent.tool_choice.name === 'answer' && !sent.messages[0].content.some(b => b.type === 'image'), 'ask: no images sent');
 ok(/id=i1 #1 \[open\]/.test(sent.system), 'ask: comments are in the prompt');
+
+// Discord pull
+r = await call({ token: EDITOR, board: 'ac3', mode: 'pull', context: CTX });
+ok(r.code === 400 && /not connected/.test(r.body.error), 'pull: says so when Discord is not set up');
+process.env.DISCORD_BOT_TOKEN = 'bot-token';
+process.env.DISCORD_CHANNELS = JSON.stringify({ ac3: '555' });
+r = await call({ token: OTHER, board: 'ac3', mode: 'pull' });
+ok(r.code === 403 && !discordHits.length, 'pull: a non-editor never reaches Discord');
+r = await call({ token: EDITOR, board: 'hillview', mode: 'pull' });
+ok(r.code === 400 && /not connected for "hillview"/.test(r.body.error), 'pull: only channels listed for that board');
+sent = null; discordHits = [];
+r = await call({ token: EDITOR, board: 'ac3', mode: 'pull', after: '1000', context: CTX });
+ok(r.code === 200 && r.body.last_id === '1002' && r.body.images.length === 1 && /^data:image\/png;base64,/.test(r.body.images[0]), 'pull: returns last id and the screenshot');
+ok(discordHits[0].includes('/channels/555/messages') && discordHits[0].includes('after=1000'), 'pull: reads the board\'s channel after the last pull');
+ok(discordHits[1].startsWith('https://media.discordapp.net/a/markup.png?ex=1&width=1400&height=700'), 'pull: asks Discord for a smaller picture');
+const tr = r.body.transcript || '';
+ok(tr.indexOf('SPARK') < tr.indexOf('AF_Henry') && /reply to spark/.test(tr) && /\[screenshot 0\]/.test(tr) && /✅×1/.test(tr), 'pull: transcript oldest first, with replies, screenshots and reactions');
+ok(sent.tool_choice.name === 'propose_comments' && sent.messages[0].content.filter(b => b.type === 'image').length === 1, 'pull: Claude splits it like a paste');
+process.env.DISCORD_BOT_TOKEN = 'wrong';
+r = await call({ token: EDITOR, board: 'ac3', mode: 'pull' });
+ok(r.code === 400 && /token is wrong/.test(r.body.error), 'pull: a wrong bot token is reported plainly');
 
 delete process.env.ANTHROPIC_API_KEY;
 r = await call({ token: EDITOR, board: 'ac3', mode: 'ask', text: 'x' });

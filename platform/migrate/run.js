@@ -57,6 +57,10 @@ function input(name) {
 const MODE = (process.env.MODE || 'dry-run').trim();
 const PID = (process.env.PROJECT || '').trim();
 const EMAIL = input('EMAIL').trim().toLowerCase();
+/* EMAIL may list several people (commas, spaces or new lines): init makes them all
+   editors, member gives them all the same ROLE — one run instead of one per person. */
+const EMAILS = [...new Set(EMAIL.split(/[\s,;]+/).filter(Boolean))];
+const isEmail = e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
 const ROLE = (process.env.ROLE || '').trim();
 const FORCE = process.env.FORCE === '1' || process.env.FORCE === 'true';
 const COPY_PHOTOS = !(process.env.COPY_PHOTOS === '0' || process.env.COPY_PHOTOS === 'false');
@@ -283,32 +287,42 @@ async function rulesMode() {
 
 async function initMode() {
   const p = entry(PID);
-  if (!EMAIL) die('EMAIL (the first editor) is required for init');
+  if (!EMAILS.length) die('EMAIL (the first editor) is required for init');
+  const bad = EMAILS.filter(e => !isEmail(e));
+  if (bad.length) die(`not an email address: ${bad.map(C.maskEmail).join(', ')}`);
   const app = appFor(p.id, p.databaseURL, 'HUB_SERVICE_ACCOUNT');
   const root = await readRoot(app);
   if (root && Object.keys(root).length && !FORCE) die(`the database already has data (${Object.keys(root).join(', ')})`);
   await putRules(app, rulesFor(p));
   await getDatabase(app).ref('meta').set({ project: p.id, name: p.name, createdAt: Date.now() });
-  await getDatabase(app).ref('allowlist/' + C.emailKey(EMAIL)).set(true);
-  log(`✓ ${p.id} ready: rules, /meta, editor ${C.maskEmail(EMAIL)} (${await ensureUser(getAuth(app), EMAIL)})`);
+  await getDatabase(app).ref('allowlist').update(Object.fromEntries(EMAILS.map(e => [C.emailKey(e), true])));
+  log(`✓ ${p.id} ready: rules, /meta`);
+  for (const e of EMAILS) log(`  editor ${C.maskEmail(e)} (${await ensureUser(getAuth(app), e)})`);
 }
 
 async function memberMode() {
   const p = entry(PID);
-  if (!EMAIL || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(EMAIL)) die('EMAIL is missing or not an email address');
+  if (!EMAILS.length) die('EMAIL is missing');
+  const bad = EMAILS.filter(e => !isEmail(e));
+  if (bad.length) die(`not an email address: ${bad.map(C.maskEmail).join(', ')} (nothing was changed)`);
   const node = { editor: 'allowlist', gc: 'gcList', viewer: 'viewers' }[ROLE];
   if (!node && ROLE !== 'remove') die('ROLE must be editor, gc, viewer or remove');
   if (p.rules && ROLE === 'gc') die(`"${p.id}" has no GC list: use editor or viewer`);
   const app = appFor(p.id, p.databaseURL, 'HUB_SERVICE_ACCOUNT');
   const meta = (await getDatabase(app).ref('meta/project').once('value')).val();
   if (meta !== p.id) die(`${p.databaseURL} is not set up as "${p.id}" (meta: ${meta})`);
-  const k = C.emailKey(EMAIL);
-  const upd = { ['allowlist/' + k]: null, ['gcList/' + k]: null, ['viewers/' + k]: null };
-  if (node) upd[node + '/' + k] = true;
+  const upd = {};
+  for (const e of EMAILS) {
+    const k = C.emailKey(e);
+    Object.assign(upd, { ['allowlist/' + k]: null, ['gcList/' + k]: null, ['viewers/' + k]: null });
+    if (node) upd[node + '/' + k] = true;
+  }
   await getDatabase(app).ref().update(upd);
-  if (node) log(`✓ ${C.maskEmail(EMAIL)} is now ${ROLE} on ${p.id}; login ${await ensureUser(getAuth(app), EMAIL)}. ` +
-                `They open the tracker, enter their email and tap "First time here" to set a password.`);
-  else log(`✓ ${C.maskEmail(EMAIL)} removed from every list on ${p.id} (their login stays; it opens nothing here now)`);
+  for (const e of EMAILS) {
+    if (node) log(`✓ ${C.maskEmail(e)} is now ${ROLE} on ${p.id}; login ${await ensureUser(getAuth(app), e)}.`);
+    else log(`✓ ${C.maskEmail(e)} removed from every list on ${p.id} (their login stays; it opens nothing here now)`);
+  }
+  if (node) log(`They open the ${p.rules ? 'page (/' + p.folder + '/)' : 'tracker'}, enter their email and tap "First time here" to set a password.`);
 }
 
 (async () => {
