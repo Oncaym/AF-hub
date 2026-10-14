@@ -723,7 +723,9 @@
       const hDwg = its.find(i => /^DWG\.?\s*(#|NO\.?)$/i.test(i.s));
       const onHdr = re => (hDwg ? its.find(i => re.test(i.s) && Math.abs(i.y - hDwg.y) < 4 && i.x > hDwg.x) : null);
       const hScale = onHdr(/^SCALE$/i), hRev = onHdr(/^REV\.?\s*(#|NO\.?)?$/i);
-      let nos = its.filter(i => NO.test(i.s) && /\d/.test(i.s));
+      // Under a DWG# header any NO-shaped text counts (A-CS cover sheets have no digit);
+      // without one, require a digit so abbreviations like "W-O" are not taken.
+      let nos = its.filter(i => NO.test(i.s) && (hDwg || /\d/.test(i.s)));
       if (!nos.length) continue;
       let colX;
       if (hDwg) colX = hDwg.x;

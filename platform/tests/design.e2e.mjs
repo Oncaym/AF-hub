@@ -26,6 +26,14 @@ const URL_DB = REG.design.databaseURL;
 const targaryen = require('targaryen');
 const { chromium } = require('playwright');
 
+/* The drawing list: the real AC3 one when it is next to the code (Leo's computer;
+   it is git-ignored: client data), else a made-up sheet with the same layout traps. */
+const REAL_PDF = path.join(ROOT, 'AC3 drawing list.pdf');
+const REAL = !process.env.DESIGN_FIXTURE && fs.existsSync(REAL_PDF);
+const PDF = REAL ? REAL_PDF : path.join(here, 'fixtures', 'drawing-list-sample.pdf');
+const NDWG = REAL ? 78 : 7;
+const D1 = REAL ? 'AC3-103' : 'SMP-100A';   // the drawing the review comments are on
+const D2 = REAL ? 'AC3-500' : 'SMP-500';
 const PW = 'pw-1';
 const LEAD = 'spark@advfacade.com', DRAFTER = 'henry.kim@advfacade.com', STAFF = 'pm@advfacade.com', FOREMAN = 'joe.foreman@gmail.com';
 const key = e => e.replace(/\./g, ',');
@@ -98,8 +106,8 @@ async function ctx() {
     if (!b.token) return r.fulfill({ status: 403, contentType: 'application/json', body: '{"error":"no token"}' });
     const body = b.mode === 'split'
       ? { comments: [
-          { images: [0], dwg: 'AC3-103', where: 'East Glass Canopy', text: 'Write T.O.HSS for the 6\'-5" dimension', orig: '6\'5"는 저 C beam이 아니고 top HSS tube에요', reviewer: 'SPARK', owner: DRAFTER, already_fixed: true },
-          { images: [], dwg: 'AC3-103', where: 'South & East', text: 'Same T.O.HSS change on South and East', orig: 'South & East도 동일하게 하겠습니다.', reviewer: 'SPARK', owner: DRAFTER },
+          { images: [0], dwg: D1, where: 'East Glass Canopy', text: 'Write T.O.HSS for the 6\'-5" dimension', orig: '6\'5"는 저 C beam이 아니고 top HSS tube에요', reviewer: 'SPARK', owner: DRAFTER, already_fixed: true },
+          { images: [], dwg: D1, where: 'South & East', text: 'Same T.O.HSS change on South and East', orig: 'South & East도 동일하게 하겠습니다.', reviewer: 'SPARK', owner: DRAFTER },
           { images: [1], dwg: 'NOT-A-DWG', where: 'Section 2nd FL to T.O.HSS', text: '10\'-3 3/4" circled, no words', reviewer: 'SPARK', unclear: true, question: 'What should change at 10\'-3 3/4"?' },
         ], note: '✅ reactions were read as "seen", not "fixed".' }
       : { answer: '#3 is still to fix (South & East).', actions: [{ kind: 'comment_status', id: Object.entries(DB.boards.ac3.issues).find(([, v]) => v.n === 3)[0], status: 'fixed', rev: '3', why: 'Mark #3 fixed in rev 3' }] };
@@ -145,29 +153,33 @@ try {
 
   await p1.click('#tabs button[data-tab=drawings]');
   await p1.click('#importPdf');
-  await p1.setInputFiles('#ipFile', path.join(ROOT, 'AC3 drawing list.pdf'));
+  await p1.setInputFiles('#ipFile', PDF);
   await p1.waitForSelector('#ipGo:not([disabled])', { timeout: 20000 });
   const found = await p1.$$eval('input[data-ri]', els => els.length);
-  ok(found === 78, `drawing list PDF: ${found} drawings found (78 on the two sheets)`);
+  ok(found === NDWG, `drawing list PDF (${REAL ? 'real AC3' : 'sample'}): ${found} drawings found, want ${NDWG}`);
   await p1.click('#ipGo');
-  await p1.waitForFunction(() => document.querySelectorAll('tr.row').length === 78);
-  await until(() => Object.keys(DB.boards.ac3.drawings).length === 78);
-  const d100 = DB.boards.ac3.drawings['AC3-100'] || {};
-  ok(/^MAISONETTE ENTRY ELEVATION & PLAN \(W11, W12, W12A\)$/.test(d100.title || ''), 'AC3-100 title read right: ' + d100.title);
-  ok(d100.scale === '1-1/2"=1\'-0"', 'AC3-100 scale read right: ' + d100.scale);
-  const d010 = DB.boards.ac3.drawings['AC3-010'] || {};
-  ok(d010.title === 'KEY PLAN @ 1ST FLOOR' && d010.scale === '3/32"=1\'-0"', 'AC3-010 read right: ' + d010.title + ' / ' + d010.scale);
-  ok(!Object.values(DB.boards.ac3.drawings).some(d => /OWNER|ATLANTIC CHESTNUT AFFORDABLE|ABOVE FINISH/.test(d.title)), 'no title-block or abbreviation text leaked into titles');
+  await p1.waitForFunction(n => document.querySelectorAll('tr.row').length === n, NDWG);
+  await until(() => Object.keys(DB.boards.ac3.drawings).length === NDWG);
+  const dw = k => DB.boards.ac3.drawings[k] || {};
+  if (REAL) {
+    ok(dw('AC3-100').title === 'MAISONETTE ENTRY ELEVATION & PLAN (W11, W12, W12A)' && dw('AC3-100').scale === '1-1/2"=1\'-0"', 'AC3-100 read right: ' + dw('AC3-100').title + ' / ' + dw('AC3-100').scale);
+    ok(dw('AC3-010').title === 'KEY PLAN @ 1ST FLOOR' && dw('AC3-010').scale === '3/32"=1\'-0"', 'AC3-010 read right');
+    ok(dw('AC3-CS').title === 'COVER SHEET' && dw('AC3-620').title === 'CURTAIN WALL SF 16 METAL PANEL SECTION DETAILS', 'first and last sheet read right');
+  } else {
+    ok(dw('SMP-100').title === 'CURTAIN WALL ELEVATION & PLAN (CW-01, CW-02)' && dw('SMP-100').scale === '1-1/2"=1\'-0"', 'SMP-100 read right: ' + dw('SMP-100').title + ' / ' + dw('SMP-100').scale);
+    ok(dw('SMP-CS').title === 'COVER SHEET' && dw('SMP-600').title === 'CURTAIN WALL SECTION DETAILS @ METAL PANEL', 'a number with no digit (SMP-CS) and the second sheet read right');
+  }
+  ok(!Object.values(DB.boards.ac3.drawings).some(d => /OWNER|ATLANTIC CHESTNUT AFFORDABLE|ABOVE FINISH|TITLE BLOCK|REVISION|SIMILAR/.test(d.title)), 'no title-block or abbreviation text leaked into titles');
   if (process.env.SHOTS) fs.writeFileSync(path.join(process.env.SHOTS, 'drawings.json'), JSON.stringify(Object.values(DB.boards.ac3.drawings).map(d => [d.no, d.title, d.scale]), null, 1));
 
   // Hand AC3-103 to the drafter.
-  await p1.selectOption('select[data-dst="AC3-103"]', 'revise');
-  ok(await until(() => DB.boards.ac3.drawings['AC3-103'].status === 'revise'), 'status changed inline');
+  await p1.selectOption(`select[data-dst="${D1}"]`, 'revise');
+  ok(await until(() => DB.boards.ac3.drawings[D1].status === 'revise'), 'status changed inline');
 
   // 2. Lead adds a review comment with a pasted screenshot.
   await p1.click('#tabs button[data-tab=review]');
   await p1.click('#addIssue');
-  await p1.selectOption('#ifDwg', 'AC3-103');
+  await p1.selectOption('#ifDwg', D1);
   await p1.fill('#ifWhere', 'Typ. Perimeter Section @ West Sunshade');
   await p1.fill('#ifText', 'Write T.O.HSS instead of TOB; 6\'-5" is to the top HSS tube, not the C beam.');
   await p1.fill('#ifOrig', 'tob 대신에 t.o.hss 로 적어주세요');
@@ -185,7 +197,7 @@ try {
   await p1.waitForSelector('.card');
   await until(() => Object.keys(DB.boards.ac3.issues).length === 1);
   const iss = Object.entries(DB.boards.ac3.issues || {});
-  ok(iss.length === 1 && iss[0][1].n === 1 && iss[0][1].status === 'open' && iss[0][1].dwg === 'AC3-103', 'comment #1 saved on AC3-103, open');
+  ok(iss.length === 1 && iss[0][1].n === 1 && iss[0][1].status === 'open' && iss[0][1].dwg === D1, 'comment #1 saved on ' + D1 + ', open');
   ok(Object.keys(iss[0][1].imgs || {}).length === 1 && Object.keys(DB.images.ac3).length === 1, 'screenshot saved under /images, linked from the comment');
   await p1.waitForFunction(() => { const i = document.querySelector('.card img[data-img]'); return i && i.src.startsWith('data:image/jpeg'); });
   ok(true, 'screenshot thumbnail shows');
@@ -222,7 +234,7 @@ try {
   ok(await until(() => Object.values(DB.boards.ac3.issues)[0].status === 'closed'), 'second close: checked by the lead');
   await p1.click('.chip[data-mine]');   // Mine off (it applies on both tabs)
   await p1.click('#tabs button[data-tab=drawings]');
-  await p1.click('tr.row[data-dwg="AC3-103"] td.no');
+  await p1.click(`tr.row[data-dwg="${D1}"] td.no`);
   await p1.waitForSelector('#modalBox h2');
   ok(/Rev 3[\s\S]*#1/.test(await p1.textContent('#modalBox')), 'drawing view lists #1 under "what changed in rev 3"');
   await p1.keyboard.press('Escape');
@@ -246,7 +258,7 @@ try {
   await p1.click('#spGo');
   await p1.waitForSelector('[data-pi="2"]');
   const call1 = apiCalls[apiCalls.length - 1];
-  ok(call1.mode === 'split' && call1.board === 'ac3' && call1.images.length === 2 && call1.context.drawings.length === 78, 'split: page sends text, 2 screenshots and the drawing list');
+  ok(call1.mode === 'split' && call1.board === 'ac3' && call1.images.length === 2 && call1.context.drawings.length === NDWG, 'split: page sends text, 2 screenshots and the drawing list');
   ok(await p1.$eval('[data-pi="2"] .spDwg', e => e.value) === '', 'a drawing number Claude made up is not kept');
   ok(await p1.$eval('[data-pi="0"] .spSt', e => e.value) === 'fixed' && await p1.$eval('[data-pi="2"] .spSt', e => e.value) === 'ask', 'already-fixed → "fixed · to check", unclear → "ask reviewer"');
   await p1.click('#spAdd');
@@ -258,7 +270,7 @@ try {
   ok(byN(2).orig && /top HSS tube/.test(byN(2).orig), 'the reviewer\'s own words are kept');
 
   // 4c. Ask Claude; the proposed change needs a press.
-  await p1.fill('#askQ', 'what is left on AC3-103?');
+  await p1.fill('#askQ', 'what is left on ' + D1 + '?');
   await p1.click('#askForm button[type=submit]');
   await p1.waitForSelector('[data-doact="0"]');
   ok(/still to fix/.test(await p1.textContent('#askOut')), 'ask: the answer shows');
@@ -292,7 +304,7 @@ try {
   await p6.waitForFunction(() => window.__badge !== undefined);
   const before = await p6.evaluate(() => window.__badge);
   await p1.click('#addIssue');
-  await p1.selectOption('#ifDwg', 'AC3-500');
+  await p1.selectOption('#ifDwg', D2);
   await p1.fill('#ifText', 'Add the W8X20 beam line to the 3/4" dimension');
   await p1.fill('#ifOwner', DRAFTER);
   await p1.click('#ifGo');
@@ -300,7 +312,7 @@ try {
   await p6.evaluate(() => window.__fbRefresh && window.__fbRefresh());
   await p6.waitForFunction(b => window.__badge === b + 1, before);
   ok(true, `badge went ${before} → ${before + 1} when a comment for the drafter arrived`);
-  ok(/New for you: #5 \| AC3-500 Add the W8X20/.test((await p6.evaluate(() => window.__notes || [])).join('\n')), 'a Windows notice was asked for: "New for you: #5"');
+  ok(new RegExp('New for you: #5 \\| ' + D2 + ' Add the W8X20').test((await p6.evaluate(() => window.__notes || [])).join('\n')), 'a Windows notice was asked for: "New for you: #5"');
   ok((await p6.evaluate(() => window.__notes.length)) === 1, 'no notices for what was already there');
   await p6.click('#tabs button[data-tab=links]');
   ok(await p6.$$eval('.links a', a => a.length) === 5, 'links tab lists the hub pages');
