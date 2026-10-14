@@ -10,7 +10,7 @@
       ]
     },
     {
-      "source": "/design/(.*)",
+      "source": "/(design|assistant)/(.*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -46,6 +46,9 @@
   ],
   "functions": {
     "api/design.mjs": {
+      "maxDuration": 60
+    },
+    "api/agent.mjs": {
       "maxDuration": 60
     }
   }

@@ -322,30 +322,18 @@ try {
   ok(/closes <b>twice<\/b>|closes twice/i.test(await p1.innerHTML('#modalBox')), 'help window explains the two closes');
   await p1.keyboard.press('Escape');
 
-  // 4d. The desktop helper's compact view (?mini=1): badge and notices.
-  console.log('helper view');
+  // 4d. The desktop helper's old address (?mini=1) now opens the chat (assistant.e2e.mjs tests the chat).
+  console.log('helper address');
   const c6 = await ctx(); const p6 = await c6.newPage(); watch(p6);
-  await p6.addInitScript(() => { window.afHelper = { setBadge: n => { window.__badge = n; }, notify: (t, b) => { (window.__notes = window.__notes || []).push(t + ' | ' + b); } }; });
-  await signIn(p6, DRAFTER, BASE + '?mini=1');
-  await p6.waitForSelector('#tabs button[data-tab=links]');
-  ok(await p6.evaluate(() => document.body.classList.contains('mini')) && !(await p6.$('.tiles')), 'mini view: compact, no tiles');
-  ok(await p6.$eval('.chip[data-mine]', e => e.classList.contains('on')), 'mini view opens on "Mine"');
-  await p6.waitForFunction(() => window.__badge !== undefined);
-  const before = await p6.evaluate(() => window.__badge);
+  await p6.goto(BASE + '?mini=1');
+  await p6.waitForURL(/\/assistant\/$/);
+  ok(true, '/design/?mini=1 → /assistant/');
   await p1.click('#addIssue');
   await p1.selectOption('#ifDwg', D2);
   await p1.fill('#ifText', 'Add the W8X20 beam line to the 3/4" dimension');
   await p1.fill('#ifOwner', DRAFTER);
   await p1.click('#ifGo');
-  await until(() => Object.keys(DB.boards.ac3.issues).length === 5 + extra);
-  await p6.evaluate(() => window.__fbRefresh && window.__fbRefresh());
-  await p6.waitForFunction(b => window.__badge === b + 1, before);
-  ok(true, `badge went ${before} → ${before + 1} when a comment for the drafter arrived`);
-  ok(new RegExp('New for you: #' + (5 + extra) + ' \\| ' + D2 + ' Add the W8X20').test((await p6.evaluate(() => window.__notes || [])).join('\n')), 'a Windows notice was asked for the new comment');
-  ok((await p6.evaluate(() => window.__notes.length)) === 1, 'no notices for what was already there');
-  await p6.click('#tabs button[data-tab=links]');
-  ok(await p6.$$eval('.links a', a => a.length) === 5, 'links tab lists the hub pages');
-  if (process.env.SHOTS) { await p6.setViewportSize({ width: 430, height: 680 }); await p6.click('#tabs button[data-tab=review]'); await p6.screenshot({ path: path.join(process.env.SHOTS, 'mini.png') }); }
+  ok(await until(() => Object.keys(DB.boards.ac3.issues).length === 5 + extra), 'another comment added from the board page');
 
   // 5. Staff: read only.
   console.log('staff');

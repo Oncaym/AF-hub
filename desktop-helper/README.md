@@ -1,14 +1,12 @@
-# AF Helper（design team 桌面小精灵）
+# AF Helper（桌面小精灵）
 
-屏幕角上一个圆按钮，永远浮在最上面。点它（或按 **Ctrl+Shift+Space**）打开一个小窗口。小窗口里就是 hub 的 Design Board 精简页 `/design/?mini=1`：
+屏幕角上一个圆按钮，永远浮在最上面。点它（或按 **Ctrl+Shift+Space**）打开一个**对话框**（hub 的 `/assistant/`；旧地址 `/design/?mini=1` 会自动跳过去）：
 
-- **To-do**：我要改的意见、等我审的意见。圆按钮上的红色数字就是这个数。
-- **贴截图收意见**：✨ Paste from Discord（Claude 拆条，人点确认才加）。
-- **Drawings**：每张图在谁手里、什么状态。
-- **Links**：hub、AC3 / Lexington tracker、Takeoff（在浏览器里打开）。
-- **问 Claude**：例如"AC3-103 还剩什么""把 #3 标成 rev 2 已改"。改东西前都要点确认。
-
-有新的意见指给我，Windows 右下角会弹通知。
+- 用中文 / 韩文 / 英文直接说要做什么，可以贴截图（Ctrl+V）、拖 PDF、Excel 进来。
+- 它会查：Design Board（图纸、审图意见）、安装 tracker（AC3 / Lexington 的进度、日志、submittal）。
+- 它会改：记审图意见、改意见和图纸状态、更新安装进度 / 日志 / submittal。**每个改动先出一张确认卡，点 Confirm 才保存**，用的是你自己的账号权限（不是 editor 的项目只能看）。
+- 圆按钮上的红色数字 = 你的待办（要你改的意见 + 等你审的意见）；有新的会弹 Windows 通知。
+- 调 Claude 用的是 Vercel 上的 `ANTHROPIC_API_KEY`（和 Tracker Chat 同一把，按 API 计费），不占任何人的 Claude 账号额度。不想用 AI 的人照常用网页。
 
 ## 安装（每个人自己装，不用管理员）
 1. 打开 GitHub 仓库的 **Releases**，下载最新的 `AF-Helper-Setup-x.y.z.exe`。

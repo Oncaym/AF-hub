@@ -33,6 +33,16 @@ ok(!REG.projects.some(p => p.databaseURL === D.databaseURL), 'no tracker shares 
   ok(!/af-hub-8f188-(ac3|lex)/.test(read('design/design-cloud.js') + read('design/design-app.js')), 'design code names no tracker database');
 }
 
+{
+  // The AF Helper's own copy of the tracker list (platform/ is not deployed).
+  const g = { console }; vm.createContext(g); g.window = g;
+  vm.runInContext(read('assistant/projects.js'), g);
+  const mine = JSON.stringify((g.AF_PROJECTS || []).map(p => [p.id, p.name, p.databaseURL]));
+  const reg = JSON.stringify(REG.projects.map(p => [p.id, p.name, p.databaseURL]));
+  ok(mine === reg, 'assistant/projects.js lists the same trackers as platform/projects.json');
+  ok(/src="projects\.js/.test(read('assistant/index.html')), 'assistant/index.html loads projects.js');
+}
+
 // ──────────────────────────────────────────────────────────────── rules ──
 const rules = JSON.parse(read('platform/' + D.rules).split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n'));
 const key = e => e.replace(/\./g, ',');
