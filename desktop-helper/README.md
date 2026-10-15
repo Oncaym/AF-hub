@@ -8,6 +8,11 @@
 - 她头上的红色数字 = 你的待办；有新的她会说出来，也会弹 Windows 通知。对话框在干活时她在画图。
 - 调 Claude 用的是 Vercel 上的 `ANTHROPIC_API_KEY`（按 API 计费），不占任何人的 Claude 账号额度。不想用 AI 的人照常用网页。
 
+## 被 Smart App Control 拦住了？
+Windows 11 的 **Smart App Control**（智能应用控制）只放行有正规代码签名的程序，没有"仍要运行"。这个安装包没签名，所以开着它的电脑装不了。
+- 这时用**浏览器版**：用 Edge 或 Chrome 打开 https://af-hub-two.vercel.app/assistant/ ，点右上角 **Install app**（或地址栏的"安装"图标）。它会进开始菜单和任务栏，有自己的窗口；待办数字显示在任务栏图标上，点 🔔 可以开 Windows 通知。Leona 在窗口里，不在桌面上走。
+- 想让桌面版也能装，需要给安装包签名（例如 Azure Artifact Signing，约 $9.99/月，要公司身份验证），签名可以接进 GitHub 的打包流程。
+
 ## 安装（每个人自己装，不用管理员）
 1. 打开 GitHub 仓库的 **Releases**，下载最新的 `AF-Helper-Setup-x.y.z.exe`。
 2. 双击。如果 Windows 说"Windows 已保护你的电脑"，点 **更多信息 → 仍要运行**（安装包没有买代码签名证书）。

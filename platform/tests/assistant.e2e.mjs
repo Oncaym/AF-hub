@@ -135,7 +135,7 @@ await new Promise(r => server.listen(0, '127.0.0.1', r));
 const BASE = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch(process.env.PW_EXEC ? { executablePath: process.env.PW_EXEC } : {});
 const errors = [];
-async function open(email, url) {
+async function open(email, url, opts = {}) {
   const c = await browser.newContext({ viewport: { width: 430, height: 760 } });
   await c.exposeFunction('__fb', (op, args) => handle(op, args));
   const fake = fs.readFileSync(path.join(here, 'e2e', 'fake-firebase.js'), 'utf8');
@@ -144,7 +144,8 @@ async function open(email, url) {
   await c.route(/cdnjs\.cloudflare\.com\/ajax\/libs\/xlsx\//, r => r.fulfill({ contentType: 'text/javascript', body: SHEETJS_STUB }));
   await c.route(/\/api\/agent$/, r => { const b = JSON.parse(r.request().postData()); r.fulfill({ status: b.token ? 200 : 403, contentType: 'application/json', body: JSON.stringify(b.token ? claude(b) : { error: 'no token' }) }); });
   const p = await c.newPage(); p.on('pageerror', e => errors.push(e.message));
-  await p.addInitScript(() => { window.afHelper = { setBadge: n => { window.__badge = n; }, notify: t => { (window.__notes = window.__notes || []).push(t); }, busy: v => { (window.__busy = window.__busy || []).push(v); } }; });
+  if (opts.browserApp) await p.addInitScript(() => { navigator.setAppBadge = n => { window.__appBadge = n; return Promise.resolve(); }; navigator.clearAppBadge = () => { window.__appBadge = 0; return Promise.resolve(); }; });
+  else await p.addInitScript(() => { window.afHelper = { setBadge: n => { window.__badge = n; }, notify: t => { (window.__notes = window.__notes || []).push(t); }, busy: v => { (window.__busy = window.__busy || []).push(v); } }; });
   await p.goto(BASE + (url || '/assistant/'));
   await p.fill('#gEmail', email); await p.fill('#gPwd', PW); await p.click('#gForm button[type=submit]');
   await p.waitForSelector('#msg');
@@ -249,6 +250,17 @@ try {
   await h.fill('#msg', 'SF11A installed today'); await h.keyboard.press('Enter');
   await h.waitForSelector('.pcard .pf .warn');
   ok(!(await h.$('.pcard [data-yes]')), 'Henry is only a viewer of AC3: the card has no Confirm');
+
+  // 6. the browser app (no desktop helper): to-do count on the taskbar badge, Leona in the window, installable
+  console.log('Henry in the browser app (no desktop helper)');
+  const w = await open(HENRY, '/assistant/', { browserApp: true });
+  await w.waitForFunction(() => window.__appBadge === 1);
+  ok(true, 'without the desktop app the to-do count goes to the taskbar badge (1)');
+  ok(await w.$eval('.hello img.leona', i => i.complete && i.naturalWidth > 0), 'Leona greets in the window');
+  if (process.env.SHOTS) await w.screenshot({ path: path.join(process.env.SHOTS, 'helper-browser.png') });
+  const man = await w.evaluate(async () => { const l = document.querySelector('link[rel=manifest]'); const m = await (await fetch(l.href)).json(); const ok = await Promise.all(m.icons.map(i => fetch(new URL(i.src, l.href)).then(r => r.ok))); return { m, ok }; });
+  ok(man.m.start_url === '/assistant/' && man.m.display === 'standalone' && man.ok.every(Boolean) && man.m.icons.some(i => i.purpose === 'maskable'), 'manifest: installable app at /assistant/, icons load');
+  ok(await p.$eval('#installBtn', b => b.hidden) && await p.$eval('#bellBtn', b => b.hidden), 'inside the desktop app there is no Install / 🔔 button');
 
   ok(!errors.length, 'no page errors' + (errors.length ? ': ' + errors.join(' | ') : ''));
   ok(denied === 0, `no write refused by the rules (${denied})`);

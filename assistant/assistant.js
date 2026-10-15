@@ -104,14 +104,23 @@
   const isMe = v => { v = String(v || '').trim().toLowerCase(); const m = String(DC.email || '').toLowerCase(); return !!v && !!m && (v === m || v === nameOf(m) || nameOf(v) === nameOf(m)); };
   const mine = i => ((i.status === 'open' || i.status === 'ask') && isMe(i.owner)) || (i.status === 'fixed' && isMe(i.reviewer));
   let seen = null;
+  /* To-do count and "new for you": to Leona in the desktop app, or — in the
+     browser app (Edge / Chrome "Install") — the taskbar badge and a Windows notice. */
+  const setCount = n => {
+    if (helper) { try { helper.setBadge(n); } catch (e) {} return; }
+    try { if (navigator.setAppBadge) (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {}); } catch (e) {}
+  };
+  const tell = (title, body) => {
+    if (helper) { try { helper.notify(title, body); } catch (e) {} return; }
+    try { if (window.Notification && Notification.permission === 'granted' && document.hidden) new Notification(title, { body, icon: 'leona/icon-192.png', tag: title }); } catch (e) {}
+  };
   function badge() {
-    if (!helper) return;
     const all = []; Object.entries(S.issues).forEach(([b, is]) => Object.entries(is).forEach(([id, i]) => all.push(Object.assign({ id: b + '/' + id, b }, i))));
     const my = all.filter(mine);
-    try { helper.setBadge(my.length); } catch (e) {}
+    setCount(my.length);
     const ids = new Set(my.map(i => i.id));
     if (seen && Object.keys(S.issues).length === Object.keys(S.boards).length) my.filter(i => !seen.has(i.id)).slice(0, 3).forEach(i => {
-      try { helper.notify(i.status === 'fixed' ? `#${i.n} is fixed — please check` : `New for you: #${i.n}`, `${(S.boards[i.b] || {}).name || i.b}: ${i.text}`); } catch (e) {}
+      tell(i.status === 'fixed' ? `#${i.n} is fixed — please check` : `New for you: #${i.n}`, `${(S.boards[i.b] || {}).name || i.b}: ${i.text}`);
     });
     if (Object.keys(S.issues).length === Object.keys(S.boards).length) seen = ids;
   }
@@ -561,7 +570,7 @@
     const lastMsg = S.convo[S.convo.length - 1];
     if (lastMsg && lastMsg.role === 'user' && Array.isArray(lastMsg.content)) lastMsg.content.push(...content);   // after tool results: one user turn
     else S.convo.push({ role: 'user', content });
-    const wait = bubble('bot', '<span class="typing"></span>');
+    const wait = bubble('bot', '<img class="leona-mini" src="leona/draw.webp" alt="">Working on it<span class="typing"></span>');
     try {
       for (let step = 0; step < 8; step++) {
         const res = await callAgent();
@@ -596,7 +605,7 @@
   function hello() {
     if (chat().children.length) return;
     const tips = ['AC3 还剩哪些意见没改？', '我手上有哪些要改的？', 'AC3 的 Excel 表有哪些问题？', 'AC3 这周装了多少？有哪些 issue？', '哪些 submittal 被退回了？'];
-    chat().innerHTML = `<div class="hello"><div style="font-size:16px;color:var(--text)">Hi ${esc(nameOf(DC.email))} — tell me what you need.</div>
+    chat().innerHTML = `<div class="hello"><img class="leona" src="leona/wave.webp" alt="Leona" title="Leona"><div style="font-size:16px;color:var(--text)">Hi ${esc(nameOf(DC.email))} — tell me what you need.</div>
       <div>Paste a Discord screenshot to log comments, ask what is left, or tell me what was installed. I show you every change before it is saved.</div>
       <div class="chips">${tips.map(t => `<button class="chip" data-tip="${esc(t)}">${esc(t)}</button>`).join('')}</div></div>`;
   }
@@ -621,6 +630,16 @@
     const img = e.target.closest('.msg img, .pcard img'); if (img) { const m = $('#modal'); $('#modalBox').innerHTML = `<div class="zoom"><img src="${img.src}" alt=""></div>`; $('#modalBox').className = 'box wide'; m.hidden = false; }
   });
   $('#modal').addEventListener('mousedown', e => { if (e.target.id === 'modal') $('#modal').hidden = true; });
+  // the browser app: an "Install" button (Edge / Chrome), notices, and the offline page
+  let installEv = null;
+  const standalone = () => window.matchMedia && matchMedia('(display-mode: standalone)').matches;
+  window.addEventListener('beforeinstallprompt', e => { if (helper) return; e.preventDefault(); installEv = e; $('#installBtn').hidden = false; });
+  window.addEventListener('appinstalled', () => { $('#installBtn').hidden = true; toast('Installed — AF Helper is now in your Start menu.'); });
+  $('#installBtn').onclick = async () => { if (!installEv) return; installEv.prompt(); try { await installEv.userChoice; } catch (e) {} installEv = null; $('#installBtn').hidden = true; };
+  function bellState() { const b = $('#bellBtn'); b.hidden = !!helper || !window.Notification || Notification.permission !== 'default' || !standalone(); }
+  $('#bellBtn').onclick = () => { Notification.requestPermission().then(p => { bellState(); if (p === 'granted') toast('Notices on: you will hear about new to-dos.'); }); };
+  bellState();
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
   $('#newChat').onclick = () => { if (S.busy) return; S.convo = []; S.pending = []; S.notes = []; drawAtts(); chat().innerHTML = ''; save(); hello(); };
   try { if (localStorage.getItem('afdesign_theme') === 'day') document.body.classList.add('day-mode'); } catch (e) {}
   $('#themeBtn').onclick = () => { const d = document.body.classList.toggle('day-mode'); try { localStorage.setItem('afdesign_theme', d ? 'day' : 'dark'); } catch (e) {} };

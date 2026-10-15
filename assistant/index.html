@@ -4,15 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>AF Helper</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1419'/%3E%3Cpath d='M16 48l6-2 24-24-4-4-24 24z' fill='%234493f8'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" href="leona/icon-32.png">
+<link rel="apple-touch-icon" href="leona/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1419">
 <link rel="stylesheet" href="../design/design.css?v=20261016a">
-<link rel="stylesheet" href="assistant.css?v=20261016a">
+<link rel="stylesheet" href="assistant.css?v=20261016c">
 </head>
 <body class="assistant">
 <header class="top">
-  <div class="brand">✏️ AF Helper</div>
+  <div class="brand"><img src="leona/icon-32.png" alt="" class="brand-ico">AF Helper</div>
   <span class="grow"></span>
   <span class="who" id="who"></span>
+  <button class="btn small" id="installBtn" hidden title="Put AF Helper in the Start menu and taskbar, in its own window">Install app</button>
+  <button class="btn small ghost" id="bellBtn" hidden title="Get a Windows notice when something new is for you">🔔</button>
   <a class="btn small ghost" href="../design/" target="_blank" rel="noopener" title="Design Board (full page)">Board</a>
   <button class="btn small ghost" id="newChat" title="Start a new conversation">New</button>
   <button class="btn small ghost" id="themeBtn" title="Light / dark">🌓</button>
@@ -44,6 +49,6 @@
 <script src="../design/schedules/ops.js?v=20261016a"></script>
 <script src="../design/schedules/cloud-store.js?v=20261016a"></script>
 <script src="projects.js?v=20261016a"></script>
-<script src="assistant.js?v=20261016b"></script>
+<script src="assistant.js?v=20261016c"></script>
 </body>
 </html>
