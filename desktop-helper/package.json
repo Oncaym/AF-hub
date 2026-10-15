@@ -1,8 +1,8 @@
 {
   "name": "af-helper",
   "productName": "AF Helper",
-  "version": "0.1.0",
-  "description": "Advanced Facade design team desktop helper: a floating button that opens the Design Board's compact view.",
+  "version": "0.2.0",
+  "description": "Advanced Facade desktop helper: Leona lives on the desktop; click her to chat with the AF Hub assistant.",
   "main": "main.js",
   "private": true,
   "author": "Advanced Facade",
@@ -17,7 +17,7 @@
   "build": {
     "appId": "com.advfacade.afhelper",
     "productName": "AF Helper",
-    "files": ["main.js", "bubble.html", "bubble.js", "bubble-preload.js", "panel-preload.js", "offline.html", "offline.js", "icon.png", "tray.png"],
+    "files": ["main.js", "pet.html", "pet.js", "pet-preload.js", "assets/**", "panel-preload.js", "offline.html", "offline.js", "icon.png", "tray.png"],
     "directories": { "output": "dist" },
     "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "icon.ico" },
     "nsis": {

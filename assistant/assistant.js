@@ -549,6 +549,7 @@
     text = String(text || '').trim();
     if (!text && !S.pending.length) return;
     S.busy = true; $('#send').disabled = true;
+    try { if (helper && helper.busy) helper.busy(true); } catch (e) {}   // Leona draws while we work
     const hello = chat().querySelector('.hello'); if (hello) hello.remove();
     const files = S.pending.splice(0); drawAtts();
     const me = bubble('me', esc(text || '(attachments)') + (files.length ? `<div class="thumbs">${files.map(a => a.img ? `<img src="${a.img}" alt="">` : `<span class="att">📄 ${esc(a.name)}</span>`).join('')}</div>` : ''));
@@ -583,6 +584,7 @@
     }
     wait.remove();
     S.busy = false; $('#send').disabled = false; $('#msg').focus();
+    try { if (helper && helper.busy) helper.busy(false); } catch (e) {}
     save();
   }
   function save() {

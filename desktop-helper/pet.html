@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'self'">
+<!-- Leona, the AF Helper on the desktop. Look and poses by Leo (desktop-pet, 10-14). -->
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none;
+    font-family: "Segoe UI", "Microsoft YaHei", "Malgun Gothic", sans-serif; }
+  .pet { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); cursor: pointer; }
+  .pet img { display: block; -webkit-user-drag: none; pointer-events: none; }
+  .pet .flip { transform-origin: bottom center; }
+  .pet.flip-x .flip { transform: scaleX(-1); }
+  .pet .shadow { position: absolute; left: 50%; bottom: -4px; width: 62%; height: 12px; transform: translateX(-50%);
+    border-radius: 50%; background: #000; opacity: .14; }
+  .pet.sleeping .shadow { width: 78%; opacity: .1; }
+  .pet.held .bob { transform: translateY(-4px) scale(1.02); }
+
+  @keyframes breathe { 0%, 100% { transform: scaleY(1) translateY(0); } 50% { transform: scaleY(.985) translateY(1px); } }
+  .pet.idle .bob { animation: breathe 2.6s ease-in-out infinite; transform-origin: bottom center; }
+  @keyframes sipsway { 0%, 100% { transform: rotate(-1.5deg); } 50% { transform: rotate(1.5deg); } }
+  .pet.sipping .bob { animation: sipsway 1.6s ease-in-out infinite; transform-origin: bottom center; }
+  @keyframes drawnod { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(2px); } 60% { transform: translateY(-1px); } }
+  .pet.drafting .bob { animation: drawnod 1.1s ease-in-out infinite; transform-origin: bottom center; }
+  @keyframes wobble { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-3deg); } 75% { transform: rotate(3deg); } }
+  .pet.greeting .bob { animation: wobble .6s ease-in-out infinite; transform-origin: bottom center; }
+
+  .zzz { position: absolute; left: 72%; bottom: 62%; pointer-events: none; opacity: 0; }
+  .pet.sleeping .zzz { opacity: 1; }
+  .zzz span { position: absolute; font-size: 15px; font-weight: 600; color: #8b949e; animation: zfloat 2.4s ease-out infinite; opacity: 0;
+    text-shadow: 0 0 3px rgba(255,255,255,.8); }
+  .zzz span:nth-child(2) { animation-delay: .8s; font-size: 19px; }
+  .zzz span:nth-child(3) { animation-delay: 1.6s; font-size: 23px; }
+  @keyframes zfloat { 0% { transform: translate(0, 0) rotate(0); opacity: 0; } 20% { opacity: .9; } 100% { transform: translate(16px, -46px) rotate(14deg); opacity: 0; } }
+
+  /* speech bubble: sits just above her head (bottom set from the pose's head line) */
+  .say { position: absolute; left: 50%; transform: translateX(-50%) scale(.9); transform-origin: bottom center;
+    width: max-content; max-width: 250px; padding: 7px 11px; border: 1px solid rgba(31,35,40,.18); border-radius: 12px;
+    background: #fff; color: #1f2328; font-size: 13.5px; line-height: 19px; text-align: center; white-space: normal;
+    box-shadow: 0 4px 14px rgba(0,0,0,.18); opacity: 0; pointer-events: none; transition: opacity 150ms ease, transform 150ms ease-out; }
+  .say::after { content: ""; position: absolute; left: 50%; bottom: -5px; width: 8px; height: 8px; transform: translateX(-50%) rotate(45deg);
+    border-right: 1px solid rgba(31,35,40,.18); border-bottom: 1px solid rgba(31,35,40,.18); background: #fff; }
+  .say.show { opacity: 1; transform: translateX(-50%) scale(1); pointer-events: auto; cursor: pointer; }
+
+  /* to-do count, next to her head */
+  .badge { position: absolute; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px;
+    background: #f85149; color: #fff; font: 700 12px/22px "Segoe UI", sans-serif; text-align: center; display: none;
+    box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+
+  /* name tag while the mouse is on her */
+  .tag { position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%); white-space: nowrap; padding: 2px 9px;
+    border-radius: 10px; background: rgba(15,20,25,.82); color: #e6edf3; font-size: 11.5px; line-height: 18px; opacity: 0;
+    transition: opacity 150ms ease; pointer-events: none; display: flex; align-items: center; gap: 6px; }
+  .tag.show { opacity: 1; }
+  .tag b { font-weight: 600; }
+  .dot { width: 6px; height: 6px; border-radius: 999px; background: #3fb950; }
+  .dot.lazy { background: #d29922; }
+  .dot.busy { background: #58a6ff; }
+</style></head>
+<body>
+<div class="pet idle" id="pet">
+  <div class="flip"><div class="bob"><img id="petImg" alt="Leona" draggable="false"></div><div class="shadow"></div></div>
+  <div class="zzz"><span>Z</span><span>Z</span><span>Z</span></div>
+</div>
+<div class="say" id="say"></div>
+<div class="badge" id="badge"></div>
+<div class="tag" id="tag"><span class="dot" id="dot"></span><b>Leona</b><span id="doing"></span></div>
+<script src="assets/poses.js"></script>
+<script src="pet.js"></script>
+</body></html>

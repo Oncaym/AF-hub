@@ -144,7 +144,7 @@ async function open(email, url) {
   await c.route(/cdnjs\.cloudflare\.com\/ajax\/libs\/xlsx\//, r => r.fulfill({ contentType: 'text/javascript', body: SHEETJS_STUB }));
   await c.route(/\/api\/agent$/, r => { const b = JSON.parse(r.request().postData()); r.fulfill({ status: b.token ? 200 : 403, contentType: 'application/json', body: JSON.stringify(b.token ? claude(b) : { error: 'no token' }) }); });
   const p = await c.newPage(); p.on('pageerror', e => errors.push(e.message));
-  await p.addInitScript(() => { window.afHelper = { setBadge: n => { window.__badge = n; }, notify: t => { (window.__notes = window.__notes || []).push(t); } }; });
+  await p.addInitScript(() => { window.afHelper = { setBadge: n => { window.__badge = n; }, notify: t => { (window.__notes = window.__notes || []).push(t); }, busy: v => { (window.__busy = window.__busy || []).push(v); } }; });
   await p.goto(BASE + (url || '/assistant/'));
   await p.fill('#gEmail', email); await p.fill('#gPwd', PW); await p.click('#gForm button[type=submit]');
   await p.waitForSelector('#msg');
@@ -165,6 +165,7 @@ try {
   const tr = calls[calls.length - 1].messages.slice(-1)[0].content[0];
   ok(tr.type === 'tool_result' && /"n":1/.test(tr.content) && /comments_by_status/.test(tr.content), 'get_design ran in the page and returned comment #1 with exact counts');
   ok(/<li>/.test(await p.innerHTML('#chat')), 'the answer is rendered (list)');
+  ok(JSON.stringify(await p.evaluate(() => window.__busy)) === '[true,false]', 'Leona is told "working" while the request runs, then "done"');
   ok(calls[0].context.boards[0].id === 'ac3' && calls[calls.length - 1].context.projects.some(x => x.id === 'ac3' && x.role === 'editor'), 'context tells Claude the boards and that Leo is an AC3 editor');
 
   // 2. paste a picture + "记成意见" → card → confirm → saved with the picture
