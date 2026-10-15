@@ -14,10 +14,17 @@
 3. 装好会自己打开。第一次在小窗口里登录 hub 账号，以后会记住。
 4. 右键 Leona（或任务栏右下角的图标）可以：显示 / 隐藏 Leona、让她别走动、调大小（Normal / Small）、开机自动启动、重新加载、退出。
 
+## 自动更新（0.2.0 起）
+- 装好以后**不用再手动下载**：她每次启动 30 秒后、以后每 4 小时，去 GitHub 最新的 release 看有没有新版本（`latest.yml`），有就在后台下载。
+- 下载好了 Leona 会说一声。等你**离开电脑 5 分钟、而且对话框关着**的时候，她自己装好并重新打开；也可以右键 → **Restart to update** 马上装；退出时也会装。
+- 右键菜单里有 **Check for updates** 和当前版本号。出问题看 `%APPDATA%\AF Helper\update.log`。
+- 0.1.0 没有自动更新，要手动装一次 0.2.0。
+
 ## 什么时候要发新版本
-小窗口里的内容都来自 hub 网页：改 Design Board 只要推 hub，**不用重装**。只有改了这个文件夹（Leona、托盘菜单、快捷键）才要发新版：
-1. 改 `package.json` 里的 `version`。
-2. Push，然后 GitHub → Actions → **AF Helper** → Run workflow。跑完 Releases 里就有新的安装包。
+对话框里的内容都来自 hub 网页：改 Design Board / 对话框只要推 hub，**不用发新版**。只有改了这个文件夹（Leona、托盘菜单、快捷键）才要发：
+1. 改 `package.json` 里的 `version`（比如 0.2.0 → 0.2.1）。
+2. Push，然后 GitHub → Actions → **AF Helper** → Run workflow。跑完 Releases 里就有新的安装包和 `latest.yml`，大家的 Leona 几个小时内自己更新。
+3. 这个仓库的 Releases 只放 AF Helper：自动更新找的是"最新的 release"。
 
 ## 文件
 - `main.js`：Leona 的窗口（走路 = 整个窗口沿屏幕移动）、对话框、托盘菜单、快捷键、通知。只有 hub 的页面能在对话框里打开，其他链接都交给浏览器。

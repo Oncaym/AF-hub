@@ -12,9 +12,14 @@
    Leona the to-do count (her badge), new things for you (she says them,
    plus a Windows notice) and when it is working on a request (she
    draws). Links leave for the normal browser.
+
+   Updates itself: checks the newest GitHub release of AF-hub (latest.yml)
+   at start and every 4 hours, downloads a new version quietly, and
+   installs it when the person has been away for 5 minutes with the chat
+   closed (or right away from the menu, or when the app quits).
    ============================================================ */
 'use strict';
-const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, shell, Notification, nativeImage, screen } = require('electron');
+const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, shell, Notification, nativeImage, screen, powerMonitor } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -130,6 +135,36 @@ function setBadge(n) {
   if (tray) tray.setToolTip(badge ? `AF Helper — ${badge} to do` : 'AF Helper');
 }
 
+/* ---------- updates (GitHub release: latest.yml + the installer) ---------- */
+let updater = null, ready = null, checking = null;
+function ulog(m) { try { fs.appendFileSync(path.join(app.getPath('userData'), 'update.log'), new Date().toISOString() + ' ' + m + '\n'); } catch (e) {} }
+function installNow() { if (!updater || !ready) return; ulog('installing ' + ready); app.isQuitting = true; updater.quitAndInstall(true, true); }
+function checkUpdates(byHand) {
+  if (!updater) { if (byHand) send('say', 'Updates work in the installed app only.'); return; }
+  checking = byHand ? 'hand' : 'auto';
+  updater.checkForUpdates().catch(e => { ulog('check failed: ' + (e && e.message)); if (byHand) send('say', 'Could not check for updates right now.'); });
+}
+function setupUpdates() {
+  if (!app.isPackaged || process.env.AF_HELPER_NO_UPDATE) return;
+  try { updater = require('electron-updater').autoUpdater; } catch (e) { ulog('no updater: ' + e.message); return; }
+  updater.autoDownload = true;
+  updater.autoInstallOnAppQuit = true;
+  updater.disableDifferentialDownload = true;
+  updater.logger = { info: ulog, warn: ulog, error: ulog, debug: () => {} };
+  updater.on('update-available', i => { if (checking === 'hand') send('say', `Downloading v${i.version}…`); });
+  updater.on('update-not-available', () => { if (checking === 'hand') send('say', `I'm up to date (v${app.getVersion()}).`); });
+  updater.on('update-downloaded', i => {
+    ready = i.version;
+    send('say', `New me (v${i.version}) is ready. I'll update when you're away.`);
+    if (tray) tray.setToolTip(`AF Helper — v${i.version} ready (restart to update)`);
+  });
+  updater.on('error', e => ulog('error: ' + (e && e.message)));
+  setTimeout(() => checkUpdates(false), 30 * 1000);
+  setInterval(() => checkUpdates(false), 4 * 3600 * 1000);
+  // install at a quiet moment: away for 5 minutes and the chat closed
+  setInterval(() => { if (ready && !(panel && panel.isVisible()) && powerMonitor.getSystemIdleTime() >= 300) installNow(); }, 60 * 1000);
+}
+
 /* ---------- tray + menu ---------- */
 function trayMenu() {
   const s = settings();
@@ -147,6 +182,8 @@ function trayMenu() {
     { label: 'Start with Windows', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: i => app.setLoginItemSettings({ openAtLogin: i.checked }) },
     { label: 'Reload', click: () => panel.loadURL(HUB) },
     { type: 'separator' },
+    ready ? { label: `Restart to update (v${ready})`, click: installNow } : { label: 'Check for updates', click: () => checkUpdates(true) },
+    { label: `AF Helper v${app.getVersion()}`, enabled: false },
     { label: 'Quit AF Helper', click: () => { app.isQuitting = true; app.quit(); } },
   ]);
 }
@@ -197,6 +234,8 @@ app.whenReady().then(() => {
   buildTray();
   globalShortcut.register('Control+Shift+Space', togglePanel);
   if (process.argv.includes('--show')) showPanel();
+  setupUpdates();
 });
+app.on('before-quit', () => { app.isQuitting = true; });   // also lets Windows shut down / an update install
 app.on('will-quit', () => globalShortcut.unregisterAll());
 app.on('window-all-closed', () => { /* stay in the tray */ });

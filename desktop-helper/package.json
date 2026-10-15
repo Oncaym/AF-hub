@@ -10,6 +10,9 @@
     "start": "electron .",
     "dist": "electron-builder --win nsis --x64 --publish never"
   },
+  "dependencies": {
+    "electron-updater": "6.3.9"
+  },
   "devDependencies": {
     "electron": "33.4.11",
     "electron-builder": "25.1.8"
@@ -19,6 +22,7 @@
     "productName": "AF Helper",
     "files": ["main.js", "pet.html", "pet.js", "pet-preload.js", "assets/**", "panel-preload.js", "offline.html", "offline.js", "icon.png", "tray.png"],
     "directories": { "output": "dist" },
+    "publish": [{ "provider": "generic", "url": "https://github.com/Oncaym/AF-hub/releases/latest/download" }],
     "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "icon.ico" },
     "nsis": {
       "oneClick": true,
