@@ -30,6 +30,9 @@ globalThis.fetch = async (url, opts) => {
   if (url.startsWith('https://discord.com/api/v10/channels/')) {
     discordHits.push(url);
     if ((opts.headers || {}).Authorization !== 'Bot bot-token') return { ok: false, status: 401, json: async () => ({}) };
+    if (url.includes('/channels/404/')) return { ok: false, status: 404, json: async () => ({ message: 'Unknown Channel', code: 10003 }) };
+    if (url.includes('/channels/403/')) return { ok: false, status: 403, json: async () => ({ message: 'Missing Access', code: 50001 }) };
+    if (url.includes('/channels/777/')) return { ok: true, json: async () => DISCORD_MSGS.map(m => Object.assign({}, m, { content: '', attachments: [] })) };
     return { ok: true, json: async () => DISCORD_MSGS.slice() };
   }
   if (url.startsWith('https://media.discordapp.net/')) {
@@ -105,6 +108,17 @@ ok(discordHits[1].startsWith('https://media.discordapp.net/a/markup.png?ex=1&wid
 const tr = r.body.transcript || '';
 ok(tr.indexOf('SPARK') < tr.indexOf('AF_Henry') && /reply to spark/.test(tr) && /\[screenshot 0\]/.test(tr) && /✅×1/.test(tr), 'pull: transcript oldest first, with replies, screenshots and reactions');
 ok(sent.tool_choice.name === 'propose_comments' && sent.messages[0].content.filter(b => b.type === 'image').length === 1, 'pull: Claude splits it like a paste');
+process.env.DISCORD_CHANNELS = JSON.stringify({ ac3: '404' });
+r = await call({ token: EDITOR, board: 'ac3', mode: 'pull' });
+ok(r.code === 400 && /10003/.test(r.body.error) && /not in that server yet/.test(r.body.error), 'pull: unknown channel says the bot is not in the server or the ID is wrong');
+process.env.DISCORD_CHANNELS = JSON.stringify({ ac3: '403' });
+r = await call({ token: EDITOR, board: 'ac3', mode: 'pull' });
+ok(r.code === 400 && /cannot see this channel/.test(r.body.error), 'pull: missing access says to add the bot to the channel');
+process.env.DISCORD_CHANNELS = JSON.stringify({ ac3: '777' });
+sent = null;
+r = await call({ token: EDITOR, board: 'ac3', mode: 'pull' });
+ok(r.code === 400 && /Message Content Intent/.test(r.body.error) && !sent, 'pull: messages without text → asks to turn on Message Content Intent (no Claude call)');
+process.env.DISCORD_CHANNELS = JSON.stringify({ ac3: '555' });
 process.env.DISCORD_BOT_TOKEN = 'wrong';
 r = await call({ token: EDITOR, board: 'ac3', mode: 'pull' });
 ok(r.code === 400 && /token is wrong/.test(r.body.error), 'pull: a wrong bot token is reported plainly');

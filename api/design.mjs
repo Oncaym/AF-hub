@@ -145,8 +145,17 @@ async function pullDiscord(board, after) {
   const q = new URLSearchParams({ limit: '100' });
   if (after) q.set('after', String(after));
   const r = await fetch(`${DISCORD}/channels/${ch}/messages?${q}`, { headers: { Authorization: 'Bot ' + token } });
-  if (!r.ok) return { error: `Discord said ${r.status}${r.status === 403 ? ' (the bot cannot see that channel)' : r.status === 401 ? ' (bot token is wrong)' : ''}.` };
+  if (!r.ok) {
+    let code = 0; try { code = (await r.json()).code || 0; } catch (e) {}
+    const why = {
+      10003: 'the bot does not know this channel: the bot is not in that server yet, or the ID is not a channel ID (right-click the channel → Copy Channel ID)',
+      50001: 'the bot is in the server but cannot see this channel: add the bot in the channel\'s permissions',
+      50013: 'the bot needs "Read Message History" in this channel',
+    }[code] || (r.status === 401 ? 'the bot token is wrong' : r.status === 403 ? 'the bot cannot see that channel' : '');
+    return { error: `Discord said ${r.status}${code ? ' / ' + code : ''}${why ? ': ' + why : ''}.` };
+  }
   const msgs = (await r.json()).sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
+  const blind = msgs.length > 0 && msgs.every(m => !m.content && !(m.attachments || []).length && !(m.embeds || []).length);
   const names = {}; msgs.forEach(m => { names[m.id] = (m.author && (m.author.global_name || m.author.username)) || '?'; });
   const lines = [], shots = [];
   let last = after || null, more = false;
@@ -174,7 +183,7 @@ async function pullDiscord(board, after) {
     const buf = Buffer.from(await res.arrayBuffer());
     images.push(buf.length < 3_500_000 ? `data:${type};base64,${buf.toString('base64')}` : null);
   }
-  return { text: lines.join('\n'), images, last_id: last, more, count: msgs.length };
+  return { text: lines.join('\n'), images, last_id: last, more, count: msgs.length, blind };
 }
 
 function decodeJwt(t) {
@@ -216,6 +225,7 @@ export default async function handler(req, res) {
   if (mode === 'pull') {
     try { pulled = await pullDiscord(board, body.after); } catch (e) { pulled = { error: 'Could not read Discord: ' + (e.message || e) }; }
     if (pulled.error) return res.status(400).json({ error: pulled.error });
+    if (pulled.blind) return res.status(400).json({ error: 'The bot can see the messages but not their text: turn on "Message Content Intent" (Discord Developer Portal → the app → Bot) and pull again.' });
     if (!pulled.text.trim()) return res.status(200).json({ comments: [], note: 'No new messages in Discord since the last pull.', images: [], last_id: pulled.last_id, more: false });
     srcImages = pulled.images; srcText = 'Discord messages (oldest first):\n' + pulled.text;
   }
