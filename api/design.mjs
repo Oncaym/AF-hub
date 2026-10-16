@@ -6,6 +6,9 @@
    bot (env DISCORD_BOT_TOKEN; DISCORD_CHANNELS = {"ac3":"<channel id>", …}),
    from the message after `after`, and splits it like 'split'. It also returns
    the screenshots it read (so the page can keep them) and `last_id`.
+   mode 'read': the same Discord read with no Claude call (no API key needed):
+   { transcript, images, last_id, more } — for when the split is done elsewhere,
+   e.g. by Claude in Cowork while the API account has no credit.
    Body: {
      token:  Firebase ID token of the signed-in person (required),
      board:  'ac3',
@@ -210,7 +213,6 @@ function imageBlock(d) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not set in the Vercel project' });
 
   let body = req.body;
   if (typeof body === 'string') {
@@ -218,7 +220,8 @@ export default async function handler(req, res) {
     try { body = JSON.parse(body); } catch (e) { return res.status(400).json({ error: 'Invalid JSON' }); }
   }
   const { token, board, mode, text, images, context } = body || {};
-  if (mode !== 'split' && mode !== 'ask' && mode !== 'pull') return res.status(400).json({ error: 'mode must be split, pull or ask' });
+  if (!['split', 'ask', 'pull', 'read'].includes(mode)) return res.status(400).json({ error: 'mode must be split, pull, read or ask' });
+  if (!apiKey && mode !== 'read') return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not set in the Vercel project' });
   if (!/^[a-z0-9][a-z0-9-]{1,23}$/.test(String(board || ''))) return res.status(400).json({ error: 'board?' });
 
   let who;
@@ -226,10 +229,11 @@ export default async function handler(req, res) {
   if (!who) return res.status(403).json({ error: 'Only design-board editors can use Claude here. Sign in again, or ask Leo to add you.' });
 
   let pulled = null, srcImages = images, srcText = text;
-  if (mode === 'pull') {
+  if (mode === 'pull' || mode === 'read') {
     try { pulled = await pullDiscord(board, body.after); } catch (e) { pulled = { error: 'Could not read Discord: ' + (e.message || e) }; }
     if (pulled.error) return res.status(400).json({ error: pulled.error });
     if (pulled.blind) return res.status(400).json({ error: 'The bot can see the messages but not their text: turn on "Message Content Intent" (Discord Developer Portal → the app → Bot) and pull again.' });
+    if (mode === 'read') return res.status(200).json({ transcript: pulled.text, images: pulled.images, last_id: pulled.last_id, more: pulled.more, count: pulled.count });
     if (!pulled.text.trim()) return res.status(200).json({ comments: [], note: 'No new messages in Discord since the last pull.', images: [], last_id: pulled.last_id, more: false });
     srcImages = pulled.images; srcText = 'Discord messages (oldest first):\n' + pulled.text;
   }

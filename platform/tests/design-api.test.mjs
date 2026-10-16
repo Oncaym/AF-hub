@@ -128,5 +128,14 @@ delete process.env.ANTHROPIC_API_KEY;
 r = await call({ token: EDITOR, board: 'ac3', mode: 'ask', text: 'x' });
 ok(r.code === 500 && /ANTHROPIC_API_KEY/.test(r.body.error), 'missing key says so');
 
+// read: the Discord messages only, no Claude (works with no API key / no credit)
+process.env.DISCORD_BOT_TOKEN = 'bot-token';
+r = await call({ token: OTHER, board: 'ac3', mode: 'read' });
+ok(r.code === 403, 'read: editors only');
+sent = null; discordHits = [];
+r = await call({ token: EDITOR, board: 'ac3', mode: 'read', after: '1000' });
+ok(r.code === 200 && r.body.last_id === '1002' && r.body.images.length === 1 && /\[screenshot 0\]/.test(r.body.transcript) && !r.body.comments, 'read: transcript, screenshot and last id, no comments');
+ok(sent === null && discordHits[0].includes('after=1000'), 'read: Claude is never called');
+
 console.log(`design api: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
