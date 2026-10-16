@@ -21,14 +21,19 @@ const DAY = 86400000;
 
 const nameOf = e => { e = String(e || '').trim(); return e ? (e.includes('@') ? e.split('@')[0] : e) : ''; };
 const short = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
-function byPerson(list, field) {
+/* The repository is public, so its Actions logs are too: the copy printed there
+   (pub) shows initials instead of names and leaves the comment text out. */
+const initial = n => (n === 'no one' ? n : n.charAt(0) + '…');
+function byPerson(list, field, pub) {
   const m = {};
-  list.forEach(i => { const k = nameOf(i[field]) || 'no one'; m[k] = (m[k] || 0) + 1; });
+  list.forEach(i => { let k = nameOf(i[field]) || 'no one'; if (pub) k = initial(k); m[k] = (m[k] || 0) + 1; });
   return Object.entries(m).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([k, v]) => `${k} ${v}`).join(' · ');
 }
 
-/** The message for one board, or null when there is nothing to say. */
-function build(boardId, info, issuesObj, drawingsObj, now) {
+/** The message for one board, or null when there is nothing to say.
+    opts.pub: the copy for the public Actions log (initials, no comment text). */
+function build(boardId, info, issuesObj, drawingsObj, now, opts) {
+  const pub = !!(opts && opts.pub);
   const issues = Object.values(issuesObj || {}).filter(i => i && i.status);
   const dwgNo = k => ((drawingsObj || {})[k] || {}).no || k || '';
   const open = issues.filter(i => i.status === 'open');
@@ -41,14 +46,14 @@ function build(boardId, info, issuesObj, drawingsObj, now) {
   if (!open.length && !ask.length && !fixed.length && !fresh && !closed) return null;
   const day = new Date(now).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/New_York' });
   const lines = [`**${(info && info.name) || boardId} · review comments** — ${day}`];
-  lines.push(`🔴 To fix: **${open.length}**${open.length ? ' — ' + byPerson(open, 'owner') : ''}`);
+  lines.push(`🔴 To fix: **${open.length}**${open.length ? ' — ' + byPerson(open, 'owner', pub) : ''}`);
   if (ask.length) lines.push(`❓ Asked, waiting for an answer: **${ask.length}**`);
-  lines.push(`🟡 Fixed, waiting for the reviewer's check: **${fixed.length}**${fixed.length ? ' — ' + byPerson(fixed, 'reviewer') : ''}`);
+  lines.push(`🟡 Fixed, waiting for the reviewer's check: **${fixed.length}**${fixed.length ? ' — ' + byPerson(fixed, 'reviewer', pub) : ''}`);
   lines.push(`Last 24 h: ${fresh} new · ${nowFixed} fixed · ${closed} closed`);
   const oldest = open.concat(ask).sort((a, b) => (+a.created || 0) - (+b.created || 0))[0];
   if (oldest && oldest.created) {
     const days = Math.floor((now - +oldest.created) / DAY);
-    lines.push(`Oldest still open: #${oldest.n}${oldest.dwg ? ' ' + dwgNo(oldest.dwg) : ''} "${short(oldest.text, 70)}"${days >= 1 ? ` (${days} day${days > 1 ? 's' : ''})` : ''}`);
+    lines.push(`Oldest still open: #${oldest.n}${oldest.dwg ? ' ' + dwgNo(oldest.dwg) : ''}${pub ? '' : ` "${short(oldest.text, 70)}"`}${days >= 1 ? ` (${days} day${days > 1 ? 's' : ''})` : ''}`);
   }
   lines.push(`${SITE}/design/#b=${boardId}`);
   return lines.join('\n');
@@ -85,7 +90,8 @@ async function main() {
     if (!info) { console.log(`- ${board}: no such board, skipped`); continue; }
     const msg = build(board, info, issues, drawings, now);
     if (!msg) { console.log(`- ${board}: nothing to report`); continue; }
-    console.log(`--- ${board} → #${channel}${dry ? ' (dry run, not posted)' : ''}\n${msg}\n`);
+    // The log is public: print the redacted copy; Discord gets the full message.
+    console.log(`--- ${board}${dry ? ' (dry run, not posted)' : ''}\n${build(board, info, issues, drawings, now, { pub: true })}\n`);
     if (dry) continue;
     try { await post(process.env.DISCORD_BOT_TOKEN, channel, msg); console.log(`  posted`); }
     catch (e) { failed++; console.log(`  NOT posted: ${e.message}`); }

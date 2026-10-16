@@ -23,5 +23,11 @@ ok(/Oldest still open: #3 AC3-103 "Change TOB to T\.O\.HSS" \(9 days\)/.test(m),
 ok(/https:\/\/af-hub-two\.vercel\.app\/design\/#b=ac3$/.test(m), 'link to the board');
 ok(build('ac3', {}, { x: { n: 1, status: 'closed', closedAt: NOW - 5 * D } }, {}, NOW) === null, 'nothing open and nothing new → no message');
 ok(m.length < 2000, 'fits in one Discord message');
+// The Actions log is public: its copy has initials, no comment text, same counts.
+const pub = build('ac3', { name: 'Atlantic-Chestnut Building 3' }, issues, dw, NOW, { pub: true });
+ok(/To fix: \*\*3\*\* — h… 2 · s… 1/.test(pub), 'log copy: owners as initials');
+ok(/reviewer's check: \*\*1\*\* — s… 1/.test(pub), 'log copy: reviewers as initials');
+ok(!/henry|spark|TOB|T\.O\.HSS/.test(pub), 'log copy: no names, no comment text');
+ok(/Oldest still open: #3 AC3-103 \(9 days\)/.test(pub), 'log copy: oldest keeps number, drawing and age');
 console.log(`discord digest: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
