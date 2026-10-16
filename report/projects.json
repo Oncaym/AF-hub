@@ -13,9 +13,9 @@
     "name": "Cooper Park 2",
     "unit": "openings",
     "scope": "Storefront - GF 71 / L2 6 / L13 5",
-    "url": "https://copper-park-2-install-progress-trac.vercel.app/",
-    "databaseURL": "https://copper-park-2---monitor-default-rtdb.firebaseio.com",
-    "secret": "CP2_SERVICE_ACCOUNT"
+    "url": "https://af-hub-two.vercel.app/cp2/",
+    "databaseURL": "https://af-hub-8f188-cp2.firebaseio.com",
+    "secret": "HUB_SERVICE_ACCOUNT"
   },
   {
     "id": "lex",

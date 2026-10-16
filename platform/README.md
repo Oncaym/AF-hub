@@ -6,7 +6,7 @@
 |---|---|---|
 | AC3 | https://af-hub-two.vercel.app/ac3/ | `af-hub-8f188-ac3` |
 | 355 Lexington | https://af-hub-two.vercel.app/lex/ | `af-hub-8f188-lex` |
-| Cooper Park 2 | 还在原网址、原 Firebase（最后迁） | — |
+| Cooper Park 2 | https://af-hub-two.vercel.app/cp2/ | `af-hub-8f188-cp2`（2026-10-16 代码已就绪，按下面「CP2 迁移」做完才生效） |
 
 ## 怎么保证项目之间不串数据
 
@@ -92,6 +92,21 @@ GitHub → **Actions → Project database → Run workflow**：
 3. Lexington 不用再登录。
 
 旧网址（atlantic-chestnut-3-tracking、355-lexington-dashboard）迁移后会自动跳到新网址，跳转那一步我来提交。
+
+## CP2 迁移（2026-10-16 准备好，约 20 分钟）
+
+代码已经在仓库里：`cp2/` 文件夹，用 `core/` 公共代码。CP2 原来独有的 bay elevation（F-055/56/57）已经并进 `core/app.js`，只在有 `elevations.js`（`window.ELEV_BAYS`）的项目里出现，AC3、Lexington 不变。Glass Triage 页（`cp2/friday-triage.html`）也搬过来了，会先核对数据库是不是 cp2。
+
+**按顺序做，中间不要停太久**：Push 之后到迁移完成之前，hub 首页 CP2 的 Open 会打开一个还没有数据库的页面，每 2 小时的 Hub report 也会报 CP2 读不到。
+
+1. **GitHub Desktop：AF-hub Push**。等 Actions → *Platform tests* 两个都绿。
+2. **Firebase 控制台（af-hub-8f188）→ Realtime Database → Create database**：名字 `af-hub-8f188-cp2`，位置 us-central1，Locked mode。然后 Backups 里开每日备份。
+3. **Actions → Project database → Run workflow**：`mode = dry-run`，`project = cp2`。看日志里要搬的单元数、日志条数、照片数、名单人数对不对。
+4. 同一个 workflow 再跑 `mode = migrate`，`project = cp2`。最后一行要是 **✓ VERIFIED**。这一步会冻结旧的 CP2 数据库（旧规则打印在日志里，可以贴回去回滚），并把旧桶里被引用的照片、单元图复制到 `p/cp2/legacy/`。
+5. 打开 https://af-hub-two.vercel.app/cp2/ 看一下：单元、照片、📐 Openings 里的 Elevation、🪟 Glass Triage。
+6. **GitHub Desktop：Copper-Park-2-Install-Progress-Tracking Push**（只在第 4 步 VERIFIED 之后）。这个提交把旧网址整个转到 hub 的 `/cp2/`，书签和发出去的链接都还能用。
+
+工头、GC 不用重新注册：迁移会给名单上的每个人开 hub 账号，他们在新页面点 **First time here** 设一次密码就行。
 
 ## 日常操作
 

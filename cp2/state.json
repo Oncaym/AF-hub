@@ -1,0 +1,1805 @@
+{
+  "units": [
+    {
+      "key": "SF06N",
+      "id": "SF06N",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-19",
+      "louver": "no",
+      "note": "Framing 5/19 (06NE)",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF04__1",
+      "id": "SF04",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-15",
+      "louver": "na",
+      "note": "Framing 5/15 · Louver → 5/18",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF04__2",
+      "id": "SF04",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-15",
+      "louver": "no",
+      "note": "Framing 5/15 · Louver → 5/18",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF07N",
+      "id": "SF07N",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-20",
+      "louver": "no",
+      "note": "",
+      "glass": "ready",
+      "panels": ""
+    },
+    {
+      "key": "SF07W",
+      "id": "SF07W",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "issue",
+      "date": "2026-05-20",
+      "louver": "na",
+      "note": "Framing too long (fabrication error)",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF01__1",
+      "id": "SF01L",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-13",
+      "louver": "no",
+      "note": "Framing 5/13 · Louver → 5/18",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-09",
+          "status": "ready",
+          "date": ""
+        },
+        {
+          "panel": "1F-10",
+          "status": "ready",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF01__2",
+      "id": "SF01R",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-13",
+      "louver": "no",
+      "note": "Framing 5/13 · Louver → 5/18",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-11",
+          "status": "ready",
+          "date": ""
+        },
+        {
+          "panel": "1F-12",
+          "status": "ready",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF20A__1",
+      "id": "SF20A",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-12",
+      "louver": "yes",
+      "note": "Framing 5/12",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-04",
+          "status": "ready",
+          "date": ""
+        },
+        {
+          "panel": "1F-05",
+          "status": "ready",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF20A__2",
+      "id": "SF20A.1",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-20",
+      "louver": "yes",
+      "note": "Framing + Louver 5/20",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-06",
+          "status": "ready",
+          "date": ""
+        },
+        {
+          "panel": "1F-07",
+          "status": "ready",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF20B__1",
+      "id": "SF20B",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-12",
+      "louver": "yes",
+      "note": "Framing 5/12",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-04",
+          "status": "ready",
+          "date": ""
+        },
+        {
+          "panel": "1F-05",
+          "status": "ready",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF20A__3",
+      "id": "SF20A.1",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-20",
+      "louver": "yes",
+      "note": "Framing + Louver 5/20",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-06",
+          "status": "ready",
+          "date": ""
+        },
+        {
+          "panel": "1F-07",
+          "status": "ready",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF20B__2",
+      "id": "SF20B.1",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-13",
+      "louver": "yes",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-06",
+          "status": "ready",
+          "date": ""
+        },
+        {
+          "panel": "1F-07",
+          "status": "ready",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF20A__4",
+      "id": "SF20A.1",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-15",
+      "louver": "no",
+      "note": "Installed 20A 66\"DLO",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-06",
+          "status": "pending",
+          "date": ""
+        },
+        {
+          "panel": "1F-07",
+          "status": "pending",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF52",
+      "id": "SF52",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-74",
+          "status": "pending",
+          "date": ""
+        },
+        {
+          "panel": "1F-75",
+          "status": "pending",
+          "date": ""
+        },
+        {
+          "panel": "SD14",
+          "status": "pending",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF51__1",
+      "id": "SF51",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-77",
+          "status": "",
+          "date": ""
+        },
+        {
+          "panel": "1F-76",
+          "status": "",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF50__1",
+      "id": "SF50",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-76",
+          "status": "",
+          "date": ""
+        },
+        {
+          "panel": "1F-77",
+          "status": "",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF51__2",
+      "id": "SF51",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-77",
+          "status": "",
+          "date": ""
+        },
+        {
+          "panel": "1F-76",
+          "status": "",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF50__2",
+      "id": "SF50",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-76",
+          "status": "",
+          "date": ""
+        },
+        {
+          "panel": "1F-77",
+          "status": "",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF21A",
+      "id": "SF21A",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-01",
+          "status": "pending",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF21B__1",
+      "id": "SF21B",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-01",
+          "status": "pending",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF21B__2",
+      "id": "SF21B",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-01",
+          "status": "pending",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF21B__3",
+      "id": "SF21B",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-01",
+          "status": "pending",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF32",
+      "id": "SF32",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-89",
+          "status": "",
+          "date": ""
+        },
+        {
+          "panel": "1F-90",
+          "status": "",
+          "date": ""
+        },
+        {
+          "panel": "1F-83",
+          "status": "",
+          "date": ""
+        },
+        {
+          "panel": "SD08",
+          "status": "pending",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF08E",
+      "id": "SF08E",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-29",
+          "status": "pending",
+          "date": ""
+        },
+        {
+          "panel": "1F-30",
+          "status": "pending",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF08N",
+      "id": "SF08N",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-31",
+          "status": "pending",
+          "date": ""
+        },
+        {
+          "panel": "1F-32",
+          "status": "pending",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF03__1",
+      "id": "SF03",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-02",
+          "status": "pending",
+          "date": ""
+        },
+        {
+          "panel": "1F-08",
+          "status": "pending",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF03__2",
+      "id": "SF03",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-02",
+          "status": "pending",
+          "date": ""
+        },
+        {
+          "panel": "1F-08",
+          "status": "pending",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF03__3",
+      "id": "SF03",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-02",
+          "status": "pending",
+          "date": ""
+        },
+        {
+          "panel": "1F-08",
+          "status": "pending",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF09N",
+      "id": "SF09N",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-33",
+          "status": "pending",
+          "date": ""
+        },
+        {
+          "panel": "1F-34",
+          "status": "pending",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF09W",
+      "id": "SF09W",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-35",
+          "status": "pending",
+          "date": ""
+        },
+        {
+          "panel": "1F-46",
+          "status": "pending",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF02",
+      "id": "SF02",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-13",
+          "status": "pending",
+          "date": ""
+        },
+        {
+          "panel": "1F-14",
+          "status": "pending",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF22B",
+      "id": "SF22B",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": "",
+      "glassPanels": [
+        {
+          "panel": "1F-15",
+          "status": "pending",
+          "date": ""
+        }
+      ],
+      "glassNote": ""
+    },
+    {
+      "key": "SF40",
+      "id": "SF40",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF41",
+      "id": "SF41",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF42",
+      "id": "SF42",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF43",
+      "id": "SF43",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF44",
+      "id": "SF44",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF45",
+      "id": "SF45",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF46",
+      "id": "SF46",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF48",
+      "id": "SF48",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF20A__5",
+      "id": "SF20A",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-20",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF20A__6",
+      "id": "SF20A",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-20",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF10A",
+      "id": "SF10A",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-20",
+      "louver": "no",
+      "note": "Framing 5/20",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF30",
+      "id": "SF30",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF11A__1",
+      "id": "SF11A",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "pending",
+      "date": "2026-05-20",
+      "louver": "no",
+      "note": "Opening 10\" longer",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF11A__2",
+      "id": "SF11A",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "pending",
+      "date": "2026-05-20",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF11A__3",
+      "id": "SF11A",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "issue",
+      "date": "2026-05-20",
+      "louver": "no",
+      "note": "Opening 10\" longer",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF11B",
+      "id": "SF11B",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "issue",
+      "date": "2026-05-20",
+      "louver": "no",
+      "note": "Opening 10\" longer",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF11A__4",
+      "id": "SF11A",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "issue",
+      "date": "",
+      "louver": "no",
+      "note": "Opening 10\" longer",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF11A__5",
+      "id": "SF11A",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "issue",
+      "date": "",
+      "louver": "no",
+      "note": "Opening 10\" longer",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF31__1",
+      "id": "SF31",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF17S",
+      "id": "SF17S",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF47",
+      "id": "SF47",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF49",
+      "id": "SF49",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "Transom over the south main entry (above SF47) — F-055",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SD01",
+      "id": "SD01",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "South main entry door, inside the SF47 opening — F-055",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF13A",
+      "id": "SF13A",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-13",
+      "louver": "yes",
+      "note": "Framing 5/13",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF12B",
+      "id": "SF12B",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-11",
+      "louver": "yes",
+      "note": "Framing 5/11",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF12A__1",
+      "id": "SF12A",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-12",
+      "louver": "yes",
+      "note": "Framing 5/12",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF12A__2",
+      "id": "SF12A",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-12",
+      "louver": "no",
+      "note": "Framing 5/12",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF12A__3",
+      "id": "SF12A",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-12",
+      "louver": "yes",
+      "note": "12A3 — opening error (per PDF)",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF16E",
+      "id": "SF16E",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-19",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF16N",
+      "id": "SF16N",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-19",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF31__2",
+      "id": "SF31",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF01__3",
+      "id": "SF01",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-13",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF01__4",
+      "id": "SF01",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-13",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF06E",
+      "id": "SF06E",
+      "type": "Storefront",
+      "zone": "North",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-19",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF17E",
+      "id": "SF17E",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF12A__4",
+      "id": "SF12A",
+      "type": "Storefront",
+      "zone": "South",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-11",
+      "louver": "yes",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF12A__5",
+      "id": "SF12A",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "installed",
+      "date": "",
+      "louver": "yes",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF15E",
+      "id": "SF15E",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-19",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF15N",
+      "id": "SF15N",
+      "type": "Storefront",
+      "zone": "East",
+      "level": "GF",
+      "status": "installed",
+      "date": "2026-05-19",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF60",
+      "id": "SF60",
+      "type": "Storefront",
+      "zone": "—",
+      "level": "L2",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF61",
+      "id": "SF61",
+      "type": "Storefront",
+      "zone": "—",
+      "level": "L2",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF62__1",
+      "id": "SF62",
+      "type": "Storefront",
+      "zone": "—",
+      "level": "L2",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF62__2",
+      "id": "SF62",
+      "type": "Storefront",
+      "zone": "—",
+      "level": "L2",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF63__1",
+      "id": "SF63",
+      "type": "Storefront",
+      "zone": "—",
+      "level": "L2",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF63__2",
+      "id": "SF63",
+      "type": "Storefront",
+      "zone": "—",
+      "level": "L2",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF70__1",
+      "id": "SF70",
+      "type": "Storefront",
+      "zone": "—",
+      "level": "L13",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF70__2",
+      "id": "SF70",
+      "type": "Storefront",
+      "zone": "—",
+      "level": "L13",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF70__3",
+      "id": "SF70",
+      "type": "Storefront",
+      "zone": "—",
+      "level": "L13",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF71__1",
+      "id": "SF71",
+      "type": "Storefront",
+      "zone": "—",
+      "level": "L13",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    },
+    {
+      "key": "SF71__2",
+      "id": "SF71",
+      "type": "Storefront",
+      "zone": "—",
+      "level": "L13",
+      "status": "pending",
+      "date": "",
+      "louver": "no",
+      "note": "",
+      "glass": "",
+      "panels": ""
+    }
+  ],
+  "log": [
+    {
+      "date": "2026-05-11",
+      "category": "framing",
+      "content": "12A1 · 12A2 · 12B"
+    },
+    {
+      "date": "2026-05-12",
+      "category": "framing",
+      "content": "12A · 12A3 · 12A · 20A · 20A.1 · 20B"
+    },
+    {
+      "date": "2026-05-12",
+      "category": "fit-issue",
+      "content": "12A3 — opening error",
+      "categories": [
+        "fit-issue"
+      ],
+      "ref": "SF12A",
+      "fault": "Investigating"
+    },
+    {
+      "date": "2026-05-13",
+      "category": "framing",
+      "content": "13A · 01 · 01 · 20A.1 · 20B.1"
+    },
+    {
+      "date": "2026-05-14",
+      "category": "caulking",
+      "content": "Caulking"
+    },
+    {
+      "date": "2026-05-15",
+      "category": "framing",
+      "content": "04 · 04 · 01L · 01R · 20A.1"
+    },
+    {
+      "date": "2026-05-18",
+      "category": "louver",
+      "content": "12A3 Louvers"
+    },
+    {
+      "date": "2026-05-19",
+      "category": "framing",
+      "content": "15NE · 16NE · 06NE"
+    },
+    {
+      "date": "2026-05-20",
+      "category": "framing",
+      "content": "11A · 11A · 11B",
+      "categories": [
+        "framing"
+      ]
+    },
+    {
+      "date": "2026-05-20",
+      "categories": [
+        "fit-issue"
+      ],
+      "category": "fit-issue",
+      "content": "11A — opening error",
+      "ref": "SF11A",
+      "fault": "Investigating"
+    },
+    {
+      "date": "2026-05-20",
+      "category": "louver",
+      "content": "10A · 20A · 20A · 07NW"
+    },
+    {
+      "date": "2026-05-21",
+      "category": "issue",
+      "content": "Caulking / Louvers — Yulin NOT On-site",
+      "planned": true,
+      "party": "Sub"
+    },
+    {
+      "date": "2026-05-22",
+      "category": "louver",
+      "content": "Louvers (TBD)",
+      "planned": true
+    }
+  ],
+  "positions": {
+    "SF06N": {
+      "x": 86.07,
+      "y": 8.26
+    },
+    "SF04__1": {
+      "x": 81.27,
+      "y": 8.03
+    },
+    "SF04__2": {
+      "x": 75.58,
+      "y": 8.03
+    },
+    "SF07N": {
+      "x": 70.2,
+      "y": 8.01
+    },
+    "SF07W": {
+      "x": 67.97,
+      "y": 10.41
+    },
+    "SF01__1": {
+      "x": 67.8,
+      "y": 16.03
+    },
+    "SF01__2": {
+      "x": 67.8,
+      "y": 22.84
+    },
+    "SF20A__1": {
+      "x": 66.34,
+      "y": 45.7
+    },
+    "SF20A__2": {
+      "x": 62.83,
+      "y": 45.7
+    },
+    "SF20B__1": {
+      "x": 58.9,
+      "y": 45.7
+    },
+    "SF20A__3": {
+      "x": 54.83,
+      "y": 45.7
+    },
+    "SF20B__2": {
+      "x": 50.91,
+      "y": 45.7
+    },
+    "SF20A__4": {
+      "x": 46.9,
+      "y": 45.7
+    },
+    "SF52": {
+      "x": 43.8,
+      "y": 48.85
+    },
+    "SF51__1": {
+      "x": 42.29,
+      "y": 50.74
+    },
+    "SF50__1": {
+      "x": 38.89,
+      "y": 50.74
+    },
+    "SF51__2": {
+      "x": 35.17,
+      "y": 50.74
+    },
+    "SF50__2": {
+      "x": 31.76,
+      "y": 50.74
+    },
+    "SF21A": {
+      "x": 29.82,
+      "y": 43.68
+    },
+    "SF21B__1": {
+      "x": 29.84,
+      "y": 37.64
+    },
+    "SF21B__2": {
+      "x": 29.84,
+      "y": 30.6
+    },
+    "SF21B__3": {
+      "x": 29.84,
+      "y": 23.82
+    },
+    "SF32": {
+      "x": 29.84,
+      "y": 15.65
+    },
+    "SF08E": {
+      "x": 30.08,
+      "y": 10.33
+    },
+    "SF08N": {
+      "x": 28,
+      "y": 8
+    },
+    "SF03__1": {
+      "x": 22.6,
+      "y": 8.02
+    },
+    "SF03__2": {
+      "x": 17.27,
+      "y": 8.02
+    },
+    "SF03__3": {
+      "x": 11.98,
+      "y": 8.02
+    },
+    "SF09N": {
+      "x": 6.56,
+      "y": 8.02
+    },
+    "SF09W": {
+      "x": 4.57,
+      "y": 10.1
+    },
+    "SF02": {
+      "x": 4.22,
+      "y": 16.3
+    },
+    "SF22B": {
+      "x": 4.18,
+      "y": 23.57
+    },
+    "SF40": {
+      "x": 3.7,
+      "y": 76.11
+    },
+    "SF41": {
+      "x": 6.49,
+      "y": 84.53
+    },
+    "SF42": {
+      "x": 11.99,
+      "y": 84.53
+    },
+    "SF43": {
+      "x": 15.71,
+      "y": 84.53
+    },
+    "SF44": {
+      "x": 18.84,
+      "y": 84.53
+    },
+    "SF45": {
+      "x": 24.6,
+      "y": 84.53
+    },
+    "SF46": {
+      "x": 30.52,
+      "y": 84.53
+    },
+    "SF48": {
+      "x": 38.34,
+      "y": 84.53
+    },
+    "SF20A__5": {
+      "x": 42.23,
+      "y": 88
+    },
+    "SF20A__6": {
+      "x": 46.47,
+      "y": 88
+    },
+    "SF10A": {
+      "x": 50.7,
+      "y": 88
+    },
+    "SF30": {
+      "x": 55.64,
+      "y": 88
+    },
+    "SF11A__1": {
+      "x": 59.23,
+      "y": 88
+    },
+    "SF11A__2": {
+      "x": 63.35,
+      "y": 88
+    },
+    "SF11A__3": {
+      "x": 67.45,
+      "y": 88
+    },
+    "SF11B": {
+      "x": 71.66,
+      "y": 88
+    },
+    "SF11A__4": {
+      "x": 75.88,
+      "y": 88
+    },
+    "SF11A__5": {
+      "x": 80.23,
+      "y": 88
+    },
+    "SF31__1": {
+      "x": 85.33,
+      "y": 87.87
+    },
+    "SF17S": {
+      "x": 90.69,
+      "y": 87.79
+    },
+    "SF47": {
+      "x": 36.12,
+      "y": 84.53
+    },
+    "SF13A": {
+      "x": 92.27,
+      "y": 66.58
+    },
+    "SF12B": {
+      "x": 92.28,
+      "y": 61
+    },
+    "SF12A__1": {
+      "x": 92.27,
+      "y": 54.6
+    },
+    "SF12A__2": {
+      "x": 92.27,
+      "y": 47.94
+    },
+    "SF12A__3": {
+      "x": 92.27,
+      "y": 41.62
+    },
+    "SF16E": {
+      "x": 92.27,
+      "y": 36.1
+    },
+    "SF16N": {
+      "x": 90.49,
+      "y": 33.66
+    },
+    "SF31__2": {
+      "x": 87.78,
+      "y": 31.47
+    },
+    "SF01__3": {
+      "x": 87.78,
+      "y": 24.69
+    },
+    "SF01__4": {
+      "x": 87.78,
+      "y": 17.41
+    },
+    "SF06E": {
+      "x": 87.78,
+      "y": 10.87
+    },
+    "SF17E": {
+      "x": 96.3,
+      "y": 86.27
+    },
+    "SF12A__4": {
+      "x": 96.29,
+      "y": 80.82
+    },
+    "SF12A__5": {
+      "x": 96.29,
+      "y": 74.42
+    },
+    "SF15E": {
+      "x": 96.29,
+      "y": 69.12
+    },
+    "SF15N": {
+      "x": 94.24,
+      "y": 66.55
+    },
+    "SF60": {
+      "x": 20.6,
+      "y": 77.37
+    },
+    "SF61": {
+      "x": 49.28,
+      "y": 77.37
+    },
+    "SF62__1": {
+      "x": 23.53,
+      "y": 19.3
+    },
+    "SF62__2": {
+      "x": 60.61,
+      "y": 19.37
+    },
+    "SF63__1": {
+      "x": 40.54,
+      "y": 19.37
+    },
+    "SF63__2": {
+      "x": 74.77,
+      "y": 19.37
+    },
+    "SF49": {
+      "x": 36.12,
+      "y": 82.4
+    },
+    "SD01": {
+      "x": 36.12,
+      "y": 86.7
+    }
+  },
+  "updatedAt": "2026-06-04T18:40:25.210837Z"
+}

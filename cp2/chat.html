@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat Updater</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E💬%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #181b22;
+    --panel-2: #1f232c;
+    --line: #2a2f3a;
+    --text: #e6e8ee;
+    --muted: #8a93a3;
+    --accent: #4f8cff;
+    --accent-2: #6ba1ff;
+    --good: #34c77a;
+    --warn: #f5a524;
+    --bad: #ef5a5a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    overflow: hidden;
+  }
+  /* ---------- Auth gate ---------- */
+  #gate {
+    position: fixed; inset: 0; z-index: 999;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .gate-card {
+    width: min(380px, 92vw);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 28px 26px;
+  }
+  .gate-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .gate-logo {
+    width: 40px; height: 40px;
+    background: var(--accent); color: #fff;
+    border-radius: 9px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .gate-title { font-size: 17px; font-weight: 600; }
+  .gate-sub { font-size: 12px; color: var(--muted); }
+  .gate-card label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  .gate-card input {
+    width: 100%; padding: 10px 12px;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px;
+    font-size: 14px; outline: none;
+  }
+  .gate-card input:focus { border-color: var(--accent); }
+  .gate-card button {
+    width: 100%; padding: 11px;
+    margin-top: 14px;
+    background: var(--accent); color: white;
+    border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 600;
+    cursor: pointer;
+  }
+  .gate-card button:hover { background: var(--accent-2); }
+  .gate-card button:disabled { opacity: .5; cursor: not-allowed; }
+  .gate-err { color: var(--bad); font-size: 12px; min-height: 16px; margin-top: 8px; }
+  .gate-foot { font-size: 11px; color: var(--muted); text-align: center; margin-top: 16px; }
+  .gate-foot a { color: var(--accent); text-decoration: none; }
+
+  /* ---------- App layout ---------- */
+  #app { display: none; flex-direction: column; height: 100vh; }
+  #app.ready { display: flex; }
+  header {
+    display: flex; align-items: center;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+    gap: 12px;
+  }
+  .h-title { font-size: 16px; font-weight: 600; }
+  .h-sub { color: var(--muted); font-size: 12px; }
+  .h-spacer { flex: 1; }
+  .h-link {
+    color: var(--muted); font-size: 12px;
+    text-decoration: none; padding: 6px 10px;
+    border: 1px solid var(--line); border-radius: 6px;
+  }
+  .h-link:hover { color: var(--text); border-color: var(--accent); }
+
+  /* ---------- Messages ---------- */
+  #msgs {
+    flex: 1; overflow-y: auto;
+    padding: 18px 16px 8px;
+    display: flex; flex-direction: column; gap: 10px;
+    max-width: 760px; width: 100%; margin: 0 auto;
+  }
+  .msg {
+    max-width: 86%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: var(--accent);
+    color: white;
+    border-bottom-right-radius: 4px;
+  }
+  .msg.bot {
+    align-self: flex-start;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-bottom-left-radius: 4px;
+  }
+  .msg.system {
+    align-self: center;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    text-align: center;
+  }
+  .msg.error {
+    align-self: flex-start;
+    background: rgba(239, 90, 90, 0.12);
+    border: 1px solid rgba(239, 90, 90, 0.3);
+    color: #ffb3b3;
+  }
+
+  /* Preview card */
+  .preview {
+    align-self: flex-start;
+    width: 86%;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    border-bottom-left-radius: 4px;
+  }
+  .preview-head {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel-2);
+    font-weight: 600; font-size: 14px;
+  }
+  .preview-body { padding: 12px 16px; font-size: 13px; }
+  .preview-section { margin: 6px 0; }
+  .preview-section h4 {
+    margin: 4px 0 4px;
+    font-size: 12px; font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .diff-row {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px dashed rgba(255,255,255,0.05);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+  }
+  .diff-row:last-child { border-bottom: none; }
+  .diff-key { color: var(--accent-2); min-width: 110px; }
+  .diff-change { color: var(--text); flex: 1; }
+  .diff-old { color: var(--muted); text-decoration: line-through; }
+  .diff-arrow { color: var(--muted); }
+  .diff-new { color: var(--good); }
+  .preview-actions {
+    padding: 10px 16px;
+    border-top: 1px solid var(--line);
+    display: flex; gap: 8px; justify-content: flex-end;
+  }
+  .btn {
+    padding: 7px 14px;
+    border: none; border-radius: 6px;
+    font-size: 13px; font-weight: 500;
+    cursor: pointer;
+  }
+  .btn-confirm { background: var(--good); color: white; }
+  .btn-confirm:hover { filter: brightness(1.1); }
+  .btn-cancel { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+  .btn-cancel:hover { color: var(--text); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* Loader */
+  .loader {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid var(--line);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- Composer ---------- */
+  #composer {
+    border-top: 1px solid var(--line);
+    background: var(--panel);
+    padding: 12px 16px;
+  }
+  #composer-inner {
+    max-width: 760px; margin: 0 auto;
+    display: flex; gap: 8px;
+    align-items: flex-end;
+  }
+  #input {
+    flex: 1;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    line-height: 1.45;
+    resize: none;
+    max-height: 140px;
+    outline: none;
+  }
+  #input:focus { border-color: var(--accent); }
+  #send {
+    background: var(--accent); color: white;
+    border: none; border-radius: 10px;
+    padding: 10px 18px;
+    font-size: 14px; font-weight: 600;
+    cursor: pointer; flex-shrink: 0;
+  }
+  #send:hover { background: var(--accent-2); }
+  #send:disabled { opacity: .4; cursor: not-allowed; }
+
+  #hints {
+    max-width: 760px; margin: 6px auto 0;
+    font-size: 11px; color: var(--muted);
+    text-align: center;
+  }
+  #hints kbd {
+    background: var(--panel-2); border: 1px solid var(--line);
+    padding: 1px 5px; border-radius: 3px; font-family: inherit;
+  }
+
+  /* ---------- Embedded floor-plan iframe card ---------- */
+  .map-card {
+    align-self: flex-start;
+    width: 86%;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    border-bottom-left-radius: 4px;
+    margin-top: -4px;
+  }
+  .map-card iframe {
+    width: 100%; height: 540px;
+    border: none; display: block;
+  }
+  .map-card-foot {
+    padding: 6px 14px;
+    border-top: 1px solid var(--line);
+    font-size: 11px; color: var(--muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .map-card-foot a { color: var(--accent); text-decoration: none; font-size: 11px; margin-left: auto; }
+  .map-card-foot a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<!-- Auth gate -->
+<div id="gate">
+  <div class="gate-card">
+    <div class="gate-brand">
+      <div class="gate-logo" id="gateLogo"></div>
+      <div>
+        <div class="gate-title">Chat Updater</div>
+        <div class="gate-sub" id="gateSub">Natural-language progress</div>
+      </div>
+    </div>
+    <form id="gate-form">
+      <label>Email</label>
+      <input type="email" id="email" autocomplete="email" required placeholder="you@advfacade.com">
+      <label>Password</label>
+      <input type="password" id="password" autocomplete="current-password" required>
+      <div class="gate-err" id="gate-err"></div>
+      <button type="submit" id="signin">Sign in</button>
+    </form>
+    <div class="gate-foot">
+      Accounts are created by your admin in Firebase Console · <a href="./">Back to dashboard</a>
+    </div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+  <header>
+    <div>
+      <div class="h-title" id="chatTitle">Chat Updater</div>
+      <div class="h-sub" id="user-label">—</div>
+    </div>
+    <div class="h-spacer"></div>
+    <a class="h-link" href="./" title="Back to main tracker">📋 Dashboard</a>
+    <a class="h-link" href="#" id="logout">Sign out</a>
+  </header>
+
+  <div id="msgs"></div>
+
+  <div id="composer">
+    <div id="composer-inner">
+      <textarea id="input" rows="1" placeholder="e.g. Installed SF11A and SF11B framing today, 11A.2 has an issue …"></textarea>
+      <button id="send">Send</button>
+    </div>
+    <div id="hints">
+      <kbd>Enter</kbd> send · <kbd>Shift+Enter</kbd> new line · You'll preview each change before it's written
+    </div>
+  </div>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="project-config.js"></script>
+
+<script>
+/* ============================================================
+   Tracker Chat — main script (core; project identity from project-config.js)
+   ============================================================ */
+
+  // ---- project branding from project-config.js ----
+  (function(){
+    const P = window.PROJECT || {};
+    document.title = (P.code ? P.code + ' ' : '') + 'Chat Updater';
+    const el = (id) => document.getElementById(id);
+    if (el('gateLogo'))  el('gateLogo').textContent  = P.code || '—';
+    if (el('gateSub'))   el('gateSub').textContent   = (P.name ? P.name + ' · ' : '') + 'Natural-language progress';
+    if (el('chatTitle')) el('chatTitle').textContent = (P.code ? P.code + ' ' : '') + 'Chat Updater';
+  })();
+(() => {
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- State ----------
+  let currentUser = null;
+  let cachedState = null;   // last snapshot loaded from /state
+  let pendingPreview = null; // currently shown preview {parsed, msgEl}
+  let projectOk = false;      // AF Hub: database /meta/project matched PROJECT.hubId
+
+  // ---------- Firebase init ----------
+  firebase.initializeApp(window.FIREBASE_CONFIG);
+  const auth = firebase.auth();
+  const db = firebase.database();
+
+  // ---------- Auth ----------
+  $('gate-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = $('email').value.trim();
+    const pw = $('password').value;
+    $('gate-err').textContent = '';
+    $('signin').disabled = true;
+    try {
+      await auth.signInWithEmailAndPassword(email, pw);
+    } catch (err) {
+      $('gate-err').textContent = humanAuthError(err);
+    } finally {
+      $('signin').disabled = false;
+    }
+  });
+
+  $('logout').addEventListener('click', (e) => {
+    e.preventDefault();
+    auth.signOut();
+  });
+
+  auth.onAuthStateChanged(async (user) => {
+    if (user) {
+      currentUser = user;
+      $('user-label').textContent = user.email;
+      $('gate').style.display = 'none';
+      $('app').classList.add('ready');
+      await loadState();
+      // Subscribe to state changes so multi-tab edits keep us fresh
+      db.ref('state').on('value', (snap) => {
+        const v = snap.val();
+        if (v) cachedState = v;
+      });
+      pushSystem(`Signed in as ${user.email.split('@')[0]} · loaded ${cachedState?.units?.length || 0} units`);
+      pushBot('Hi. Tell me what got installed today and I\'ll show you a preview before writing anything to the database.\n\nFor example:\n• "Installed SF11A and SF11B framing today"\n• "SF12A.3 has an opening error"\n• "Added louver to SF20A.1"\n• "Planning the SF03 row tomorrow"\n\nYou can write in English, 中文, or 한국어 — Claude will figure it out.');
+    } else {
+      currentUser = null;
+      cachedState = null;
+      $('gate').style.display = 'flex';
+      $('app').classList.remove('ready');
+    }
+  });
+
+  async function loadState() {
+    try {
+      // AF Hub: never read or write a database that belongs to another project.
+      const want = (window.PROJECT || {}).hubId;
+      const meta = (await db.ref('meta/project').once('value')).val();
+      projectOk = !!want && meta === want;
+      if (!projectOk) {
+        pushError('Stopped: this page is "' + want + '" but its database is "' + meta + '". Nothing will be saved — tell Leo.');
+        return;
+      }
+      const snap = await db.ref('state').once('value');
+      cachedState = snap.val();
+      if (!cachedState || !cachedState.units) {
+        pushError('No state in database yet — open the main tracker once to save an initial snapshot.');
+      }
+    } catch (err) {
+      pushError('Failed to read state: ' + (err.message || err));
+    }
+  }
+
+  function humanAuthError(err) {
+    const code = err && err.code;
+    if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') return 'Wrong email or password';
+    if (code === 'auth/user-not-found') return 'Account not found';
+    if (code === 'auth/too-many-requests') return 'Too many attempts — try again later';
+    if (code === 'auth/network-request-failed') return 'Network error';
+    return err.message || 'Sign-in failed';
+  }
+
+  // ---------- Messages ----------
+  function pushMsg(cls, text) {
+    const d = document.createElement('div');
+    d.className = 'msg ' + cls;
+    d.textContent = text;
+    $('msgs').appendChild(d);
+    scrollBottom();
+    return d;
+  }
+  function pushUser(text) { return pushMsg('user', text); }
+  function pushBot(text) { return pushMsg('bot', text); }
+  function pushSystem(text) { return pushMsg('system', text); }
+  function pushError(text) { return pushMsg('error', '⚠ ' + text); }
+
+  function pushLoading(text) {
+    const d = document.createElement('div');
+    d.className = 'msg bot';
+    d.innerHTML = `<span class="loader"></span>  <span>${escapeHtml(text)}</span>`;
+    $('msgs').appendChild(d);
+    scrollBottom();
+    return d;
+  }
+
+  function scrollBottom() {
+    const c = $('msgs');
+    c.scrollTop = c.scrollHeight;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  // ---------- Composer ----------
+  const input = $('input');
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 140) + 'px';
+  });
+  $('send').addEventListener('click', sendMessage);
+
+  async function sendMessage() {
+    const text = input.value.trim();
+    lastUserMessage = text;
+    if (!text) return;
+    if (!cachedState) { pushError('State not loaded yet — wait a moment'); return; }
+    if (pendingPreview) {
+      pushSystem('You have a pending change — confirm or cancel it first');
+      return;
+    }
+
+    pushUser(text);
+    input.value = '';
+    input.style.height = 'auto';
+    $('send').disabled = true;
+    const loadingEl = pushLoading('Parsing…');
+
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const r = await fetch('/api/parse', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          today,
+          project: (window.PROJECT || {}).name || '',
+          state: {
+            units: (cachedState.units || []).map(u => ({
+              key: u.key, id: u.id, zone: u.zone, status: u.status, date: u.date,
+              louver: u.louver, note: u.note,
+            })),
+            // Include the full daily log so the bot can answer questions like
+            // "which louvers ship to site on Tuesday?". Slimmed to the fields
+            // the bot actually needs.
+            log: (cachedState.log || []).map(l => ({
+              date: l.date,
+              category: l.category,
+              categories: l.categories,
+              content: l.content,
+              planned: l.planned,
+            })),
+          },
+        }),
+      });
+      loadingEl.remove();
+      if (!r.ok) {
+        const errBody = await r.text();
+        pushError('Parse failed (' + r.status + '): ' + errBody.slice(0, 300));
+        return;
+      }
+      const parsed = await r.json();
+      handleParsed(parsed);
+    } catch (err) {
+      loadingEl.remove();
+      pushError('Network error: ' + (err.message || err));
+    } finally {
+      $('send').disabled = false;
+    }
+  }
+
+  // ---------- Floor plan iframe card ----------
+  let lastUserMessage = '';
+
+  function isGlassQuery(text) {
+    return /glass|玻璃/i.test(text);
+  }
+
+  function extractSfIds(text) {
+    // Returns unique SF *id* strings (not keys) mentioned in text, e.g. ["SF11A","SF20B"]
+    const mentions = (text.match(/\bSF[\w.]+/gi) || []).map(s => s.toUpperCase());
+    if (!mentions.length || !cachedState) return [];
+    const ids = new Set();
+    const units = cachedState.units || [];
+    mentions.forEach(m => {
+      units.forEach(u => {
+        if (u.id && u.id.toUpperCase() === m) ids.add(u.id.toUpperCase());
+      });
+    });
+    return [...ids];
+  }
+
+  function renderMapCard(sfIds, opts = {}) {
+    const params = new URLSearchParams();
+    params.set('embed', '1');
+    if (sfIds.length) params.set('highlight', sfIds.join(','));
+    if (opts.glass) params.set('glass', '1');
+    const src = './?' + params.toString();
+
+    const card = document.createElement('div');
+    card.className = 'map-card';
+    card.innerHTML =
+      '<iframe src="' + src + '" sandbox="allow-scripts allow-same-origin allow-forms" loading="lazy"></iframe>' +
+      '<div class="map-card-foot">' +
+        (sfIds.length ? '📍 ' + sfIds.length + ' unit(s) highlighted' : '🗺 Floor plan') +
+        '<a href="' + src.replace('embed=1&','').replace('&embed=1','').replace('embed=1','') + '" target="_blank">Open full tracker ↗</a>' +
+      '</div>';
+
+    $('msgs').appendChild(card);
+    scrollBottom();
+  }
+
+  // ---------- Preview / confirm ----------
+  function handleParsed(parsed) {
+    // Q&A path — bot is answering a question, no preview/confirm.
+    if (parsed.answer && parsed.answer.trim()) {
+      pushBot(parsed.answer);
+      // Show map if the answer mentions specific units
+      const ids = extractSfIds(parsed.answer);
+      if (ids.length) {
+        const glassQ = isGlassQuery(lastUserMessage + ' ' + parsed.answer);
+        renderMapCard(ids, { glass: glassQ });
+      }
+      return;
+    }
+
+    const hasUpdates = (parsed.unit_updates && parsed.unit_updates.length) || (parsed.log_entries && parsed.log_entries.length);
+
+    if (parsed.needs_clarification && !hasUpdates) {
+      pushBot('🤔 ' + parsed.needs_clarification);
+      return;
+    }
+    if (!hasUpdates) {
+      pushBot('I didn\'t catch that — could you rephrase? Try "SF11A installed today" to update, or ask a question like "which louvers ship to site on Friday?"');
+      return;
+    }
+
+    // Build preview
+    const card = renderPreview(parsed);
+    $('msgs').appendChild(card);
+    scrollBottom();
+    pendingPreview = { parsed, card };
+  }
+
+  function renderPreview(parsed) {
+    const card = document.createElement('div');
+    card.className = 'preview';
+
+    // Build unit diff rows
+    const unitRows = [];
+    (parsed.unit_updates || []).forEach(up => {
+      const cur = (cachedState.units || []).find(u => u.key === up.key);
+      if (!cur) {
+        unitRows.push(`
+          <div class="diff-row">
+            <span class="diff-key">${escapeHtml(up.key)}</span>
+            <span class="diff-change" style="color: var(--bad);">⚠ Key not found in database</span>
+          </div>`);
+        return;
+      }
+      const changes = [];
+      ['status', 'date', 'louver', 'note'].forEach(field => {
+        if (up[field] !== undefined && up[field] !== cur[field]) {
+          const oldV = cur[field] || '(empty)';
+          const newV = up[field] || '(empty)';
+          changes.push(`${field}: <span class="diff-old">${escapeHtml(oldV)}</span> <span class="diff-arrow">→</span> <span class="diff-new">${escapeHtml(newV)}</span>`);
+        }
+      });
+      if (!changes.length) return; // nothing actually changed
+      unitRows.push(`
+        <div class="diff-row">
+          <span class="diff-key">${escapeHtml(up.key)} <span style="color:var(--muted)">(${escapeHtml(cur.id)})</span></span>
+          <span class="diff-change">${changes.join(' · ')}</span>
+        </div>`);
+    });
+
+    const logRows = (parsed.log_entries || []).map(le => `
+      <div class="diff-row">
+        <span class="diff-key">+log ${escapeHtml(le.date)}</span>
+        <span class="diff-change">[${escapeHtml(le.category)}] ${escapeHtml(le.content)}${le.planned ? ' <span style="color:var(--warn)">(planned)</span>' : ''}${le.party ? ' · party: ' + escapeHtml(le.party) : ''}${le.fault ? ' · fault: ' + escapeHtml(le.fault) : ''}${le.ref ? ' · ref: ' + escapeHtml(le.ref) : ''}</span>
+      </div>`).join('');
+
+    card.innerHTML = `
+      <div class="preview-head">📋 Preview${parsed.summary ? ' — ' + escapeHtml(parsed.summary) : ''}</div>
+      <div class="preview-body">
+        ${unitRows.length ? `<div class="preview-section"><h4>Units (${unitRows.length})</h4>${unitRows.join('')}</div>` : ''}
+        ${logRows ? `<div class="preview-section"><h4>Log</h4>${logRows}</div>` : ''}
+        ${parsed.needs_clarification ? `<div class="preview-section"><h4>Note</h4><div style="color:var(--warn);font-size:12px;">${escapeHtml(parsed.needs_clarification)}</div></div>` : ''}
+      </div>
+      <div class="preview-actions">
+        <button class="btn btn-cancel" data-action="cancel">Cancel</button>
+        <button class="btn btn-confirm" data-action="confirm">Confirm &amp; write</button>
+      </div>
+    `;
+    card.querySelector('[data-action="cancel"]').addEventListener('click', () => cancelPreview(card));
+    card.querySelector('[data-action="confirm"]').addEventListener('click', () => confirmPreview(card));
+    return card;
+  }
+
+  function cancelPreview(card) {
+    const wasPending = pendingPreview && pendingPreview.card === card;
+    if (card.parentNode) card.remove();
+    if (wasPending) pendingPreview = null;
+    pushSystem('Cancelled');
+  }
+
+  async function confirmPreview(card) {
+    if (!pendingPreview || pendingPreview.card !== card) return;
+    if (!projectOk) { pushError('Not saved: this page and its database do not match (see above).'); return; }
+    const { parsed } = pendingPreview;
+    const btns = card.querySelectorAll('.btn');
+    btns.forEach(b => b.disabled = true);
+    const confirmBtn = card.querySelector('[data-action="confirm"]');
+    confirmBtn.innerHTML = '<span class="loader"></span> Writing…';
+
+    try {
+      // Build new state — fresh snapshot from server first to avoid clobbering
+      const snap = await db.ref('state').once('value');
+      const live = snap.val() || cachedState;
+      const next = JSON.parse(JSON.stringify(live));
+
+      // Apply unit updates
+      const updated = [];
+      (parsed.unit_updates || []).forEach(up => {
+        const u = (next.units || []).find(x => x.key === up.key);
+        if (!u) return;
+        ['status', 'date', 'louver', 'note'].forEach(f => {
+          if (up[f] !== undefined) u[f] = up[f];
+        });
+        updated.push(up.key);
+      });
+
+      // Append log entries
+      if (!Array.isArray(next.log)) next.log = [];
+      (parsed.log_entries || []).forEach(le => {
+        next.log.push({
+          date: le.date,
+          category: le.category,
+          content: le.content,
+          ...(le.planned ? { planned: true } : {}),
+          // Evidence fields (responsibility / verification / paper trail)
+          ...(le.ref   ? { ref:   le.ref   } : {}),
+          ...(le.party ? { party: le.party } : {}),
+          ...(le.fault ? { fault: le.fault } : {}),
+        });
+      });
+
+      next.updatedAt = new Date().toISOString();
+
+      // Push to Firebase /state
+      const desc = parsed.summary || ('Chat: updated ' + updated.length + ' unit(s)');
+      const payload = Object.assign({}, next, {
+        _ts: firebase.database.ServerValue.TIMESTAMP,
+        _by: currentUser.email,
+        _desc: desc,
+        _clientId: 'chat-' + Math.random().toString(36).slice(2),
+        _project: (window.PROJECT || {}).hubId,   // checked against /meta/project by the rules
+      });
+      await db.ref('state').set(payload);
+      // History
+      const counts = { installed: 0, pending: 0, issue: 0 };
+      (next.units || []).forEach(u => { if (counts[u.status] != null) counts[u.status]++; });
+      await db.ref('history').push({
+        ts: firebase.database.ServerValue.TIMESTAMP,
+        user: currentUser.email,
+        desc,
+        snapshot: {
+          units: next.units.length,
+          installed: counts.installed,
+          issues: counts.issue,
+          log: (next.log || []).length,
+        },
+      });
+
+      cachedState = next;
+      card.querySelector('.preview-actions').innerHTML = '<span style="color:var(--good);font-size:13px;">✓ Saved</span>';
+      pendingPreview = null;
+      pushBot('✅ ' + desc + '\n\nThe main dashboard will auto-refresh within ~1 second if it\'s open in another tab.');
+      // Show map highlighting the units that just changed
+      const changedIds = [...new Set((parsed.unit_updates || []).map(u => u.id).filter(Boolean))];
+      if (changedIds.length) renderMapCard(changedIds);
+    } catch (err) {
+      console.error(err);
+      btns.forEach(b => b.disabled = false);
+      confirmBtn.textContent = 'Confirm & write';
+      const code = err && err.code;
+      let msg = err.message || String(err);
+      if (code === 'PERMISSION_DENIED' || /permission/i.test(msg)) {
+        msg = 'Your account does not have write permission — ask the admin to add your email to /allowlist';
+      }
+      pushError('Save failed: ' + msg);
+    }
+  }
+
+})();
+</script>
+</body>
+</html>

@@ -159,6 +159,8 @@
     text-transform: uppercase; letter-spacing: 0.04em;
   }
   .field input[type="text"],
+  .field input[type="date"],
+  .field input[type="number"],
   .field textarea,
   .field select {
     width: 100%;
@@ -169,6 +171,17 @@
     font-size: 16px;     /* >=16px so iOS doesn't auto-zoom on focus */
     color: var(--text);
   }
+  /* Date inputs used to fall through to the browser default (white background, and on
+     mobile the digits didn't render). color-scheme:dark makes the native field + picker
+     render for dark mode; the webkit rules keep the digits clearly light on dark. */
+  .field input[type="date"] { color-scheme: dark; }
+  .field input[type="date"]::-webkit-datetime-edit,
+  .field input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+  .field input[type="date"]::-webkit-datetime-edit-text,
+  .field input[type="date"]::-webkit-datetime-edit-month-field,
+  .field input[type="date"]::-webkit-datetime-edit-day-field,
+  .field input[type="date"]::-webkit-datetime-edit-year-field { color: var(--text); }
+  .field input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.7; cursor: pointer; }
   .field textarea { min-height: 64px; resize: vertical; }
   .field input:focus, .field textarea:focus, .field select:focus {
     outline: none; border-color: var(--accent);

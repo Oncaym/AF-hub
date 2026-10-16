@@ -10,6 +10,7 @@ on:
     paths:
       - 'core/**'
       - 'ac3/**'
+      - 'cp2/**'
       - 'lex/**'
       - 'platform/**'
       - 'design/**'

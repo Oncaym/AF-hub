@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* ─────────────────────────────────────────────────────────────────────────
-   End-to-end: the real tracker pages (/ac3/, /lex/) in a real browser, two
-   project databases, and people with different access. Proves that a save
+   End-to-end: the real tracker pages (/ac3/, /cp2/, /lex/) in a real browser,
+   three project databases, and people with different access. Proves that a save
    lands only in its own project and that every way of pointing a page at the
    wrong database stops before anything is written.
 
@@ -44,6 +44,8 @@ const seedFor = (id, editors, gcs) => ({
     // Lexington builds its board from project-config.js and keeps cloud rows by key, so it
     // gets one of its real keys; AC3 keeps whatever units the cloud holds.
     units: [id === 'lex' ? { key: 'SD0201', id: 'SD0201', status: 'pending' }
+          : id === 'cp2' ? { key: 'SF01__1', id: 'SF01L', status: 'pending', level: 'GF', zone: 'North', type: 'Storefront',
+                             glassPanels: [{ panel: '1F-09', status: '' }] }
                          : { key: 'AC3-1', id: 'AC3-1', status: 'pending', level: 'GF', zone: 'N', type: 'Storefront' }],
     log: [],
   },
@@ -194,7 +196,7 @@ async function shot(page, name) { if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: 
 async function until(fn, ms = 15000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (await fn()) return true; } catch (e) {} await sleep(150); } return false; }
 
 const B = BACKEND === 'emulator' ? new EmulatorBackend() : new FakeBackend();
-const AC3 = B.url('ac3'), LEX = B.url('lex');
+const AC3 = B.url('ac3'), LEX = B.url('lex'), CP2 = B.url('cp2');
 const BASE = 'http://127.0.0.1:8833';
 
 async function newContext(browser, { lexPointsAt } = {}) {
@@ -206,6 +208,7 @@ async function newContext(browser, { lexPointsAt } = {}) {
     storageBucket: 'af-hub-8f188.firebasestorage.app', appId: '1:1:web:1' }, B.config(url)))};\n${B.configExtra()}`;
   await context.route(/\/ac3\/firebase-config\.js/, r => r.fulfill({ contentType: 'text/javascript', body: cfg('ac3', AC3) }));
   await context.route(/\/lex\/firebase-config\.js/, r => r.fulfill({ contentType: 'text/javascript', body: cfg('lex', lexPointsAt || LEX) }));
+  await context.route(/\/cp2\/firebase-config\.js/, r => r.fulfill({ contentType: 'text/javascript', body: cfg('cp2', CP2) }));
   // The hub summary writer must hit the test hub database, never the real one.
   await context.route(/\/af-hub-config\.js/, r => r.fulfill({ contentType: 'text/javascript', body: `window.AF_HUB_FIREBASE = ${JSON.stringify(Object.assign({
     apiKey: 'fake-api-key', authDomain: 'demo-afhub.firebaseapp.com', projectId: 'demo-afhub', appId: '1:1:web:2' }, B.config(B.hubUrl())))};` }));
@@ -243,11 +246,13 @@ async function edit(page, status) {
   const server = await serve(8833);
   await B.seed(AC3, seedFor('ac3', [LEO, JOE], [GC]));
   await B.seed(LEX, seedFor('lex', [LEO]));
+  await B.seed(CP2, seedFor('cp2', [LEO]));
   await B.seed(B.hubUrl(), {}, false);
   for (const e of [LEO, JOE, BOSS, GC]) await B.createUser(e, true);
   await B.createUser(NEWBIE, false);
   const lexBefore = JSON.stringify(await B.read(LEX, 'state'));
-  const browser = await chromium.launch();
+  // PW_EXEC: a Chromium already on the machine (same switch as the design e2e tests).
+  const browser = await chromium.launch(process.env.PW_EXEC ? { executablePath: process.env.PW_EXEC } : {});
 
   try {
     console.log('\n1. An editor saves on AC3 — the save lands in AC3 only, stamped "ac3"');
@@ -351,6 +356,39 @@ async function edit(page, status) {
     await page.click('#cs-auth-msg button:has-text("I opened the link")');
     ok(await until(async () => !(await gateVisible(page))), 'after confirming, staff can view AC3');
     ok(await until(() => page.evaluate(() => window.CloudSync.isReadOnly())), '…read-only');
+    await ctx.close();
+
+    console.log('\n8. Cooper Park 2 in the hub: its saves land in CP2 only, its bay elevations and glass triage work');
+    const ac3Now = JSON.stringify(await B.read(AC3, 'state')), lexNow8 = JSON.stringify(await B.read(LEX, 'state'));
+    ctx = await newContext(browser);
+    page = await open(ctx, 'cp2');
+    await signIn(page, LEO);
+    ok(await until(async () => !(await gateVisible(page))), 'sign-in opens the CP2 board');
+    ok(await until(() => page.evaluate(() => window.CloudSync.role() === 'editor')), 'Leo is an editor on CP2');
+    await until(() => page.evaluate(() => !!(typeof state !== "undefined" && state && state.units && state.units.some(u => u.key === 'SF01__1'))));
+    await page.evaluate(() => { const u = state.units.find(x => x.key === 'SF01__1'); u.status = 'installed'; window.saveState(); });
+    ok(await until(async () => ((await B.read(CP2, 'state/units') || []).some(u => u && u.key === 'SF01__1' && u.status === 'installed'))), 'CP2 database has the change');
+    ok((await B.read(CP2, 'state/_project')) === 'cp2', 'stamped "cp2"');
+    ok(JSON.stringify(await B.read(AC3, 'state')) === ac3Now && JSON.stringify(await B.read(LEX, 'state')) === lexNow8, 'AC3 and Lexington untouched');
+    ok(await page.evaluate(() => _bays().length > 0), 'CP2 loads its bay elevations (elevations.js)');
+    await page.evaluate(() => openOpeningsSheet());
+    ok(await until(() => page.evaluate(() => !!document.querySelector('#openingsSheet .op-tabs [data-view="elev"]'))), 'the Openings sheet has the Elevation tab');
+    await shot(page, '8-cp2-board');
+    const ac3p = await open(ctx, 'ac3');
+    await until(async () => !(await gateVisible(ac3p)));
+    await ac3p.evaluate(() => openOpeningsSheet());
+    ok(await until(() => ac3p.evaluate(() => !!document.getElementById('openingsSheet'))) &&
+       await ac3p.evaluate(() => !document.querySelector('#openingsSheet .op-tabs') && _bays().length === 0),
+       'AC3 (no bay elevations) keeps its one-page Openings sheet, no tabs');
+    const tri = await open2(ctx, 'cp2/friday-triage.html');
+    ok(await until(() => tri.evaluate(() => document.getElementById('conn-pill').classList.contains('live'))), 'glass triage page: connected as editor');
+    ok(await until(() => tri.evaluate(() => !!(mainState && mainState.units && mainState.units.length))), 'glass triage reads the CP2 board');
+    await tri.evaluate(() => propagateTriageStatusToMain('1F-09', 'staged'));
+    ok(await until(async () => ((await B.read(CP2, 'state/units/0/glassPanels/0/status')) === 'ready')), 'a staged triage piece marks its glass panel "ready" on the board (the rules accept the write-back)');
+    ok((await B.read(CP2, 'state/_by')) === LEO && (await B.read(CP2, 'state/_clientId')) === 'friday-triage', '…signed by Leo, from the triage page');
+    // The fake SDK pushes only within one page; the real one (emulator) pushes to every client.
+    await page.evaluate(() => window.__fbRefresh && window.__fbRefresh());
+    ok(await until(() => page.evaluate(() => state.units.find(x => x.key === 'SF01__1').glassPanels[0].status === 'ready')), 'the open CP2 board picks it up');
     await ctx.close();
   } finally {
     await browser.close();

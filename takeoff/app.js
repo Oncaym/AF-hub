@@ -6034,6 +6034,7 @@ function buildElevExport(mark, c, pool, louverBand, doorRegions, structuralPolys
 // ============================================================
 const HUB_PROJECTS = [
   { id: 'ac3', name: 'Atlantic-Chestnut Building 3' },
+  { id: 'cp2', name: 'Cooper Park 2' },
   { id: 'lex', name: '355 Lexington Avenue' },
 ];
 const hubDbUrl = id => `https://af-hub-8f188-${id}.firebaseio.com`;

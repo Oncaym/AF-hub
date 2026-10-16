@@ -16,6 +16,18 @@
       }
     },
     {
+      "id": "cp2",
+      "name": "Cooper Park 2",
+      "folder": "cp2",
+      "databaseURL": "https://af-hub-8f188-cp2.firebaseio.com",
+      "legacy": {
+        "databaseURL": "https://copper-park-2---monitor-default-rtdb.firebaseio.com",
+        "storageBucket": "copper-park-2---monitor.firebasestorage.app",
+        "secret": "CP2_SERVICE_ACCOUNT",
+        "site": "https://copper-park-2-install-progress-trac.vercel.app"
+      }
+    },
+    {
       "id": "lex",
       "name": "355 Lexington Avenue",
       "folder": "lex",

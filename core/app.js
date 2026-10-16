@@ -1265,6 +1265,7 @@ function renderPlan() {
   // so the markers stay in the DOM with no event handlers → clicks do nothing
   // until the user toggles glass mode off-and-on.
   wrap.querySelectorAll('.glass-marker').forEach(el => el.remove());
+  wrap.querySelectorAll('.elev-key').forEach(el => el.remove());        // F-056
   if (typeof mapGlassMode === 'undefined' || !mapGlassMode) {
     wrap.classList.remove('glass-mode');
     const _gmBtn = document.getElementById('glassMapBtn');
@@ -1325,6 +1326,7 @@ function renderPlan() {
     m.addEventListener('mouseleave', hidePlanTooltip);
     wrap.appendChild(m);
   });
+  renderElevationKeys(wrap);                               // F-056: elevation symbols
   setupPlanInteractions();
   renderUnitTypeLegend();
   if (typeof mapGlassMode !== 'undefined' && mapGlassMode) renderGlassMarkers();
@@ -1983,7 +1985,13 @@ document.addEventListener('mouseup', () => {
     } else {
       state.positions[dragState.id] = { x: dragState.x, y: dragState.y };
       saveState(false);
-      { const _du = state.units.find(x=>x.key===dragState.id); toast(`${_du ? _du.id : dragState.id} ` + t('msg_pos_saved')); }
+      { const _du = state.units.find(x=>x.key===dragState.id);
+        let _nm = _du ? _du.id : dragState.id;
+        if (!_du && String(dragState.id).indexOf(ELEV_KEY_PREFIX) === 0) {   // F-056 elevation key
+          const _b = (window.ELEV_BAYS || {})[String(dragState.id).slice(ELEV_KEY_PREFIX.length).split(':')[0]];
+          _nm = (_b ? _b.name : 'Elevation') + ' key';
+        }
+        toast(`${_nm} ` + t('msg_pos_saved')); }
     }
   } else if (dragState && dragState.glassPanel && dragState.el) {
     dragState.el.style.cursor = 'grab';
@@ -3074,6 +3082,7 @@ function renderRoRequired(u, keepDrafts) {
         ${_eviCell('Height', `<input type="text" id="ro-req-h" placeholder="e.g. 3-0" value="${esc(r.h)}" autocomplete="off" onblur="_roReqBlur(this)" ${_EVI_IN}>`)}
         ${_eviCell('Tolerance (optional)', `<input type="text" id="ro-req-tol" placeholder='e.g. +1/4" / −0' value="${esc(r.tol)}" autocomplete="off" ${_EVI_IN}>`)}
       </div>
+      ${_roDxfHint(u, r)}
       <div style="margin-top:6px">${_eviCell('Note to the GC (optional)', `<input type="text" id="ro-req-note" placeholder="e.g. measure to face of slab, not to the shoring" value="${esc(r.note)}" autocomplete="off" ${_EVI_IN}>`)}</div>
       <div style="font-size:11px;color:var(--text-dim);margin-top:6px">${r.issued ? `Issued ${esc(r.issued)}${r.rev ? ` · rev ${r.rev}` : ''} — appears on the GC's 📐 Openings sheet.` : 'Not issued yet — fill in width/height and Save to publish it to the GC.'}</div>
     </div>
@@ -3087,6 +3096,37 @@ function renderRoRequired(u, keepDrafts) {
   // Draft copy: uploads land here and only reach the unit on Save, so Cancel discards them.
   if (!keepDrafts) _unitDwgDraft = _dwgOf(u).map(d => Object.assign({}, d));
   renderUnitDwgThumbs();
+}
+
+/* F-055: what the shop drawing measures for this opening, shown to editors only.
+   Three states worth distinguishing: nothing issued (offer it), issued and equal
+   (quietly confirm — that agreement is evidence the parse is right), issued and
+   DIFFERENT (say so loudly; either the drawing moved or we published a typo, and
+   the GC may already be building to the published number). */
+function _roDxfHint(u, r) {
+  if (_isGC()) return '';
+  const hit = _bayOpeningFor(u && u.id);
+  if (!hit) return '';
+  const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const d = hit.o, dims = `${d.dxfW} \u00d7 ${d.dxfH}`;
+  const has = !!(r && (r.w || r.h));
+  const same = has && _impNorm(r.w) === _impNorm(d.dxfW) && _impNorm(r.h) === _impNorm(d.dxfH);
+  const btn = `<button type="button" class="btn" style="font-size:11px;padding:3px 9px" onclick="_roUseDxf('${esc(u.id)}')">Use these</button>`
+    + ` <button type="button" class="btn" style="font-size:11px;padding:3px 9px" onclick="openBayElevation('${esc(hit.bay.id)}')">\u{1F3E2} On the elevation</button>`;
+  if (!has) return `<div style="font-size:11.5px;color:var(--text-dim);margin-top:7px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">`
+    + `<span>Shop drawing <code>${esc(hit.bay.source)}</code> measures <b style="color:var(--text)">${esc(dims)}</b>.</span>${btn}</div>`;
+  if (same) return `<div style="font-size:11.5px;color:var(--green,#2ea043);margin-top:7px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">`
+    + `<span>\u2713 Matches the shop drawing (${esc(dims)}).</span>`
+    + `<button type="button" class="btn" style="font-size:11px;padding:3px 9px" onclick="openBayElevation('${esc(hit.bay.id)}')">\u{1F3E2} On the elevation</button></div>`;
+  return `<div style="font-size:11.5px;color:var(--amber,#d29922);margin-top:7px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">`
+    + `<span>\u26a0 The shop drawing measures <b>${esc(dims)}</b> \u2014 we issued <b>${esc((r.w || '\u2014') + ' \u00d7 ' + (r.h || '\u2014'))}</b>. Check before the GC frames to it.</span>${btn}</div>`;
+}
+function _roUseDxf(unitId) {
+  const hit = _bayOpeningFor(unitId); if (!hit) return;
+  const w = document.getElementById('ro-req-w'), h = document.getElementById('ro-req-h');
+  if (w) w.value = hit.o.dxfW;
+  if (h) h.value = hit.o.dxfH;
+  if (typeof toast === 'function') toast('Filled from the drawing \u2014 Save to issue it');
 }
 
 /* -------- Per-unit shop drawing / elevation (F-042, Leo 2026-08-03) --------------
@@ -3297,6 +3337,8 @@ function openingsRows() {
     })
     .sort((a, b) => a.level === b.level ? String(a.id).localeCompare(String(b.id), undefined, { numeric: true }) : String(a.level).localeCompare(String(b.level)));
 }
+/* F-055 view state for the sheet: which tab is showing, which bay, doors on/off. */
+let _opView = 'plan', _opBay = '', _bayDoors = true;
 function openOpeningsSheet() {
   const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   let ov = document.getElementById('openingsModal');
@@ -3319,9 +3361,20 @@ function openOpeningsSheet() {
       // wide enough that neighbouring openings overlapped into an unreadable blob.
       return `<span class="op-tag${done ? ' op-tag-ready' : ''}" style="left:${p.x}%;top:${p.y}%" title="${esc(r.id)} · ${esc(_roReqDims(r))}">${esc(String(r.id).replace(/^SF/i, ''))}</span>`;
     }).join('');
+    // F-056: the same elevation key the live plan carries, so the printed handout
+    // also says "there is an elevation of this bay, and here is where it looks".
+    const keys = _bays().map((b, i) => {
+      const p = _bayUnitsOnFloor(b, f.key).length ? _bayKeyState(b, f.key) : null;
+      if (!p) return '';
+      return `<span class="elev-key op-elev-key${_bayGcShown(b) ? '' : ' elev-key-internal'}" style="left:${p.x}%;top:${p.y}%" title="${esc(b.name)} elevation"
+          onclick="openBayElevation('${esc(b.id)}')">
+          <span class="elev-key-arrow" style="transform:rotate(${p.ang}deg)"></span>
+          <span class="elev-key-dot">${i + 1}</span>
+          <span class="elev-key-label">${esc(b.name)}</span></span>`;
+    }).join('');
     return `<div class="op-floor">
         <div class="op-floor-name">${esc(floorLabel(f))}</div>
-        <div class="op-plan"><img src="${esc(_planSrcFor(f.key))}" alt="${esc(floorLabel(f))} key plan">${tags}</div>
+        <div class="op-plan"><img src="${esc(_planSrcFor(f.key))}" alt="${esc(floorLabel(f))} key plan">${tags}${keys}</div>
       </div>`;
   };
   const ackCell = (r) => {
@@ -3353,12 +3406,22 @@ function openOpeningsSheet() {
             <div style="font-size:12px;color:var(--text-dim);margin-top:2px">${esc(title)} · issued to the GC · ${rows.length} opening${rows.length === 1 ? '' : 's'} · printed ${new Date().toISOString().slice(0, 10)}</div>
           </div>
         </div>
+        <!-- AF Hub: the tabs only exist in a project with bay elevations (CP2: window.ELEV_BAYS);
+             elsewhere the sheet stays one page, key plan above the table, as before. -->
+        ${_baysAll().length ? `<div class="op-tabs op-noprint">
+          <button type="button" class="btn" data-view="plan" onclick="setOpView('plan')">&#128506; Key plan</button>
+          ${_bays().length ? `<button type="button" class="btn" data-view="elev" onclick="setOpView('elev')">&#127970; Elevation</button>` : ''}
+          <button type="button" class="btn" data-view="table" onclick="setOpView('table')">&#128203; Table</button>
+        </div>` : ''}
         <div class="op-scroll">
-          ${floors.map(planFor).join('')}
+          <div class="op-view" data-view="plan">${floors.map(planFor).join('')}</div>
+          ${_bays().length ? `<div class="op-view${_bayGcShown(_curBay()) ? '' : ' op-view-internal'}" data-view="elev">${_bayPanelHtml()}</div>` : ''}
+          <div class="op-view" data-view="table">
           <table class="op-table">
             <thead><tr><th>Unit</th><th>Floor</th><th>Required W</th><th>Required H</th><th>Tol.</th><th>Note</th><th>Issued</th><th>Drawing</th><th>GC status</th></tr></thead>
             <tbody>${body}</tbody>
           </table>
+          </div>
           <div style="font-size:11px;color:var(--text-dim);margin-top:10px"><b>${esc(t('openings_disclaimer'))}</b></div>
           <div style="font-size:11px;color:var(--text-dim);margin-top:6px">${esc(t('sheet_follows_legend'))}</div>
           <div style="font-size:11px;color:var(--text-dim);margin-top:6px">Dimensions are rough-opening sizes in feet-inches. Tags on the key plan show the unit number without the "SF" prefix (tag <b>42</b> = unit SF42); green = the GC has marked it ready.</div>
@@ -3371,6 +3434,8 @@ function openOpeningsSheet() {
       </div>
     </div>`;
   ov.classList.add('show');
+  if (_opView === 'elev' && !_bays().length) _opView = 'plan';
+  setOpView(_opView);
 }
 function printOpenings() {
   document.body.classList.add('printing-openings');
@@ -3393,6 +3458,413 @@ function exportOpeningsCsv() {
   document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
 }
+/* ==================== F-055: bay elevation panel (Leo, 2026-08-26) ============
+   The GC asked the one question a key plan cannot answer: how far apart are the
+   openings? Tags on a floor plan tell a super which opening is which; framing a
+   two-storey storefront bay needs the elevation — 26" of column between the L2
+   openings, the 14" spandrel band, the 12" header over the door. So the 📐
+   Openings sheet gains a second view: the bay drawn to scale, every opening a
+   tap target onto the same GC card a plan marker opens.
+
+   WHERE THE NUMBERS COME FROM — the important part:
+   · The GAPS are DXF geometry (elevations.js, generated by tools/dxf2bay.py).
+     That generator derives every clear gap itself and then cross-checks the set
+     against the DIMENSION entities the detailer drew; it refuses to write the
+     file if the two disagree in EITHER direction. Nothing here is traced.
+   · Each opening's OWN size is the value we ISSUED (u.roRequired) — never the
+     DXF's. Those are what is contractually out there, and the GC building to a
+     number nobody signed is exactly the failure this dashboard exists to avoid.
+     Where nothing is issued the GC reads "not issued yet", full stop. Leo (and
+     only Leo) additionally sees what the DXF measures, with one click to issue
+     it. Two of the six already agree with the DXF to the 1/16" — SF46 and SF47
+     were issued 2026-07-31 by hand, which is a decent check on the parser.
+
+   Doors are drawn because the GC asked to see them, and hidden by one toggle
+   because the door is our scope inside their opening, not a second opening. */
+/* F-057 (Leo, 2026-08-26): each bay elevation can be shown to the GC or kept
+   internal. Default is INTERNAL — a bay reaches the GC only when someone here
+   deliberately publishes it, the same rule F-038 already applies to dimensions.
+   Nothing built for our own use should escape to an outside party by default.
+
+   `_bays()` is the single choke point: filtering here means the plan symbol, the
+   Elevation tab, the panel, the key-plan symbol, the button on the unit card and
+   the printed handout all follow from one flag, with no surface left behind. */
+function _bayGcShown(bay) {
+  const m = (typeof state !== 'undefined' && state && state.elevGc) || {};
+  return m[bay && bay.id] === true;
+}
+function _baysAll() {
+  const B = window.ELEV_BAYS || {};
+  return Object.keys(B).map(k => B[k]).filter(b => b && Array.isArray(b.openings) && b.openings.length);
+}
+function _bays() {
+  const all = _baysAll();
+  return _isGC() ? all.filter(_bayGcShown) : all;
+}
+/* Editors flip it; the change syncs like any other state edit (pushNow spreads the
+   whole state object, so no Firebase rule changes) and is logged, because "who
+   showed the GC this drawing, and when" is the kind of thing that gets asked later. */
+function setBayGc(bayId, on) {
+  if (_noEdit()) return;
+  const bay = _baysAll().find(b => b.id === bayId);
+  if (!bay) return;
+  if (!state.elevGc) state.elevGc = {};
+  const was = state.elevGc[bayId] === true;
+  if (was === !!on) return;
+  state.elevGc[bayId] = !!on;
+  saveState(false, `${bay.name} elevation ${on ? 'shown to' : 'hidden from'} the GC`);
+  if (typeof toast === 'function') {
+    toast(on ? `${bay.name} elevation is now visible to the GC`
+             : `${bay.name} elevation is hidden from the GC`);
+  }
+  try { renderPlan(); } catch (e) {}
+  const sheet = document.getElementById('openingsModal');
+  if (sheet && sheet.classList.contains('show')) openOpeningsSheet();
+}
+function toggleBayGc(bayId) { setBayGc(bayId, !_bayGcShown(_baysAll().find(b => b.id === bayId))); }
+/* The opening for a unit, in whichever bay holds it — used both by the panel and
+   by the R.O. tab, where it becomes a suggestion Leo can accept with one click.
+   A suggestion, never an auto-fill: issuing a dimension to the GC is a deliberate
+   act with a date and a rev number on it (F-038), and the drawing is not the
+   contract. */
+function _bayOpeningFor(unitId) {
+  const k = String(unitId == null ? '' : unitId).trim().toLowerCase();
+  if (!k) return null;
+  const bays = _bays();
+  for (let i = 0; i < bays.length; i++) {
+    const o = bays[i].openings.find(x => String(x.unit || '').trim().toLowerCase() === k);
+    if (o) return { bay: bays[i], o: o };
+  }
+  return null;
+}
+function _bayUnitOf(unitId) {
+  const k = String(unitId == null ? '' : unitId).trim().toLowerCase();
+  if (!k) return null;
+  return (state && Array.isArray(state.units) ? state.units : [])
+    .find(u => String(u.id).trim().toLowerCase() === k) || null;
+}
+/* What the viewer is allowed to read off an opening. `dxf` is populated only for
+   editors — a GC must never see an un-issued dimension sitting on a drawing. */
+function _bayOpeningInfo(o) {
+  const u = _bayUnitOf(o.unit);
+  const ro = _isGC();
+  const dxf = ro ? '' : `${o.dxfW} × ${o.dxfH}`;
+  if (!u) return { u: null, state: 'missing', dims: '', sub: 'not on the tracker yet', dxf: dxf };
+  if (_roFollows(u)) return { u: u, state: 'follow', dims: '', sub: t('sheet_follows_short') || 'follows your opening', dxf: dxf };
+  const r = _roReqOf(u);
+  if (_roReqEmpty(r)) return { u: u, state: 'none', dims: '', sub: 'not issued yet', dxf: dxf };
+  const ready = !!_openingAckedBy(u.id);
+  return { u: u, state: ready ? 'ready' : 'issued', dims: `${r.w || '—'} × ${r.h || '—'}`,
+           sub: ready ? 'GC marked ready' : ('issued ' + (r.issued || '')), dxf: dxf };
+}
+/* Build the bay as inline SVG. User units ARE inches, so every coordinate below
+   is a real dimension and the drawing cannot drift out of scale. */
+function _baySvg(bay) {
+  const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const H = bay.h, W = bay.w;
+  const n = v => (Math.round(v * 100) / 100);
+  const Y = (y, h) => n(H - y - (h || 0));          // DXF y-up → SVG y-down
+  const rect = (x, y, w, h, cls, extra) =>
+    `<rect class="${cls}" x="${n(x)}" y="${Y(y, h)}" width="${n(w)}" height="${n(h)}"${extra || ''}/>`;
+  const M = 52;                                      // room for the dimension strings
+  let s = '';
+
+  // Surrounding construction: the whole bay with the openings punched out.
+  const holes = bay.openings.map(o =>
+    `M${n(o.x)},${Y(o.y, o.h)}h${n(o.w)}v${n(o.h)}h${n(-o.w)}Z`).join('');
+  s += `<path class="bay-solid" d="M0,0h${n(W)}v${n(H)}h${n(-W)}Z${holes}" fill-rule="evenodd"/>`;
+  (bay.byOthers || []).forEach(b => {
+    let ls = '';
+    for (let x = b.x; x <= b.x + b.w + 0.01; x += (b.pitch || 2))
+      ls += `<line x1="${n(x)}" y1="0" x2="${n(x)}" y2="${n(H)}"/>`;
+    s += `<g class="bay-rib">${ls}</g>`;
+  });
+
+  let lbl = '';
+  bay.openings.forEach(o => {
+    const info = _bayOpeningInfo(o);
+    const key = info.u ? info.u.key : '';
+    const tap = key ? ` tabindex="0" role="button" onclick="openUnit('${esc(key)}')"` +
+                      ` onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openUnit('${esc(key)}')}"` : '';
+    const label = o.unit + (info.dims ? ' · ' + info.dims : '');
+    s += `<g class="bay-op" data-unit="${esc(o.unit)}" data-state="${info.state}"${tap}>`;
+    s += `<title>${esc(label)} — ${esc(info.sub)}</title>`;
+    s += rect(o.x, o.y, o.w, o.h, 'bay-void');
+    (o.frame || []).forEach(r => { s += rect(r[0], r[1], r[2], r[3], 'bay-frame'); });
+    (o.panels || []).forEach(r => { s += rect(r[0], r[1], r[2], r[3], 'bay-panel'); });
+    (o.lites || []).forEach(l => {
+      if (l.t === 'door') {
+        s += rect(l.x, l.y, l.w, l.h, 'bay-glass');
+        s += `<g class="bay-door">` + rect(l.x, l.y, l.w, l.h, 'bay-doorleaf') +
+             `<path class="bay-swing" d="M${n(l.x + l.w)},${Y(l.y)}L${n(l.x)},${Y(l.y + l.h / 2)}L${n(l.x + l.w)},${Y(l.y + l.h)}"/></g>`;
+      } else {
+        s += rect(l.x, l.y, l.w, l.h, 'bay-glass') +
+             `<line class="bay-glint" x1="${n(l.x + l.w * .18)}" y1="${Y(l.y + l.h * .58)}" x2="${n(l.x + l.w * .46)}" y2="${Y(l.y + l.h * .76)}"/>`;
+      }
+    });
+    // R.O. outline last so it reads on top of the infill
+    s += rect(o.x, o.y, o.w, o.h, 'bay-ro');
+    s += `</g>`;
+
+    // Unit tag, where the shop drawing puts it, plus the size line.
+    const tx = n(o.tag[0]), ty = Y(o.tag[1]);
+    const cx = n(o.x + o.w / 2);
+    const dimTxt = info.dims || (info.state === 'follow' ? 'follows your opening' : 'not issued');
+    // A transom is too short to hold its own label without sitting on the unit tag —
+    // those get labelled just below the opening instead of inside it.
+    const dimY = o.h < 45 ? Y(o.y) + 8.5 : Y(o.y) - 7;
+    lbl += `<g class="bay-lbl" data-unit="${esc(o.unit)}" data-state="${info.state}">` +
+      `<g class="bay-tag"><path d="M${tx},${ty - 9}L${tx + 14},${ty}L${tx},${ty + 9}L${tx - 14},${ty}Z"/>` +
+      `<text x="${tx}" y="${ty + 2.4}">${esc(o.unit)}</text></g>` +
+      `<text class="bay-op-dim" x="${cx}" y="${n(dimY)}">${esc(dimTxt)}</text>`;
+    // Editors also see what the drawing measures, so an un-issued or disagreeing
+    // opening is obvious on the picture. The GC never gets this line.
+    if (info.dxf && info.dxf !== info.dims) {
+      lbl += `<text class="bay-op-dxf" x="${cx}" y="${n(dimY + (o.h < 45 ? -14.5 : -8))}">${esc((info.dims ? '\u26a0 dwg ' : 'dwg ') + info.dxf)}</text>`;
+    }
+    lbl += `</g>`;
+  });
+  s += lbl;
+
+  // Dimensions — gaps first, then the two overalls.
+  const dim = (g, cls, rot) => {
+    const T = 3;
+    if (g.axis === 'h') {
+      const y = Y(g.ly == null ? 0 : g.ly);
+      return `<g class="${cls}"><line class="bay-dimline" x1="${n(g.a)}" y1="${y}" x2="${n(g.b)}" y2="${y}"/>` +
+        `<line class="bay-dimtick" x1="${n(g.a)}" y1="${y - T}" x2="${n(g.a)}" y2="${y + T}"/>` +
+        `<line class="bay-dimtick" x1="${n(g.b)}" y1="${y - T}" x2="${n(g.b)}" y2="${y + T}"/>` +
+        `<text class="bay-dimtext" x="${n((g.a + g.b) / 2)}" y="${y - 5}">${esc(g.text)}</text></g>`;
+    }
+    const x = n(g.lx == null ? 0 : g.lx);
+    const y1 = Y(g.a), y2 = Y(g.b), ym = n((y1 + y2) / 2);
+    const txt = rot
+      ? `<text class="bay-dimtext" x="${x}" y="${ym}" transform="rotate(-90 ${x} ${ym})">${esc(g.text)}</text>`
+      : `<text class="bay-dimtext bay-dimtext-side" x="${n(x + 5)}" y="${n(ym + 2.4)}">${esc(g.text)}</text>`;
+    return `<g class="${cls}"><line class="bay-dimline" x1="${x}" y1="${y1}" x2="${x}" y2="${y2}"/>` +
+      `<line class="bay-dimtick" x1="${x - T}" y1="${y1}" x2="${x + T}" y2="${y1}"/>` +
+      `<line class="bay-dimtick" x1="${x - T}" y1="${y2}" x2="${x + T}" y2="${y2}"/>` + txt + `</g>`;
+  };
+  (bay.gaps || []).forEach(g => { s += dim(g, 'bay-dim bay-dim-gap'); });
+  (bay.overall || []).forEach(g => {
+    s += dim(g.axis === 'h' ? { axis: 'h', a: 0, b: W, ly: g.ly, text: g.text }
+                            : { axis: 'v', a: 0, b: H, lx: g.lx, text: g.text }, 'bay-dim bay-dim-overall', true);
+  });
+
+  return `<svg class="bay-svg" viewBox="${-M} ${-M} ${n(W + M * 2)} ${n(H + M * 2)}" ` +
+         `role="img" aria-label="${esc(bay.name)} elevation — ${bay.openings.length} openings" ` +
+         `preserveAspectRatio="xMidYMid meet">${s}</svg>`;
+}
+function _bayLegend() {
+  const cell = (st, txt) => `<span class="bay-key"><i data-state="${st}"></i>${txt}</span>`;
+  return `<div class="bay-legend">` +
+    cell('issued', 'size issued to the GC') +
+    cell('ready', 'GC marked the opening ready') +
+    cell('follow', 'we follow your opening') +
+    cell('none', 'not issued yet') +
+    `</div>`;
+}
+function _bayPanelHtml() {
+  const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const bays = _bays();
+  if (!bays.length) {
+    return `<div class="op-empty">No elevation has been imported yet.<br>` +
+           `Drop the bay's shop-drawing DXF in the project folder and re-run <code>tools/dxf2bay.py</code>.</div>`;
+  }
+  const cur = bays.find(b => b.id === _opBay) || bays[0];
+  _opBay = cur.id;
+  const picker = bays.length > 1
+    ? `<div class="bay-picker op-noprint">` + bays.map(b =>
+        `<button type="button" class="btn${b.id === cur.id ? ' btn-primary' : ''}" onclick="setOpBay('${esc(b.id)}')">${esc(b.name)}</button>`).join('') + `</div>`
+    : '';
+  const gaps = (cur.gaps || []).map(g =>
+    `<li><b>${esc(g.text)}</b> between ${esc(g.pairs.map(p => p.join(' and ')).join(', '))}</li>`).join('');
+  /* F-057: editors always see the bay AND its current audience, stated in words
+     rather than an icon — "is the GC looking at this right now" is not something
+     to infer from a toggle's colour. The GC never sees this bar at all: a hidden
+     bay never reaches them, and a shown one does not need announcing. */
+  const shown = _bayGcShown(cur);
+  const gcBar = _noEdit() ? '' : `<div class="bay-gcbar${shown ? ' on' : ''} op-noprint">
+       <span class="bay-gcbar-state">${shown ? '\u{1F441} The GC can see this elevation' : '\u{1F512} Internal only \u2014 the GC cannot see this elevation'}</span>
+       <span class="bay-gcbar-note">${shown
+          ? 'It appears on their plan, in their \u{1F4D0} Openings sheet and on printouts.'
+          : 'No symbol on their plan, no Elevation tab, no button on their unit cards, and it is left off printouts.'}</span>
+       <button type="button" class="btn${shown ? '' : ' btn-primary'}" onclick="toggleBayGc('${esc(cur.id)}')">${shown ? 'Hide from the GC' : 'Show to the GC'}</button>
+     </div>`;
+  return picker +
+    `<div class="op-floor">
+       <div class="op-floor-name">${esc(cur.name)} — ${esc((cur.overall && cur.overall[0] ? cur.overall[0].text : ''))} wide × ${esc((cur.overall && cur.overall[1] ? cur.overall[1].text : ''))} tall</div>
+       <div class="bay-tools op-noprint">
+         <button type="button" class="btn" onclick="toggleBayDoors()">${_bayDoors ? '👁 Doors shown' : '🚪 Doors hidden'}</button>
+         <span class="bay-hint">Tap any opening for its required size.</span>
+       </div>
+       ${gcBar}
+       <div class="bay-stage${_bayDoors ? '' : ' bay-nodoors'}">${_baySvg(cur)}</div>
+       ${_bayLegend()}
+       <div class="bay-gaps"><b>Distance between openings</b><ul>${gaps}</ul></div>
+       <div class="bay-src">Geometry from <code>${esc(cur.source)}</code>. The four clear distances above are taken from that drawing and were checked against the dimensions on the sheet. Opening sizes shown on each unit are the values issued to the GC, not scaled off the drawing.</div>
+     </div>`;
+}
+// The bay the Elevation tab is currently showing — same pick _bayPanelHtml() makes.
+function _curBay() { const b = _bays(); return b.find(x => x.id === _opBay) || b[0] || null; }
+function setOpBay(id) { _opBay = id; openOpeningsSheet(); }
+function toggleBayDoors() {
+  _bayDoors = !_bayDoors;
+  const st = document.querySelector('.bay-stage');
+  if (st) st.classList.toggle('bay-nodoors', !_bayDoors);
+  const btn = st && st.parentNode ? st.parentNode.querySelector('.bay-tools .btn') : null;
+  if (btn) btn.textContent = _bayDoors ? '👁 Doors shown' : '🚪 Doors hidden';
+}
+function setOpView(v) {
+  _opView = v;
+  document.querySelectorAll('#openingsSheet .op-view').forEach(el => el.classList.toggle('on', el.dataset.view === v));
+  document.querySelectorAll('#openingsSheet .op-tabs .btn').forEach(el => el.classList.toggle('btn-primary', el.dataset.view === v));
+}
+
+/* ==================== F-056: elevation keys on the plan (Leo, 2026-08-26) =====
+   F-055 put the bay elevation behind 📐 → Elevation, which Leo called correctly:
+   too many steps. On a real drawing set you do not hunt through a menu for an
+   elevation — the PLAN tells you it exists and points at it. So the plan gets the
+   drafting symbol every super already knows how to read: a circle with a pointer
+   aimed at the facade it looks at. Tap it, that elevation opens.
+
+   The symbol places itself. Its position is the centroid of the bay's own units
+   on that floor, pushed OUT of the building along the wall normal — derived by
+   comparing the bay's centre against the centre of every unit on the floor, then
+   snapping to the dominant axis, because facades are axis-aligned and a symbol
+   floating diagonally off a corner looks like a mistake. It appears on every floor
+   the bay touches (this one spans GF and L2), and in edit mode it drags like any
+   marker, saving under a reserved `__elev:` key so it never collides with a unit. */
+const ELEV_KEY_PREFIX = '__elev:';
+function _bayUnitsOnFloor(bay, floorKey) {
+  const ids = (bay.openings || []).map(o => o.unit)
+    .concat((bay.doors || []).map(d => d.id));
+  return ids.map(_bayUnitOf).filter(u => u && (u.level || firstFloorKey()) === floorKey);
+}
+function _bayAutoPos(bay, floorKey) {
+  const mine = _bayUnitsOnFloor(bay, floorKey);
+  const pos = u => (state.positions && state.positions[u.key]) || null;
+  const pts = mine.map(pos).filter(Boolean);
+  if (!pts.length) return null;
+  const mean = a => ({ x: a.reduce((s, p) => s + p.x, 0) / a.length,
+                       y: a.reduce((s, p) => s + p.y, 0) / a.length });
+  const c = mean(pts);
+  const all = (state.units || [])
+    .filter(u => (u.level || firstFloorKey()) === floorKey)
+    .map(pos).filter(Boolean);
+  const hub = all.length ? mean(all) : { x: 50, y: 50 };
+  /* Which way is "out"? Take the WALL's direction from the bay's own units — they
+     sit in a row along the facade, so the longer of their two spans is the wall and
+     the key steps off it at a right angle. Only the SIGN (which side) comes from the
+     floor's centre, and that is a far more forgiving use of it: an earlier version
+     took the whole direction from the centroid and pushed the key sideways along the
+     wall, because this bay happens to sit left of the building's middle. */
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  const spanX = Math.max.apply(null, xs) - Math.min.apply(null, xs);
+  const spanY = Math.max.apply(null, ys) - Math.min.apply(null, ys);
+  let dx = 0, dy = 0;
+  if (Math.abs(spanX - spanY) < 0.5) {
+    // A single opening, or a square cluster — no run to read a wall from, so fall
+    // back to stepping straight away from the middle of the floor.
+    dx = c.x - hub.x; dy = c.y - hub.y;
+    if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) dy = 1;
+    if (Math.abs(dy) >= Math.abs(dx)) { dx = 0; dy = dy > 0 ? 1 : -1; }
+    else { dy = 0; dx = dx > 0 ? 1 : -1; }
+  } else if (spanX > spanY) {
+    dy = (c.y >= hub.y) ? 1 : -1;          // wall runs across → step off it vertically
+  } else {
+    dx = (c.x >= hub.x) ? 1 : -1;          // wall runs up the page → step off sideways
+  }
+  /* Clear the OUTERMOST marker of the bay, not the centroid — measuring from the
+     middle left the tag sitting on top of the door marker, which is the one thing
+     it must not hide. */
+  const GAP = 5.5;
+  const edge = (arr, sign) => sign > 0 ? Math.max.apply(null, arr) : Math.min.apply(null, arr);
+  const x = dx ? edge(xs, dx) + dx * GAP : c.x;
+  const y = dy ? edge(ys, dy) + dy * GAP : c.y;
+  return { x: _clampMarkerPct(x), y: _clampMarkerPct(y),
+           // the pointer aims back at the wall, i.e. opposite the way we stepped out
+           ang: Math.round(Math.atan2(-dy, -dx) * 180 / Math.PI) };
+}
+function _bayKeyState(bay, floorKey) {
+  const auto = _bayAutoPos(bay, floorKey);
+  if (!auto) return null;
+  const saved = state.positions && state.positions[ELEV_KEY_PREFIX + bay.id + ':' + floorKey];
+  return saved ? { x: saved.x, y: saved.y, ang: auto.ang } : auto;
+}
+function renderElevationKeys(wrap) {
+  const bays = _bays();
+  if (!bays.length || !wrap) return;
+  const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  bays.forEach((bay, i) => {
+    const mine = _bayUnitsOnFloor(bay, currentLevel);
+    if (!mine.length) return;
+    const p = _bayKeyState(bay, currentLevel);
+    if (!p) return;
+    const k = document.createElement('div');
+    const _gc = _bayGcShown(bay);              // F-057
+    k.className = 'elev-key' + (_gc ? '' : ' elev-key-internal');
+    k.dataset.unit = ELEV_KEY_PREFIX + bay.id + ':' + currentLevel;   // reuses the marker drag path
+    k.dataset.bay = bay.id;
+    k.style.left = p.x + '%';
+    k.style.top = p.y + '%';
+    k.title = `${bay.name} elevation — ${mine.map(u => u.id).join(', ')}. Tap to see the rough openings and the distances between them.`
+      + (_gc ? '' : '\n\u{1F512} Internal only — the GC does not see this.');
+    k.innerHTML = `<span class="elev-key-arrow" style="transform:rotate(${p.ang}deg)"></span>` +
+                  `<span class="elev-key-dot">${i + 1}</span>` +
+                  `<span class="elev-key-label">${esc(bay.name)}</span>`;
+    /* The plan viewport grabs the pointer on pointerdown (setPointerCapture) so a
+       drag anywhere pans the plan. Every .plan-marker stops that event to stay
+       clickable; this symbol is not a .plan-marker, so it has to do the same. Without
+       it the capture retargets mouseup to the viewport, the browser fires the click on
+       their common ancestor instead of here, and the tap silently does nothing —
+       which is exactly what it did (Leo, first try, both accounts). */
+    k.onpointerdown = (e) => { if (placeMode) return; e.stopPropagation(); };
+    k.onclick = (e) => {
+      e.stopPropagation();
+      if (dragState && dragState.moved) { dragState = null; return; }
+      if (placeMode) return;
+      openBayElevation(bay.id);
+    };
+    k.onmousedown = (e) => {
+      const _edit = !!(document.getElementById('editPositionMode') || {}).checked;
+      if (!_edit || placeMode) return;
+      e.preventDefault(); e.stopPropagation();
+      const rect = wrap.getBoundingClientRect();
+      dragState = { id: k.dataset.unit, el: k, rect, moved: false,
+                    startX: ((e.clientX - rect.left) / rect.width) * 100,
+                    startY: ((e.clientY - rect.top) / rect.height) * 100 };
+    };
+    // Hovering the key lights up the openings it covers, so the link between the
+    // symbol and those five markers needs no explaining.
+    const ring = on => mine.forEach(u => {
+      const m = wrap.querySelector(`.plan-marker[data-unit="${CSS.escape(u.key)}"]`);
+      if (m) m.classList.toggle('elev-linked', on);
+    });
+    k.addEventListener('mouseenter', () => ring(true));
+    k.addEventListener('mouseleave', () => ring(false));
+    wrap.appendChild(k);
+  });
+}
+/* One tap from the plan straight into the right bay, with the Elevation tab already
+   showing — the whole point of the symbol. */
+function openBayElevation(bayId) {
+  if (bayId) _opBay = bayId;
+  _opView = 'elev';
+  openOpeningsSheet();
+}
+// Which bay (if any) an open unit belongs to — drives the button on the unit card.
+function _bayOfUnit(unitId) {
+  const hit = _bayOpeningFor(unitId);
+  if (hit) return hit.bay;
+  const bays = _bays();
+  for (let i = 0; i < bays.length; i++) {
+    if ((bays[i].doors || []).some(d => String(d.id).trim().toLowerCase() === String(unitId || '').trim().toLowerCase()))
+      return bays[i];
+  }
+  return null;
+}
+
 /* GC one-tap acknowledgment — no typing, and reversible (a mis-tap must be undoable).
    Toggles: ready → not ready → ready, each step appended to /gcItems. */
 function markOpeningReady(unitId, force) {
@@ -3846,6 +4318,11 @@ function openUnitReadOnly(u) {
     </div>`;
   // F-042: the shop drawing for THIS unit, right under the dimensions the GC came for.
   const dwgs = _dwgOf(u);
+  const _eb = _bayOfUnit(u.id);
+  const elevBlock = !_eb ? '' : `<div style="margin-top:10px">
+      <button type="button" class="btn" style="font-size:12px" onclick="openBayElevation('${esc(_eb.id)}')">\u{1F3E2} See ${esc(u.id)} on the ${esc(_eb.name)} elevation</button>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:4px">Shows this opening in place, with the distances to the ones beside it.</div>
+    </div>`;
   const dwgBlock = !dwgs.length ? '' : `<div style="margin-top:12px">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-dim);margin-bottom:5px">Shop drawing · ${dwgs.length} ${dwgs.length === 1 ? 'sheet' : 'sheets'}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">${dwgs.map((d, i) => `
@@ -3903,12 +4380,12 @@ function openUnitReadOnly(u) {
   const disclaimer = `<div style="margin-top:12px;font-size:11px;color:var(--text-dim);line-height:1.5">${esc(t('openings_disclaimer'))}</div>`;
   if (lens === 'openings') {
     bodyHtml = (followBlock || roBlock || `<div style="margin-top:12px;color:var(--text-dim);font-size:12.5px">No rough opening has been issued for this unit yet.</div>`)
-      + dwgBlock + disclaimer
+      + elevBlock + dwgBlock + disclaimer
       + (openIssueCount ? bridge(`🔧 ${openIssueCount} open issue${openIssueCount === 1 ? '' : 's'} on this unit →`, 'issues') : '');
   } else if (lens === 'issues') {
     bodyHtml = issuesSection + (!_roReqEmpty(rq) ? bridge('📐 Required opening for this unit →', 'openings') : '');
   } else {
-    bodyHtml = (factHtml || `<div style="margin-top:12px;color:var(--text-dim);font-size:12.5px">Nothing logged on this unit yet.</div>`) + dwgBlock;
+    bodyHtml = (factHtml || `<div style="margin-top:12px;color:var(--text-dim);font-size:12.5px">Nothing logged on this unit yet.</div>`) + elevBlock + dwgBlock;
   }
   ov.innerHTML = `<div class="modal" style="max-width:560px">
       <div style="display:flex;align-items:center;gap:10px">
