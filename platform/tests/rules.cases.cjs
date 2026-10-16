@@ -135,4 +135,24 @@ c('staff cannot remove a fab drawing', 'STAFF', 'set', '/fab/f1', null, false, W
 c('editor adds unit numbers to a fab drawing', 'FOREMAN', 'update', '/fab/f1', { manualTags: ['SF41'], _by: P.FOREMAN.email }, true, WITH_FAB);
 c('editor cannot overwrite the whole fab node', 'EDITOR', 'set', '/fab', { f1: fab(P.EDITOR, 'ac3') }, false);
 
+// 🚚 to send: the foreman adds, the shop (staff) marks sent, the GC sees nothing
+const ask = (who, project, extra) => Object.assign({ what: 'SF04 sidelite', by: who.email, at: NOW, _project: project }, extra || {});
+for (const [who, want] of [['EDITOR', true], ['FOREMAN', true], ['STAFF', true], ['VIEWER', true], ['GC', false], ['STRANGER', false], ['ANON', false]])
+  c(`read /toSend as ${who}`, who, 'read', '/toSend', undefined, want);
+c('foreman asks for something', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'ac3'), true);
+c('staff (not an editor) cannot add a request', 'STAFF', 'set', '/toSend/t1', ask(P.STAFF, 'ac3'), false);
+c('gc cannot add a request', 'GC', 'set', '/toSend/t1', ask(P.GC, 'ac3'), false);
+c('a request stamped with ANOTHER project is refused', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'lex'), false);
+c('a request in somebody else\'s name is refused', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'ac3', { by: P.EDITOR.email }), false);
+c('an empty request is refused', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'ac3', { what: '' }), false);
+const WITH_ASK = Object.assign({}, AC3, { toSend: { t1: ask(P.FOREMAN, 'ac3') } });
+c('the shop (staff) marks it sent', 'STAFF', 'set', '/toSend/t1/sent', { by: P.STAFF.email, at: NOW }, true, WITH_ASK);
+c('a viewer marks it sent', 'VIEWER', 'set', '/toSend/t1/sent', { by: P.VIEWER.email, at: NOW }, true, WITH_ASK);
+c('sent in somebody else\'s name is refused', 'STAFF', 'set', '/toSend/t1/sent', { by: P.EDITOR.email, at: NOW }, false, WITH_ASK);
+c('the gc cannot mark it sent', 'GC', 'set', '/toSend/t1/sent', { by: P.GC.email, at: NOW }, false, WITH_ASK);
+c('staff cannot change what was asked', 'STAFF', 'set', '/toSend/t1/what', 'something else', false, WITH_ASK);
+c('staff cannot remove a request', 'STAFF', 'set', '/toSend/t1', null, false, WITH_ASK);
+c('marking sent cannot create a request', 'STAFF', 'set', '/toSend/t9/sent', { by: P.STAFF.email, at: NOW }, false);
+c('an editor removes a request', 'EDITOR', 'set', '/toSend/t1', null, true, WITH_ASK);
+
 module.exports = { P, cases, NOW, key };

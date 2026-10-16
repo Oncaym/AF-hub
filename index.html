@@ -284,6 +284,8 @@
   <main>
     <div class="note" id="note" hidden></div>
     <section class="chart" id="chart" hidden></section>
+    <!-- 🚚 To send (core/tosend.js): every project's open requests, for the shop -->
+    <section id="toSend" hidden style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px"></section>
     <div id="list"></div>
     <p class="foot" id="foot"></p>
   </main>
@@ -344,6 +346,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="af-hub-config.js"></script>
 <script src="hub-stamp.js"></script>
+<script src="core/tosend.js?v=20261016b"></script>
 <script>
 /* ────────────────────────────────────────────────────────────────────────
    AF Hub — executive overview
@@ -695,6 +698,12 @@ function showGate(msg){
        the whole portfolio. An unverified address confirms it once. */
     if (!user.emailVerified) { render(merge(null)); showVerify(user); return; }
     hideNote();
+    // 🚚 To send: read straight from each project's own database (staff can read them all).
+    if (window.AF_SEND) {
+      const dbUrl = window.AF_DB_URL || (id => `https://af-hub-8f188-${id}.firebaseio.com`);
+      AF_SEND.hub(document.getElementById('toSend'), ROSTER.filter(r => !/^https?:/.test(r.url))
+        .map(r => ({ id: r.id, name: r.name, databaseURL: dbUrl(r.id) })));
+    }
     ref = firebase.database().ref('projects');
     ref.on('value', snap => render(merge(snap.val())), () => {
       render(merge(null));

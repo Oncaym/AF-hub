@@ -125,6 +125,16 @@ GitHub → **Actions → Project database → Run workflow**：
 1. Push 以后，Actions → Project database → Run workflow：`mode = rules`，`project = all`。不做这步，AC3、Lexington 的 Fab drawings 会显示 "not shared with this account"。（CP2 迁移时会自动带上新规则。）
 2. 只有 PDF 超过 15 MB 才需要：Firebase 控制台 → Storage → Rules，把 `platform/storage.rules` 全部贴进去，Publish。15 MB 以下现在的规则就能传。
 
+## 🚚 To send（要送到工地的东西，2026-10-16）
+
+工地要什么框、门、sidelite，工头直接在 tracker 上记，不用先打电话给 Leo 再转工厂。
+
+- **工头**（editor）：tracker 顶上「🚚 N」→ 写一句（例如 `SD01 sidelite`）→ Add。
+- **工厂**：hub 首页最上面「🚚 To send to site」，所有项目的都在一起，最老的在最上面。发车后点「Sent ✓」，这一条就从清单上消失；点错了可以在 tracker 的清单底下 undo。
+- 没点「Sent ✓」的会一直挂着，按天数算，**超过 2 天变红**，tracker 上的 🚚 按钮也变红。
+- 谁能做什么：editor 加/删；editor、viewer、公司邮箱都能点 Sent；GC 看不到。工厂的人没有公司邮箱的，要在每个项目加成 viewer（Actions → Project database → member）；hub 首页只给公司邮箱看。
+- 数据在每个项目自己的数据库 `/toSend`。
+
 ## 日常操作
 
 **加人 / 改权限 / 删人**：Actions → Project database → Run workflow

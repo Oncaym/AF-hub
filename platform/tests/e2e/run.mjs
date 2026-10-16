@@ -437,6 +437,43 @@ async function edit(page, status) {
     const gcRead = await page.evaluate(async () => { try { await firebase.database().ref('fab').once('value'); return 'read'; } catch (e) { return 'refused'; } });
     ok(gcRead === 'refused', 'the rules refuse /fab to the GC', gcRead);
     await ctx.close();
+
+    console.log('\n10. 🚚 To send: the foreman puts it on the list, the shop sees every project on the hub and marks it sent');
+    const dbMap = { ac3: AC3, cp2: CP2, lex: LEX };
+    ctx = await newContext(browser);
+    page = await open(ctx, 'ac3');
+    await signIn(page, JOE);
+    ok(await until(() => page.evaluate(() => { const b = document.getElementById('toSendBtn'); return !!b && b.style.display !== 'none' && /🚚 0/.test(b.textContent); })), 'the foreman sees 🚚 0 on the board');
+    await page.evaluate(() => AF_SEND.open());
+    await page.fill('#toSendWhat', 'SF04 sidelite');
+    await page.click('#toSendAdd');
+    ok(await until(async () => Object.values((await B.read(AC3, 'toSend')) || {}).some(x => x.what === 'SF04 sidelite' && x.by === JOE && x._project === 'ac3')), 'it lands in AC3, signed by the foreman');
+    ok(await until(() => page.evaluate(() => /🚚 1/.test(document.getElementById('toSendBtn').textContent))), 'the button counts it');
+    await page.evaluate(by => { firebase.database().ref('toSend').push().set({ what: 'SD01 sidelite', by, at: Date.now() - 8 * 864e5, _project: 'ac3' }); }, JOE);
+    ok(await until(() => page.evaluate(() => { const b = document.getElementById('toSendBtn'); return /🚚 2/.test(b.textContent) && !!b.style.background; })), 'one asked 8 days ago turns the button red');
+    ok(await until(() => page.evaluate(() => /SD01 sidelite[\s\S]*8 days[\s\S]*SF04 sidelite[\s\S]*today/.test(document.getElementById('toSendList').innerText))), 'the list puts the oldest first, with its age');
+    await shot(page, '10-to-send');
+    await ctx.close();
+    ctx = await newContext(browser);
+    await ctx.addInitScript(m => { window.AF_DB_URL = id => m[id]; }, dbMap);
+    const hubp = await open2(ctx, '');
+    await hubp.waitForSelector('#email', { state: 'visible', timeout: 20000 });
+    await hubp.fill('#email', BOSS); await hubp.fill('#pw', PW); await hubp.click('#go');
+    ok(await until(() => hubp.evaluate(() => { const t = (document.getElementById('toSend') || {}).innerText || ''; return /SD01 sidelite/.test(t) && /SF04 sidelite/.test(t) && /Atlantic-Chestnut/.test(t) && /8 days/.test(t); })),
+       'the hub overview lists both, with the project and the age', await hubp.evaluate(() => (document.getElementById('toSend') || {}).innerText));
+    await hubp.evaluate(() => { const row = [...document.querySelectorAll('#toSend [data-sent]')].find(b => /SD01/.test(b.closest('div').innerText)); row.click(); });
+    ok(await until(async () => Object.values((await B.read(AC3, 'toSend')) || {}).some(x => x.what === 'SD01 sidelite' && x.sent && x.sent.by === BOSS)), 'the shop marks SD01 sent (signed by them)');
+    await hubp.evaluate(() => window.__fbRefresh && window.__fbRefresh());
+    ok(await until(() => hubp.evaluate(() => !/SD01/.test(document.getElementById('toSend').innerText) && /SF04/.test(document.getElementById('toSend').innerText))), 'it leaves the list; SF04 stays');
+    await shot(hubp, '10-hub-to-send');
+    await ctx.close();
+    ctx = await newContext(browser);
+    page = await open(ctx, 'ac3');
+    await signIn(page, GC);
+    await until(() => page.evaluate(() => window.CloudSync.isGC()));
+    const gcSend = await page.evaluate(async () => { try { await firebase.database().ref('toSend').once('value'); return 'read'; } catch (e) { return 'refused'; } });
+    ok(gcSend === 'refused' && await page.evaluate(() => { const b = document.getElementById('toSendBtn'); return !b || b.style.display === 'none'; }), 'the GC sees no 🚚 and cannot read the list', gcSend);
+    await ctx.close();
   } finally {
     await browser.close();
     server.close();

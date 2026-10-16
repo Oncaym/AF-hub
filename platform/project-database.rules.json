@@ -101,6 +101,21 @@
       }
     },
 
+    // 🚚 To send (core/tosend.js): what the site needs from the shop, until someone marks it
+    // sent. Editors (foremen, PM) add and remove; editors, viewers and staff (the shop) mark it
+    // sent. Not the GC.
+    "toSend": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      "$id": {
+        ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+        ".validate": "newData.hasChildren(['what', 'by', 'at', '_project']) && newData.child('what').isString() && newData.child('what').val().length > 0 && newData.child('what').val().length <= 200 && root.child('meta/project').isString() && newData.child('_project').val() == root.child('meta/project').val() && (data.exists() || newData.child('by').val() == auth.token.email)",
+        "sent": {
+          ".write": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+          ".validate": "newData.hasChildren(['by', 'at']) && newData.child('by').val() == auth.token.email"
+        }
+      }
+    },
+
     // Warehouse (receive).
     "warehouse": {
       ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
