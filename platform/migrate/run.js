@@ -237,7 +237,8 @@ async function dryRunOrMigrate(dry) {
   let { tree, report } = C.buildTree(src, { id: p.id, name: p.name, legacyURL: p.legacy.databaseURL, now });
   log('\nOld database:');
   Object.entries(report.copied).forEach(([k, d]) => log(`  ${k.padEnd(10)} ${d}  → copy`));
-  report.skipped.forEach(k => log(`  ${k.padEnd(10)} → skip (live-only)`));
+  const WHY = { presence: 'live-only', triage: 'Glass Triage was removed' };
+  report.skipped.forEach(k => log(`  ${k.padEnd(10)} → skip (${WHY[k] || 'not carried over'})`));
   report.unknown.forEach(k => log(`  ${k.padEnd(10)} ${C.describe(src[k])}  → copy, but no page reads it`));
   const nums = C.stateNumbers(src.state);
   log(`  state: ${nums.units} units (${nums.installed} installed), ${nums.log} log entries, ${nums.submittals} submittals, ` +
