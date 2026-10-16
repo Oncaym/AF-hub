@@ -157,6 +157,10 @@ async function pullDiscord(board, after) {
   const msgs = (await r.json()).sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
   const blind = msgs.length > 0 && msgs.every(m => !m.content && !(m.attachments || []).length && !(m.embeds || []).length);
   const names = {}; msgs.forEach(m => { names[m.id] = (m.author && (m.author.global_name || m.author.username)) || '?'; });
+  // <@123> mentions → @name, so Claude can tell who is asked to do what
+  const people = {};
+  msgs.forEach(m => { (m.mentions || []).concat(m.author ? [m.author] : []).forEach(u => { if (u && u.id) people[u.id] = u.global_name || u.username || u.id; }); });
+  const named = t => String(t || '').replace(/<@!?(\d+)>/g, (x, id) => '@' + (people[id] || 'someone'));
   const lines = [], shots = [];
   let last = after || null, more = false;
   for (const m of msgs) {
@@ -166,7 +170,7 @@ async function pullDiscord(board, after) {
     const reply = m.referenced_message ? ` (reply to ${(m.referenced_message.author && (m.referenced_message.author.global_name || m.referenced_message.author.username)) || '?'})` : '';
     const reacts = (m.reactions || []).map(x => `${(x.emoji && x.emoji.name) || '?'}×${x.count}`).join(' ');
     const tags = pics.map((a, i) => `[screenshot ${shots.length + i}]`).join(' ');
-    lines.push(`[${String(m.timestamp || '').slice(0, 16).replace('T', ' ')}] ${who}${reply}: ${m.content || ''} ${tags}${reacts ? ' (reactions: ' + reacts + ')' : ''}`.trim());
+    lines.push(`[${String(m.timestamp || '').slice(0, 16).replace('T', ' ')}] ${who}${reply}: ${named(m.content)} ${tags}${reacts ? ' (reactions: ' + reacts + ')' : ''}`.trim());
     for (const a of pics) shots.push(a);
     last = m.id;
   }

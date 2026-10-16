@@ -19,7 +19,7 @@ const PNG = 'data:image/png;base64,iVBORw0KGgo=';
 
 let sent = null;
 const DISCORD_MSGS = [
-  { id: '1002', timestamp: '2026-09-28T14:19:00Z', author: { username: 'af_henry', global_name: 'AF_Henry' }, content: '네, 이거는 고쳤습니다.', referenced_message: { author: { username: 'spark' } }, attachments: [] },
+  { id: '1002', timestamp: '2026-09-28T14:19:00Z', author: { id: '77', username: 'af_henry', global_name: 'AF_Henry' }, content: '네, 이거는 고쳤습니다. <@88>', mentions: [{ id: '88', username: 'sj', global_name: 'Sangjun' }], referenced_message: { author: { username: 'spark' } }, attachments: [] },
   { id: '1001', timestamp: '2026-09-28T14:16:00Z', author: { username: 'spark', global_name: 'SPARK' }, content: 'tob 대신에 t.o.hss 로 적어주세요',
     attachments: [{ filename: 'markup.png', content_type: 'image/png', width: 2800, height: 1400, url: 'https://cdn.discordapp.com/a/markup.png?ex=1', proxy_url: 'https://media.discordapp.net/a/markup.png?ex=1' }],
     reactions: [{ emoji: { name: '✅' }, count: 1 }] },
@@ -106,6 +106,7 @@ ok(r.code === 200 && r.body.last_id === '1002' && r.body.images.length === 1 && 
 ok(discordHits[0].includes('/channels/555/messages') && discordHits[0].includes('after=1000'), 'pull: reads the board\'s channel after the last pull');
 ok(discordHits[1].startsWith('https://media.discordapp.net/a/markup.png?ex=1&width=1400&height=700'), 'pull: asks Discord for a smaller picture');
 const tr = r.body.transcript || '';
+ok(/@Sangjun/.test(tr) && !/<@88>/.test(tr), 'pull: <@id> mentions become @names');
 ok(tr.indexOf('SPARK') < tr.indexOf('AF_Henry') && /reply to spark/.test(tr) && /\[screenshot 0\]/.test(tr) && /✅×1/.test(tr), 'pull: transcript oldest first, with replies, screenshots and reactions');
 ok(sent.tool_choice.name === 'propose_comments' && sent.messages[0].content.filter(b => b.type === 'image').length === 1, 'pull: Claude splits it like a paste');
 process.env.DISCORD_CHANNELS = JSON.stringify({ ac3: '404' });
