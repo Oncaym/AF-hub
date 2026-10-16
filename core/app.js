@@ -3237,6 +3237,7 @@ function renderDwgViewer() {
         <button type="button" class="btn" style="font-size:12px;padding:3px 9px;min-height:0" onclick="stepDwgViewer(-1)">‹</button>
         <button type="button" class="btn" style="font-size:12px;padding:3px 9px;min-height:0" onclick="stepDwgViewer(1)">›</button>` : ''}
         <a class="btn" style="font-size:12px;padding:3px 9px;min-height:0;text-decoration:none" href="${esc(d.url)}" target="_blank" rel="noopener">↗ Full size</a>
+        ${d.pdf ? `<a class="btn" style="font-size:12px;padding:3px 9px;min-height:0;text-decoration:none" href="${esc(d.pdf)}" target="_blank" rel="noopener">PDF ↗</a>` : ''}
         <button type="button" class="btn" style="font-size:12px;padding:3px 9px;min-height:0" onclick="document.getElementById('dwgViewer').classList.remove('show')">✕</button>
       </div>
       <div style="overflow:auto;max-height:78vh;background:#fff;border-radius:6px">
@@ -4378,14 +4379,16 @@ function openUnitReadOnly(u) {
   const bridge = (label, toLens) => `<div style="margin-top:12px"><button type="button" class="btn" style="font-size:12px" onclick="setPlanLens('${toLens}');openUnit('${esc(u.key)}')">${label}</button></div>`;
   let bodyHtml;
   const disclaimer = `<div style="margin-top:12px;font-size:11px;color:var(--text-dim);line-height:1.5">${esc(t('openings_disclaimer'))}</div>`;
+  // Fab drawings (core/fab.js, 2026-10-16): our own staff and viewers, never the GC.
+  const fabSlot = (_isGC() || !window.AF_FAB) ? '' : '<div class="fab-unit-slot"></div>';
   if (lens === 'openings') {
     bodyHtml = (followBlock || roBlock || `<div style="margin-top:12px;color:var(--text-dim);font-size:12.5px">No rough opening has been issued for this unit yet.</div>`)
-      + elevBlock + dwgBlock + disclaimer
+      + elevBlock + dwgBlock + fabSlot + disclaimer
       + (openIssueCount ? bridge(`🔧 ${openIssueCount} open issue${openIssueCount === 1 ? '' : 's'} on this unit →`, 'issues') : '');
   } else if (lens === 'issues') {
     bodyHtml = issuesSection + (!_roReqEmpty(rq) ? bridge('📐 Required opening for this unit →', 'openings') : '');
   } else {
-    bodyHtml = (factHtml || `<div style="margin-top:12px;color:var(--text-dim);font-size:12.5px">Nothing logged on this unit yet.</div>`) + elevBlock + dwgBlock;
+    bodyHtml = (factHtml || `<div style="margin-top:12px;color:var(--text-dim);font-size:12.5px">Nothing logged on this unit yet.</div>`) + elevBlock + dwgBlock + fabSlot;
   }
   ov.innerHTML = `<div class="modal" style="max-width:560px">
       <div style="display:flex;align-items:center;gap:10px">
@@ -4398,6 +4401,7 @@ function openUnitReadOnly(u) {
       </div>
     </div>`;
   ov.classList.add('show');
+  if (fabSlot) { try { window.AF_FAB.fillUnitSlots(ov, u); } catch (e) {} }
 }
 
 function openUnit(id) {
@@ -4426,6 +4430,7 @@ function openUnit(id) {
   setElevMode(false);
   switchModalTab('cal');
   document.getElementById('unitModal').classList.add('show');
+  if (window.AF_FAB) { try { window.AF_FAB.unitButton(u); } catch (e) {} }   // fab drawings
 }
 
 function switchModalTab(tab) {
@@ -5788,6 +5793,7 @@ const FEATURE_MODULES = [
   { k:'chatLink',      emoji:'💬', label:{en:'Chat NL updater',zh:'Chat 自然语言更新入口',ko:'Chat 자연어 업데이트 입구'},            sel:['a[href="chat.html"]'] },
   { k:'warehouseLink', emoji:'📦', label:{en:'Warehouse page',zh:'Warehouse 仓库页入口',ko:'Warehouse 창고 페이지 입구'},             sel:['a[href="warehouse.html"]'] },
   { k:'drawingsBtn',   emoji:'📁', label:{en:'Drawings button',zh:'Drawings 图纸按钮',ko:'Drawings 도면 버튼'},                sel:['button[onclick="openDrawings()"]'] },
+  { k:'fabBtn',        emoji:'📑', label:{en:'Fab drawings button',zh:'Fab 加工图按钮',ko:'Fab 제작도 버튼'},              sel:['#fabBtn'] },
   { k:'openItemsBtn',  emoji:'⏳', label:{en:'Open Items panel',zh:'Open Items 卡点面板',ko:'Open Items 패널'},               sel:['#openItemsBtn'] },
   // defaultOff: hidden unless a teammate turns it on in the ⚙ Modules panel.
   { k:'glassTriage',   emoji:'🪟', label:{en:'Glass Triage page',zh:'Glass Triage 玻璃到货页入口',ko:'Glass Triage 페이지 입구'}, sel:['a[href="friday-triage.html"]'], defaultOff:true },
@@ -6422,7 +6428,7 @@ function openUsagePanel(){
 const _NOEDIT_HIDE = ['a[href="chat.html"]', '#modulesBtn'];
 // Internal reference we keep away from the GC specifically. A viewer is our own staff
 // without editor rights, so they keep both of these (Leo, 2026-09-18).
-const _GC_HIDE = ['a[href="warehouse.html"]', 'button[onclick="openDrawings()"]'];
+const _GC_HIDE = ['a[href="warehouse.html"]', 'button[onclick="openDrawings()"]', '#fabBtn'];
 function applyReadOnlyUI(){
   const noEdit = _noEdit();
   const gc     = _isGC();

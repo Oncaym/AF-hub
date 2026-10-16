@@ -117,4 +117,21 @@ c('elevation signed as somebody else is refused', 'EDITOR', 'set', '/elevGeo/SF0
 c('elevation with no project stamp is refused', 'EDITOR', 'set', '/elevGeo/SF04,1', geo(P.EDITOR, undefined), false);
 c('editor cannot overwrite the whole elevGeo node', 'EDITOR', 'set', '/elevGeo', { x: geo(P.EDITOR, 'ac3') }, false);
 
+// fab drawings: editors upload, our people read, the GC does not
+const fab = (who, project, extra) => Object.assign({ name: '40.pdf', pdf: 'https://firebasestorage.googleapis.com/v0/b/x/o/p%2Fac3%2Ffab%2Ff1%2F40.pdf', pages: [{ img: 'https://firebasestorage.googleapis.com/i', tags: ['SF40'] }], uploadedAt: NOW, _by: who.email, _project: project }, extra || {});
+for (const [who, want] of [['EDITOR', true], ['FOREMAN', true], ['STAFF', true], ['VIEWER', true], ['GC', false], ['STRANGER', false], ['ANON', false]])
+  c(`read /fab as ${who}`, who, 'read', '/fab', undefined, want);
+c('editor uploads a fab drawing', 'EDITOR', 'set', '/fab/f1', fab(P.EDITOR, 'ac3'), true);
+c('foreman on the allowlist uploads a fab drawing', 'FOREMAN', 'set', '/fab/f1', fab(P.FOREMAN, 'ac3'), true);
+c('staff (read-only here) cannot upload a fab drawing', 'STAFF', 'set', '/fab/f1', fab(P.STAFF, 'ac3'), false);
+c('gc cannot upload a fab drawing', 'GC', 'set', '/fab/f1', fab(P.GC, 'ac3'), false);
+c('fab drawing stamped with ANOTHER project is refused', 'EDITOR', 'set', '/fab/f1', fab(P.EDITOR, 'lex'), false);
+c('fab drawing signed as somebody else is refused', 'EDITOR', 'set', '/fab/f1', fab(P.EDITOR, 'ac3', { _by: P.STAFF.email }), false);
+c('fab drawing without its PDF link is refused', 'EDITOR', 'set', '/fab/f1', fab(P.EDITOR, 'ac3', { pdf: null }), false);
+const WITH_FAB = Object.assign({}, AC3, { fab: { f1: fab(P.EDITOR, 'ac3') } });
+c('editor removes a fab drawing', 'EDITOR', 'set', '/fab/f1', null, true, WITH_FAB);
+c('staff cannot remove a fab drawing', 'STAFF', 'set', '/fab/f1', null, false, WITH_FAB);
+c('editor adds unit numbers to a fab drawing', 'FOREMAN', 'update', '/fab/f1', { manualTags: ['SF41'], _by: P.FOREMAN.email }, true, WITH_FAB);
+c('editor cannot overwrite the whole fab node', 'EDITOR', 'set', '/fab', { f1: fab(P.EDITOR, 'ac3') }, false);
+
 module.exports = { P, cases, NOW, key };

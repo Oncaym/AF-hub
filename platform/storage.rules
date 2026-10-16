@@ -26,6 +26,15 @@ service firebase.storage {
       allow delete: if signedIn();
     }
 
+    // Fab drawings (core/fab.js): whole PDF sets can be bigger than a photo, so
+    // PDFs up to 100 MB here. Page images use the rule above. Read is the same as
+    // every other project file: the link lives in /fab, which the GC cannot read.
+    match /p/{project}/fab/{id}/{file} {
+      allow create, update: if signedIn()
+        && request.resource.size < 100 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+    }
+
     // Anything else in the bucket: closed.
     match /{everything=**} {
       allow read, write: if false;

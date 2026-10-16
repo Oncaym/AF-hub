@@ -1773,6 +1773,7 @@ function importDxfInTracker(e){
       <a class="btn" href="chat.html" title="Natural-language chat updater">💬 Chat</a>
       <a class="btn" href="warehouse.html" title="Warehouse"><span data-i18n="btn_warehouse">📦 Warehouse</span></a>
       <button class="btn" type="button" onclick="openDrawings()" title="Project drawings"><span data-i18n="btn_drawings">📐 Drawings</span></button>
+      <button class="btn" type="button" id="fabBtn" onclick="openFab()" title="Fab drawings: the shop's sheet for any unit">📑 Fab drawings</button>
       <a class="btn" href="../takeoff/" title="打开内嵌 Takeoff Tool（在里面 Import DXF）/ Open the embedded takeoff tool (import DXF there)">🛠 Takeoff Tool</a>
       <input type="file" id="trackerDxfFile" accept=".dxf" style="display:none" onchange="importDxfInTracker(event)">
       <button class="btn" type="button" onclick="document.getElementById('trackerDxfFile').click()" title="Import a DXF — parses elevation regions in-page, no takeoff tool needed">⬆ Import DXF</button>
@@ -3602,6 +3603,7 @@ function importDxfInTracker(e){
 <script src="elevations.js?v=20260716a"></script>
 <script src="dxf-elevations.js?v=20260716a"></script>
 <script src="../core/app.js?v=20261016a"></script>
+<script src="../core/fab.js?v=20261016a"></script>
 <!-- boot handled inside app.js (core) -->
 <!-- F-059 (2026-09-17): loaded from the hub, NOT copied into this repo.
      These two files used to live in every tracker, so changing the reporter meant

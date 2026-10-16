@@ -1901,6 +1901,7 @@ document.addEventListener('DOMContentLoaded', applyThemeUI);
       <a class="btn" href="friday-triage.html" title="Friday Glass Triage"><span data-i18n="btn_glass_triage">🪟 Glass Triage</span></a>
       <a class="btn" href="warehouse.html" title="Warehouse"><span data-i18n="btn_warehouse">📦 Warehouse</span></a>
       <button class="btn" type="button" onclick="openDrawings()" title="Project drawings"><span data-i18n="btn_drawings">📐 Drawings</span></button>
+      <button class="btn" type="button" id="fabBtn" onclick="openFab()" title="Fab drawings: the shop's sheet for any unit">📑 Fab drawings</button>
       <button class="btn btn-primary" onclick="openAddLog()" data-gc-hide data-om-id="17a02737:21"><span data-i18n="btn_add_log" data-om-id="17a02737:22">+ Add Daily Log</span></button>
     </div>
   </div>
@@ -3348,6 +3349,7 @@ document.addEventListener('DOMContentLoaded', applyThemeUI);
 <script src="elevations.js?v=20260826a"></script>
 <script src="../core/app-log.js?v=20261006a"></script>
 <script src="../core/app.js?v=20261016a"></script>
+<script src="../core/fab.js?v=20261016a"></script>
 <!-- boot handled inside app.js (core) -->
 <!-- F-059 (2026-09-17): loaded from the hub, NOT copied into this repo.
      These two files used to live in every tracker, so changing the reporter meant

@@ -196,6 +196,21 @@ async function shot(page, name) { if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: 
 async function until(fn, ms = 15000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (await fn()) return true; } catch (e) {} await sleep(150); } return false; }
 
 const B = BACKEND === 'emulator' ? new EmulatorBackend() : new FakeBackend();
+const pdfjsDir = path.dirname(require.resolve('pdfjs-dist/package.json'));
+/* A one-page fab sheet that says "TAG SF01L" (made here: the real ones are not for a
+   public repository). Offsets are computed so any PDF reader takes it as is. */
+function sheetPdf(tag) {
+  const text = `BT /F1 36 Tf 72 500 Td (LOCATION A.202 TAG ${tag} QTY: 1) Tj ET`;
+  const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 792 612] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${text.length} >>\nstream\n${text}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+  let out = '%PDF-1.4\n'; const at = [];
+  objs.forEach((o, i) => { at.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+  const x = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + at.map(n => String(n).padStart(10, '0') + ' 00000 n \n').join('');
+  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${x}\n%%EOF\n`;
+  return Buffer.from(out, 'latin1').toString('base64');
+}
 const AC3 = B.url('ac3'), LEX = B.url('lex'), CP2 = B.url('cp2');
 const BASE = 'http://127.0.0.1:8833';
 
@@ -213,6 +228,11 @@ async function newContext(browser, { lexPointsAt } = {}) {
   await context.route(/\/af-hub-config\.js/, r => r.fulfill({ contentType: 'text/javascript', body: `window.AF_HUB_FIREBASE = ${JSON.stringify(Object.assign({
     apiKey: 'fake-api-key', authDomain: 'demo-afhub.firebaseapp.com', projectId: 'demo-afhub', appId: '1:1:web:2' }, B.config(B.hubUrl())))};` }));
   await context.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+  // pdf.js (fab drawings read their sheets with it) from the local package, not the CDN.
+  await context.route(/cdnjs\.cloudflare\.com\/ajax\/libs\/pdf\.js\/3\.11\.174\/(pdf(\.worker)?)\.min\.js/, r => {
+    const m = r.request().url().match(/(pdf(\.worker)?)\.min\.js/);
+    r.fulfill({ contentType: 'text/javascript', body: fs.readFileSync(path.join(pdfjsDir, 'build', m[1] + '.min.js')) });
+  });
   return context;
 }
 async function open(context, folder) {
@@ -246,7 +266,7 @@ async function edit(page, status) {
   const server = await serve(8833);
   await B.seed(AC3, seedFor('ac3', [LEO, JOE], [GC]));
   await B.seed(LEX, seedFor('lex', [LEO]));
-  await B.seed(CP2, seedFor('cp2', [LEO]));
+  await B.seed(CP2, seedFor('cp2', [LEO], [GC]));
   await B.seed(B.hubUrl(), {}, false);
   for (const e of [LEO, JOE, BOSS, GC]) await B.createUser(e, true);
   await B.createUser(NEWBIE, false);
@@ -389,6 +409,35 @@ async function edit(page, status) {
     // The fake SDK pushes only within one page; the real one (emulator) pushes to every client.
     await page.evaluate(() => window.__fbRefresh && window.__fbRefresh());
     ok(await until(() => page.evaluate(() => state.units.find(x => x.key === 'SF01__1').glassPanels[0].status === 'ready')), 'the open CP2 board picks it up');
+
+    console.log('\n9. Fab drawings: an editor drops a sheet, anyone on the project finds it from the unit, the GC sees nothing');
+    ok(await page.evaluate(() => { const b = document.getElementById('fabBtn'); return !!b && getComputedStyle(b).display !== 'none'; }), 'the 📑 Fab drawings button is on the board');
+    await page.evaluate(() => openFab());
+    ok(await until(() => page.evaluate(() => /No fab drawings uploaded yet/.test(document.getElementById('fabBody').innerText))), 'the list starts empty');
+    await page.evaluate(b64 => { const bin = atob(b64), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+      return AF_FAB.add([new File([a], '01L, 01R.pdf', { type: 'application/pdf' })]); }, sheetPdf('SF01L'));
+    ok(await until(() => page.evaluate(() => { const p = AF_FAB._state.pending[0]; return !!(p && p.ready && p.pages && p.pages[0].includes('SF01L')); }), 20000),
+       'pdf.js reads "SF01L" off the sheet', await page.evaluate(() => JSON.stringify(AF_FAB._state.pending.map(p => [p.status, p.pages]))));
+    await page.evaluate(() => AF_FAB.commit());
+    ok(await until(async () => { const f = await B.read(CP2, 'fab'); return !!f && Object.keys(f).length === 1; }), 'the CP2 database has one fab row');
+    const row = Object.values((await B.read(CP2, 'fab')) || {})[0] || {};
+    ok(row._project === 'cp2' && row._by === LEO && /\/p%2Fcp2%2Ffab%2F|\/p\/cp2\/fab\//.test(decodeURIComponent(row.pdf || '')), 'stamped cp2, signed by Leo, PDF under p/cp2/fab/', row.pdf);
+    ok(Array.isArray(row.pages) && row.pages.length === 1 && row.pages[0].img && JSON.stringify(row.pages[0].tags) === '["SF01L"]', 'one sheet image, filed under SF01L', JSON.stringify(row.pages));
+    ok((await B.read(AC3, 'fab')) === undefined, 'nothing lands in AC3');
+    await page.evaluate(() => { document.getElementById('fabModal').classList.remove('show'); openUnit('SF01__1'); });
+    ok(await until(() => page.evaluate(() => /Fab drawing \(1\)/.test((document.getElementById('fabUnitBtn') || {}).innerText || ''))), 'the unit editor shows "📑 Fab drawing (1)"');
+    await page.evaluate(() => AF_FAB.forUnit('SF01L'));
+    ok(await until(() => page.evaluate(() => { const v = document.getElementById('dwgViewer'); return !!v && v.classList.contains('show') && /SF01L/.test(v.innerText) && !!v.querySelector('a[href*="#page=1"]'); })),
+       'it opens that sheet, with the PDF one tap away');
+    await shot(page, '9-fab-sheet');
+    await ctx.close();
+    ctx = await newContext(browser);
+    page = await open(ctx, 'cp2');
+    await signIn(page, GC);
+    ok(await until(() => page.evaluate(() => window.CloudSync.isGC())), 'the GC opens CP2');
+    ok(await until(() => page.evaluate(() => { const b = document.getElementById('fabBtn'); return !b || getComputedStyle(b).display === 'none'; })), 'no Fab drawings button for the GC');
+    const gcRead = await page.evaluate(async () => { try { await firebase.database().ref('fab').once('value'); return 'read'; } catch (e) { return 'refused'; } });
+    ok(gcRead === 'refused', 'the rules refuse /fab to the GC', gcRead);
     await ctx.close();
   } finally {
     await browser.close();

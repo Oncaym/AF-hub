@@ -103,6 +103,18 @@
       }
     },
 
+    // Fab drawings (core/fab.js): one row per uploaded PDF, links to the files in
+    // p/<project>/fab/. Editors upload; editors, viewers and staff read. NOT the GC
+    // (Leo, 2026-10-16): these are our shop's sheets, not a submittal.
+    "fab": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".indexOn": ["uploadedAt"],
+      "$id": {
+        ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+        ".validate": "newData.hasChildren(['name', 'pdf', 'pages', 'uploadedAt', '_by', '_project']) && newData.child('name').isString() && newData.child('name').val().length <= 200 && newData.child('pdf').isString() && root.child('meta/project').isString() && newData.child('_project').val() == root.child('meta/project').val() && newData.child('_by').val() == auth.token.email"
+      }
+    },
+
     // Warehouse (receive).
     "warehouse": {
       ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",

@@ -108,6 +108,22 @@ GitHub → **Actions → Project database → Run workflow**：
 
 工头、GC 不用重新注册：迁移会给名单上的每个人开 hub 账号，他们在新页面点 **First time here** 设一次密码就行。
 
+## Fab drawings（tracker 上的 📑 Fab drawings，2026-10-16）
+
+工厂和工地自己在 tracker 里找 fab 图，不用再打电话问 Leo。
+
+- **谁能看**：这个项目的 editor、viewer，和所有公司邮箱。**GC 看不到**（按钮不显示，规则也不让读 `/fab`）。
+- **上传**（editor）：📑 Fab drawings → 把 PDF 拖进去（可以一次多个，也可以是一整套）。浏览器逐页读出图上印的单元号（CP2 的图上有 "SF40" 这类 tag），每页存一张图片给手机看，原 PDF 也存着。单个文件最多 100 MB。
+- **找图**：按单元号或文件名搜；或者在 tracker 里点开单元，点「📑 Fab drawing (N)」直接看这个单元的图，右上角 PDF ↗ 打开原文件那一页。
+- **最新版**：同一个单元，最后上传的那份就是当前版，旧的折叠在「older」里。图上没有版本号，所以按上传时间算。
+- 图上没印单元号的（例如只有线条的 PDF），列表里会标黄，点 🏷 Units 手动填。
+- 存在哪：文件在共享存储桶 `p/<项目>/fab/<id>/`，数据库 `/fab/<id>` 只存链接。
+
+**上线要做的（一次）**：
+
+1. Push 以后，Actions → Project database → Run workflow：`mode = rules`，`project = all`。不做这步，AC3、Lexington 的 Fab drawings 会显示 "not shared with this account"。（CP2 迁移时会自动带上新规则。）
+2. 只有 PDF 超过 15 MB 才需要：Firebase 控制台 → Storage → Rules，把 `platform/storage.rules` 全部贴进去，Publish。15 MB 以下现在的规则就能传。
+
 ## 日常操作
 
 **加人 / 改权限 / 删人**：Actions → Project database → Run workflow
