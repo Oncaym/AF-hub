@@ -15,6 +15,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script src="project-config.js"></script>
+<script src="../core/tosend.js?v=20261016c"></script>
 
 <style>
   /* ---- design tokens — copied from index.html so this drops in cleanly ---- */
@@ -262,6 +263,10 @@
     font-size: 11px; color: var(--text-dim);
     margin-top: 2px;
   }
+  /* 🚚 To send (core/tosend.js draws the rows) */
+  #toSendCard .btn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+  #toSendCard input[type="text"] { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 16px; color: var(--text); min-width: 0; }
+  #toSendCard .btn-primary { background: var(--accent); color: #fff; border: 0; border-radius: 8px; font-size: 15px; cursor: pointer; }
   .empty {
     text-align: center; color: var(--text-dim);
     font-size: 13px; padding: 20px;
@@ -420,7 +425,7 @@
 <header class="wh-header">
   <div class="wh-title-row">
     <a class="back-btn" href="index.html" title="Back to tracker">←</a>
-    <h1 data-i18n="title">Warehouse — Receive</h1>
+    <h1 data-i18n="title">Warehouse</h1>
     <span class="conn-pill" id="connPill" data-i18n="conn_init">…</span>
   </div>
   <div class="lang-switcher" id="langSwitcher">
@@ -436,6 +441,9 @@
   <div class="gate-msg" id="gateMsg" style="display:none">
     <span data-i18n="gate_msg">View only — sign in at the main app first to record items.</span>
   </div>
+
+  <!-- 🚚 To send to site (core/tosend.js): what the site asked for, until it is sent -->
+  <section class="card" id="toSendCard" hidden></section>
 
   <!-- Receive form -->
   <section class="card" id="receiveCard">
@@ -644,7 +652,7 @@
 // ---------- i18n ----------
 const I18N = {
   en: {
-    title: "Warehouse — Receive",
+    title: "Warehouse",
     conn_init: "…",
     conn_live: "Live",
     conn_viewer: "View only",
@@ -693,7 +701,7 @@ const I18N = {
     err_delete: "Delete failed",
   },
   zh: {
-    title: "仓库 — 来货",
+    title: "仓库",
     conn_init: "…",
     conn_live: "已连接",
     conn_viewer: "只读",
@@ -742,7 +750,7 @@ const I18N = {
     err_delete: "删除失败",
   },
   ko: {
-    title: "창고 — 입고",
+    title: "창고",
     conn_init: "…",
     conn_live: "연결됨",
     conn_viewer: "읽기 전용",
@@ -882,6 +890,7 @@ fbAuth.onAuthStateChanged(user => {
       showGate(!isEditor);
       subscribeRecent();
       subscribeMaterials();
+      if (window.AF_SEND) AF_SEND.mountList(document.getElementById("toSendCard"), { canAdd: isEditor });
     })
     .catch(err => {
       console.warn("[warehouse] allowlist check failed:", err);
@@ -892,6 +901,7 @@ fbAuth.onAuthStateChanged(user => {
       showGate(false);
       subscribeRecent();
       subscribeMaterials();
+      if (window.AF_SEND) AF_SEND.mountList(document.getElementById("toSendCard"), { canAdd: true });
     });
   }).catch(err => {
     // Wrong database for this page, or no access to this project: stop here.

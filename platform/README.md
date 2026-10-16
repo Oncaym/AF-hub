@@ -129,9 +129,9 @@ GitHub → **Actions → Project database → Run workflow**：
 
 工地要什么框、门、sidelite，工头直接在 tracker 上记，不用先打电话给 Leo 再转工厂。
 
-- **工头**（editor）：tracker 顶上「🚚 N」→ 写一句（例如 `SD01 sidelite`）→ Add。
-- **工厂**：hub 首页最上面「🚚 To send to site」，所有项目的都在一起，最老的在最上面。发车后点「Sent ✓」，这一条就从清单上消失；点错了可以在 tracker 的清单底下 undo。
-- 没点「Sent ✓」的会一直挂着，按天数算，**超过 2 天变红**，tracker 上的 🚚 按钮也变红。
+- **工头**（editor）：tracker 上的 📦 Warehouse → 页面最上面「🚚 To send to site」→ 写一句（例如 `SD01 sidelite`）→ Add。有没送的东西时，tracker 的 Warehouse 链接后面会显示「🚚 N」，超过 2 天变红。
+- **工厂**：hub 首页最上面「🚚 To send to site」，所有项目的都在一起，最老的在最上面。发车后点「Sent ✓」，这一条就从清单上消失；点错了可以在 Warehouse 页的清单底下 undo。
+- 没点「Sent ✓」的会一直挂着，按天数算，**超过 2 天变红**。
 - 谁能做什么：editor 加/删；editor、viewer、公司邮箱都能点 Sent；GC 看不到。工厂的人没有公司邮箱的，要在每个项目加成 viewer（Actions → Project database → member）；hub 首页只给公司邮箱看。
 - 数据在每个项目自己的数据库 `/toSend`。
 

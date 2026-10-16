@@ -10,8 +10,9 @@
    project's own database. Editors (foremen, PM) add and remove; editors,
    viewers and staff mark sent (the shop). The GC sees none of it.
 
-   Two places show it: a 🚚 button in every tracker, and one list of every
-   project on the hub overview, for the shop.
+   Where: at the top of each project's 📦 Warehouse page (the tracker's
+   Warehouse link carries the count, red once something waits 2+ days), and
+   one list of every project on the hub overview, for the shop.
    ============================================================ */
 (function (root) {
   'use strict';
@@ -68,61 +69,48 @@
     el.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { if (confirm('Remove this from the list?')) db.ref('toSend/' + b.dataset.del).remove().catch(fail('Could not remove')); });
   }
 
-  /* ---------- tracker: 🚚 button + list ---------- */
-  const T = { items: null, on: false, denied: false };
-  API._tracker = T;
-  const isGC = () => typeof _isGC === 'function' && _isGC();
-  const canAdd = () => !(typeof _noEdit === 'function' && _noEdit());
+  /* ---------- warehouse page: the list, at the top ---------- */
+  /** el: the card to draw into; canAdd: this account is an editor here. */
+  function mountList(el, opts) {
+    if (!el || el.dataset.on) return;
+    el.dataset.on = '1';
+    const can = !!(opts && opts.canAdd);
+    el.hidden = false;
+    el.innerHTML = `<h2>🚚 To send to site</h2>
+      ${can ? `<div style="display:flex;gap:8px;margin-bottom:6px"><input type="text" id="toSendWhat" maxlength="200" placeholder="What, e.g. SD01 sidelite" autocomplete="off" style="flex:1">
+        <button type="button" class="btn-primary" id="toSendAdd" style="width:auto;padding:0 16px">Add</button></div>` : ''}
+      <div id="toSendList"><div class="empty">Loading…</div></div>`;
+    const db = firebase.database(), list = el.querySelector('#toSendList');
+    let items = {};
+    const draw = () => { list.innerHTML = rows(split(items, Date.now()), Date.now(), { canRemove: can }); wire(list, db); };
+    db.ref('toSend').on('value', snap => { items = snap.val() || {}; draw(); }, () => { el.hidden = true; });
+    const inp = el.querySelector('#toSendWhat');
+    if (inp) {
+      const add = () => {
+        const what = (inp.value || '').trim().slice(0, 200); if (!what) return;
+        db.ref('toSend').push().set({ what, by: me(), at: TS(), _project: (window.PROJECT || {}).hubId })
+          .then(() => { inp.value = ''; inp.focus(); })
+          .catch(fail('Could not save'));
+      };
+      el.querySelector('#toSendAdd').onclick = add;
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
+    }
+  }
 
-  function button() {
-    let b = document.getElementById('toSendBtn');
-    if (isGC() || T.denied || !T.items) { if (b) b.style.display = 'none'; return; }
-    const bar = document.querySelector('.header-actions'); if (!bar) return;
-    if (!b) {
-      b = document.createElement('button'); b.className = 'btn'; b.id = 'toSendBtn'; b.type = 'button';
-      b.onclick = open;
-      const solve = document.getElementById('openItemsBtn');
-      solve ? bar.insertBefore(b, solve) : bar.appendChild(b);
-    }
-    const now = Date.now(), { open: o } = split(T.items, now);
-    b.style.display = '';
-    b.textContent = '🚚 ' + o.length;
-    b.title = o.length ? `${o.length} thing(s) to send to site` : 'To send to site';
-    const red = o.some(x => late(x, now));
-    b.style.background = red ? 'var(--red,#e5484d)' : ''; b.style.color = red ? '#fff' : ''; b.style.fontWeight = red ? '600' : '';
-  }
-  function render() {
-    button();
-    const box = document.getElementById('toSendList'); if (!box) return;
-    const db = firebase.database();
-    box.innerHTML = rows(split(T.items, Date.now()), Date.now(), { canRemove: canAdd() });
-    wire(box, db);
-  }
-  function open() {
-    let ov = document.getElementById('toSendModal');
-    if (!ov) {
-      ov = document.createElement('div'); ov.id = 'toSendModal'; ov.className = 'modal-overlay';
-      document.body.appendChild(ov);
-      ov.addEventListener('click', e => { if (e.target === ov) ov.classList.remove('show'); });
-    }
-    ov.innerHTML = `<div class="modal" style="max-width:520px">
-        <h3 style="margin-top:0">🚚 To send to site</h3>
-        ${canAdd() ? `<div class="form-row" style="display:flex;gap:8px;margin:0 0 6px"><input type="text" id="toSendWhat" maxlength="200" placeholder="What, e.g. SD01 sidelite" style="flex:1" autocomplete="off">
-          <button type="button" class="btn btn-primary" id="toSendAdd">Add</button></div>` : ''}
-        <div id="toSendList"></div>
-        <div class="modal-actions"><button class="btn" type="button" onclick="document.getElementById('toSendModal').classList.remove('show')">Close</button></div>
-      </div>`;
-    const inp = ov.querySelector('#toSendWhat');
-    const add = () => {
-      const what = (inp.value || '').trim().slice(0, 200); if (!what) return;
-      firebase.database().ref('toSend').push().set({ what, by: me(), at: TS(), _project: (window.PROJECT || {}).hubId })
-        .then(() => { inp.value = ''; inp.focus(); })
-        .catch(fail('Could not save'));
-    };
-    if (inp) { ov.querySelector('#toSendAdd').onclick = add; inp.addEventListener('keydown', e => { if (e.key === 'Enter') add(); }); }
-    ov.classList.add('show');
-    render();
-    if (inp) inp.focus();
+  /* ---------- tracker: the count rides on the 📦 Warehouse link ---------- */
+  const T = { items: null, on: false };
+  API._tracker = T;
+  function linkCount() {
+    const link = document.querySelector('a[href="warehouse.html"]'); if (!link) return;
+    let b = link.querySelector('.to-send-n');
+    const now = Date.now(), open = T.items ? split(T.items, now).open : [];
+    if (!open.length) { if (b) b.remove(); link.title = 'Warehouse'; return; }
+    if (!b) { b = document.createElement('span'); b.className = 'to-send-n'; link.appendChild(b); }
+    const red = open.some(x => late(x, now));
+    b.textContent = '🚚 ' + open.length;
+    b.style.cssText = 'margin-left:6px;font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;'
+      + (red ? 'background:var(--red,#e5484d);color:#fff' : 'border:1px solid var(--border);color:var(--text-dim)');
+    link.title = `${open.length} thing(s) to send to site` + (red ? ' — some waiting 2+ days' : '');
   }
   function startTracker(tries) {
     if (T.on) return;
@@ -135,10 +123,10 @@
     T.on = true;
     firebase.auth().onAuthStateChanged(u => {
       if (!u || u.isAnonymous) return;
-      firebase.database().ref('toSend').on('value', s => { T.items = s.val() || {}; T.denied = false; render(); },
-        () => { T.denied = true; render(); });   // the GC, or no access: no button
+      firebase.database().ref('toSend').on('value', snap => { T.items = snap.val() || {}; linkCount(); },
+        () => { T.items = null; linkCount(); });   // the GC, or no access: nothing shown
     });
-    setInterval(button, 60 * 60 * 1000);   // ages tick over without a reload
+    setInterval(linkCount, 60 * 60 * 1000);   // ages tick over without a reload
   }
 
   /* ---------- hub overview: every project in one list, for the shop ---------- */
@@ -167,8 +155,9 @@
     draw();
   }
 
-  Object.assign(API, { open, hub, startTracker });
-  if (typeof window !== 'undefined' && window.PROJECT && window.PROJECT.hubId) {
+  Object.assign(API, { mountList, hub, startTracker });
+  // A tracker page (not the warehouse page, which mounts the list itself).
+  if (typeof window !== 'undefined' && window.PROJECT && window.PROJECT.hubId && document.querySelector('script[src*="core/app.js"]')) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => startTracker()); else startTracker();
   }
 })(typeof window !== 'undefined' ? window : globalThis);
