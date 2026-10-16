@@ -4,7 +4,7 @@
   "private": true,
   "description": "Checks that projects stay apart: rules, configs, the migration tool, and the tracker pages end to end.",
   "scripts": {
-    "test:local": "node config.test.cjs && node migrate.test.cjs && node rules.local.test.cjs && node hub-rules.local.test.cjs && node design.test.cjs && node design-api.test.mjs && node agent-api.test.mjs && node e2e/run.mjs --backend=fake && node design.e2e.mjs && node schedules.e2e.mjs && node assistant.e2e.mjs",
+    "test:local": "node config.test.cjs && node migrate.test.cjs && node rules.local.test.cjs && node hub-rules.local.test.cjs && node design.test.cjs && node discord-digest.test.cjs && node design-api.test.mjs && node agent-api.test.mjs && node e2e/run.mjs --backend=fake && node design.e2e.mjs && node schedules.e2e.mjs && node assistant.e2e.mjs",
     "test:emulator": "cd .. && firebase emulators:exec --only database,auth,storage --project demo-afhub \"cd tests && node rules.emulator.test.mjs && node migrate.e2e.mjs && node e2e/run.mjs --backend=emulator\""
   },
   "devDependencies": {

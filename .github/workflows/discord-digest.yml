@@ -1,0 +1,47 @@
+# AF Hub — daily Discord digest for the Design Boards (no AI).
+#   Weekday mornings the AF bot posts, in each board's Discord channel, how many
+#   review comments are still to fix (and for whom), waiting for an answer, and
+#   fixed but waiting for the reviewer — plus what changed since yesterday.
+#   Code: report/discord-digest.js. Run by hand with "dry run" to see the message
+#   in the log without posting.
+#   Needs: secret HUB_SERVICE_ACCOUNT (already there), secret DISCORD_BOT_TOKEN,
+#   repo variable DISCORD_CHANNELS = {"ac3":"<channel id>"}; the bot needs
+#   "Send Messages" in those channels.
+name: Discord digest
+
+on:
+  schedule:
+    - cron: '40 12 * * 1-5'   # 8:40 New York (summer time; 7:40 in winter). GitHub often starts 10–15 min late.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run: print the messages, post nothing'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discord-digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install firebase-admin
+        working-directory: report
+        run: npm install --omit=dev --no-audit --no-fund
+      - name: Post the digest
+        run: node report/discord-digest.js
+        env:
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+          HUB_SERVICE_ACCOUNT: ${{ secrets.HUB_SERVICE_ACCOUNT }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_CHANNELS: ${{ vars.DISCORD_CHANNELS }}
