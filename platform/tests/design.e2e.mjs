@@ -100,6 +100,18 @@ async function ctx() {
     const m = r.request().url().match(/(pdf(\.worker)?)\.min\.js/);
     r.fulfill({ contentType: 'text/javascript', body: fs.readFileSync(path.join(pdfjsDir, 'build', m[1] + '.min.js')) });
   });
+  /* 🔍 Check DXF: a stand-in for Python-in-the-browser (the real one is ~10 MB from jsdelivr;
+     design/review_selftest.py checks the checker itself). It answers like review.run(). */
+  await c.route(/cdn\.jsdelivr\.net\/pyodide\/v0\.26\.4\/full\/pyodide\.js$/, r => r.fulfill({ contentType: 'text/javascript', body: `
+    self.loadPyodide = async () => { const fs = {}; return {
+      loadPackage: async () => {}, pyimport: () => ({ install: async () => {} }), toPy: x => x, globals: { set() {} },
+      FS: { mkdirTree() {}, writeFile(p, d) { fs[p] = d; } },
+      runPython(src) {
+        if (!/review\\.run/.test(src)) return;
+        const got = Object.keys(fs).filter(p => p.startsWith('/check/in/')).map(p => p.split('/').pop());
+        return 'Drawing review\\n\\nAC3-202  (' + got.join(', ') + ')\\n  ✗ Title block says AC3-203, but this sheet is AC3-202.\\n'
+          + '  ⚠ "OFF THE SHEET" runs off the sheet.\\n  (checker: ' + (fs['/check/review.py'] ? 'review.py loaded' : 'no review.py') + ')\\n';
+      } }; };` }));
   await c.route(/\/api\/design$/, async r => {
     const b = JSON.parse(r.request().postData() || '{}');
     apiCalls.push(b);
@@ -345,6 +357,19 @@ try {
   await p3.click('.chip[data-if=all]');
   ok(await p3.$$eval('.card', e => e.length) === 6 && !(await p3.$('.card [data-act]')), 'staff sees all 6 comments, no buttons');
   ok(!(await p3.$('#askForm')) && !(await p3.$('#splitBtn')), 'staff: no Claude buttons (editors only)');
+  await p3.click('#tabs button[data-tab=drawings]');
+  ok(!(await p3.$('#importPdf')) && !!(await p3.$('#checkDxf')), 'staff: no import, but 🔍 Check DXF is there for everyone');
+  await p3.click('#checkDxf');
+  await p3.waitForSelector('#rvDrop');
+  await p3.setInputFiles('#rvFiles', { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('x') });
+  ok(/not DXF/.test(await p3.textContent('#rvStatus')), 'a file that is not DXF: says how to save one');
+  await p3.setInputFiles('#rvFiles', { name: 'AC3-202.dxf', mimeType: 'application/dxf', buffer: Buffer.from('0\nEOF\n') });
+  ok(await p3.waitForSelector('#rvOut:not([hidden])', { timeout: 15000 }).then(() => true, () => false), 'the check runs in the page and shows its report');
+  const rv = await p3.textContent('#rvOut');
+  ok(/AC3-202 {2}\(AC3-202\.dxf\)/.test(rv) && /review\.py loaded/.test(rv), 'the worker got the file and design/review.py');
+  ok(await p3.$eval('#rvOut', el => [...el.querySelectorAll('span')].some(s => /✗/.test(s.textContent) && s.style.color) && !!el.querySelector('b')), 'mistakes in red, the sheet name bold');
+  ok(await p3.isVisible('#rvDl'), 'review.txt can be downloaded');
+  await p3.click('#modalBox [data-x]');
 
   // 6. A tracker foreman: nothing.
   console.log('foreman');

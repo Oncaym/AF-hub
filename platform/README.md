@@ -162,6 +162,7 @@ design team 的图纸和审图意见，**跟安装 tracker 分开**：
 - 一条意见要关两次：drafter 标"已改"（fixed）→ 审图的人确认后"关闭"（closed）。规则保证只有 fixed 才能变成 closed。
 - Claude（拆 Discord 截图、回答问题）走 `api/design.mjs`，用的是 Vercel 上同一个 `ANTHROPIC_API_KEY`。只有 design 库的 editor 能调用。Claude 只提建议，人点按钮才保存。
 - 桌面小精灵在 `desktop-helper/`，见那里的 README。
+- **🔍 Check DXF**（Drawings 页，所有能看 board 的人都有）：拖 DXF 进去，查图号、比例、索引、手改尺寸、压字、材料代号。跑的是 `design/review.py`（和 Design Team Board 里的 `run_review.bat` 同一份），在浏览器里用 Pyodide 跑，**DXF 不上传、不用 AI**。改了检查规则：改 `design/review.py`，跑 `python design/review_selftest.py`，再把它复制到 `Design Team Board/tools/shop-drawing-gen/review.py`。
 
 ### 第一次开（约 10 分钟）
 1. **Firebase 控制台**（af-hub-8f188）→ Realtime Database → Create database，名字填 `af-hub-8f188-design`，地区跟其他项目库一样。

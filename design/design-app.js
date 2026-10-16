@@ -359,6 +359,7 @@
           <button class="chip ${S.mine ? 'on' : ''}" data-mine="1">Mine</button></div>
         <input type="search" id="q" placeholder="Search" value="${esc(S.q)}" style="width:150px">
         <span class="grow"></span>
+        <button class="btn" id="checkDxf" title="Check sheets for wrong sheet numbers, scales, callouts, typed-over dimensions, overlapping text">🔍 Check DXF</button>
         ${ed() ? '<button class="btn" id="importPdf">Import drawing list (PDF)</button><button class="btn" id="addDwg">+ Drawing</button>' : ''}
       </div>` + (list.length ? `<div class="wrapx"><table class="tbl"><thead><tr>
         <th>No.</th><th>Title</th><th>Rev</th><th>With</th><th>Status</th><th>Comments</th><th class="hide-s">Updated</th></tr></thead><tbody>${
@@ -384,6 +385,7 @@
     if (t.dataset.doact != null) { doAction(+t.dataset.doact, t); return; }
     if (t.id === 'addDwg') { drawingForm(null); return; }
     if (t.id === 'importPdf') { importPdf(); return; }
+    if (t.id === 'checkDxf') { checkDxf(); return; }
     if (t.matches('img[data-img]')) { if (t.src) openModal(`<div class="zoom"><img src="${t.src}" alt=""></div><div class="form"><div class="foot"><button class="btn" data-x>Close</button></div></div>`, { wide: true }).querySelector('[data-x]').onclick = closeModal; return; }
     if (t.matches('tr.row')) { if (e.target.closest('[data-stop]')) return; drawingView(t.dataset.dwg); return; }
     if (t.dataset.act) { const card = t.closest('.card'); issueAction(t.dataset.act, card.dataset.id); }
@@ -795,6 +797,55 @@
     }
     return items;
   }
+  /* 🔍 Check DXF (2026-10-16): the drawing check the team can also double-click
+     (tools/shop-drawing-gen/run_review.bat). design/review.py runs in a worker with
+     Python-in-the-browser; the DXF files are read here and never uploaded. No AI. */
+  let reviewWorker = null;
+  function checkDxf() {
+    const box = openModal(`<h2>Check drawings (DXF)</h2><div class="form">
+      <div class="dim">In LT: SAVEAS → AutoCAD 2018 DXF. Drop the sheets here — files that point to each other together (the 106 set with the 500 details).
+        Checks sheet numbers, scales, callouts, typed-over dimensions, overlapping text and material codes. Files stay on this computer; nothing is changed.</div>
+      <div class="drop" id="rvDrop" style="margin-top:10px;padding:18px"><label style="color:var(--accent-2);cursor:pointer">Choose DXF files<input type="file" accept=".dxf" multiple hidden id="rvFiles"></label> or drop them here</div>
+      <div id="rvStatus" class="dim" style="margin-top:8px"></div>
+      <pre id="rvOut" style="white-space:pre-wrap;font-size:12.5px;line-height:1.5;max-height:55vh;overflow:auto;margin:8px 0 0" hidden></pre>
+      <div class="foot"><button class="btn" id="rvDl" hidden>Download review.txt</button><button class="btn ghost" data-x>Close</button></div></div>`, { wide: true });
+    box.querySelector('[data-x]').onclick = closeModal;
+    const drop = box.querySelector('#rvDrop'), status = box.querySelector('#rvStatus'), out = box.querySelector('#rvOut'), dl = box.querySelector('#rvDl');
+    let busy = false;
+    const run = async (fileList) => {
+      const files = [...(fileList || [])].filter(f => /\.dxf$/i.test(f.name));
+      if (!files.length) { status.textContent = 'Those are not DXF files. In LT: SAVEAS → AutoCAD 2018 DXF.'; return; }
+      if (busy) return;
+      busy = true; out.hidden = true; dl.hidden = true;
+      status.textContent = 'Reading ' + files.map(f => f.name).join(', ') + '…';
+      const payload = await Promise.all(files.map(async f => ({ name: f.name, bytes: await f.arrayBuffer() })));
+      if (!reviewWorker) reviewWorker = new Worker('review-worker.js');
+      reviewWorker.onmessage = ev => {
+        const m = ev.data || {};
+        if (m.status) { status.textContent = m.status; return; }
+        busy = false;
+        if (m.error) { status.textContent = 'Could not check: ' + m.error; return; }
+        status.textContent = '';
+        out.innerHTML = esc(m.text).split('\n').map(l => /^\s+✗/.test(l) ? `<span style="color:var(--red)">${l}</span>`
+          : /^\s+⚠/.test(l) ? `<span style="color:var(--yellow)">${l}</span>`
+          : /^[A-Z0-9]+-\S+\s+\(/.test(l) ? `<b>${l}</b>` : l).join('\n');
+        out.hidden = false; dl.hidden = false;
+        dl.onclick = () => {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(new Blob(['\ufeff' + m.text], { type: 'text/plain;charset=utf-8' }));
+          a.download = files[0].name.replace(/\.dxf$/i, '') + ' - review.txt';
+          a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        };
+      };
+      reviewWorker.onerror = e => { busy = false; status.textContent = 'Could not check: ' + (e.message || 'the checker did not start'); reviewWorker = null; };
+      reviewWorker.postMessage({ files: payload }, payload.map(p => p.bytes));
+    };
+    box.querySelector('#rvFiles').addEventListener('change', ev => run(ev.target.files));
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+    drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); run(e.dataTransfer.files); });
+  }
+
   function importPdf() {
     const box = openModal(`<h2>Import drawing list</h2><div class="form">
       <div class="dim">Pick the drawing list PDF (the sheet with DWG# · TITLE · SCALE). Nothing is saved until you check the list and press Import.</div>

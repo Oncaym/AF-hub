@@ -43,6 +43,13 @@ jobs:
       - name: Configs, migration helpers, rules, pages (stub SDK)
         working-directory: platform/tests
         run: npm run test:local
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Drawing checker (design/review.py, the Design Board's 🔍 Check DXF)
+        run: |
+          pip install ezdxf==1.4.5
+          python design/review_selftest.py
 
   emulator:
     runs-on: ubuntu-latest
