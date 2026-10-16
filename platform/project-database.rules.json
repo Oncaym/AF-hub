@@ -78,20 +78,6 @@
       }
     },
 
-    // Friday glass delivery triage.
-    "triage": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
-      "$deliveryId": {
-        "pieces": {
-          ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
-          "$tagKey": { ".validate": "newData.hasChild('status')" }
-        },
-        "meta": {
-          ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()"
-        }
-      }
-    },
-
     // Elevation geometry + takeoff cut list per unit, written by the takeoff tool's "-> Tracker"
     // and the tracker's own DXF import. Key = the unit id with '.' turned into ','. Every row is
     // stamped with this project's id and its author, like /state.

@@ -42,7 +42,7 @@ const c = (name, as, op, path, value, want, data) => cases.push({ name, as, op, 
 const readers = [['EDITOR', true], ['FOREMAN', true], ['STAFF', true], ['STAFF_UP', true], ['GC', true], ['VIEWER', true],
   ['STRANGER', false], ['FAKE', false], ['ANON', false], ['NOBODY', false]];
 for (const [who, want] of readers)
-  for (const p of ['/state', '/meta', '/history', '/gcItems', '/triage', '/warehouse', '/presence', '/elevGeo'])
+  for (const p of ['/state', '/meta', '/history', '/gcItems', '/warehouse', '/presence', '/elevGeo'])
     c(`read ${p} as ${who}`, who, 'read', p, undefined, want);
 c('root not readable even by an editor', 'EDITOR', 'read', '/', undefined, false);
 c('allowlist not listable', 'EDITOR', 'read', '/allowlist', undefined, false);
@@ -101,11 +101,12 @@ c('gc cannot edit a posted item', 'GC', 'set', '/gcItems/g1', item(P.GC, { text:
 c('editor triages a posted item', 'EDITOR', 'set', '/gcItems/g1', Object.assign(item(P.GC), { handled: true }), true, WITH_ITEM);
 c('editor deletes a posted item', 'EDITOR', 'set', '/gcItems/g1', null, true, WITH_ITEM);
 
-// warehouse / triage
+// warehouse
 c('editor receives a warehouse item', 'EDITOR', 'set', '/warehouse/items/w1', { where: 'rack A', receivedAt: NOW, receivedBy: P.EDITOR.email, status: 'in_stock' }, true);
 c('staff cannot receive a warehouse item', 'STAFF', 'set', '/warehouse/items/w1', { where: 'rack A', receivedAt: NOW, receivedBy: P.STAFF.email, status: 'in_stock' }, false);
-c('editor sets a triage piece', 'EDITOR', 'set', '/triage/friday/pieces/T1', { status: 'ok' }, true);
-c('gc cannot set a triage piece', 'GC', 'set', '/triage/friday/pieces/T1', { status: 'ok' }, false);
+// Glass Triage was removed (Leo, 2026-10-16): nothing may be read or written there.
+c('/triage is closed, even to an editor', 'EDITOR', 'set', '/triage/friday/pieces/T1', { status: 'ok' }, false);
+c('/triage is not readable', 'EDITOR', 'read', '/triage', undefined, false);
 
 // elevGeo (takeoff "-> Tracker" / tracker DXF import)
 const geo = (who, project, extra) => Object.assign({ key: 'SF04.1', viewBox: '0 0 10 10', takeoff: { system: '750XT' }, _project: project, _by: who.email, _ts: NOW }, extra || {});

@@ -637,7 +637,7 @@
 <script>
 /* =========================================================================
  *  Warehouse — Stage 1: Receive only
- *  Pattern mirrors friday-triage.html (separate page, same Firebase project).
+ *  A separate page on the same Firebase project as the tracker.
  *  TODO[backend]: when Stage 2 lands, this file will also handle "Ship".
  * ======================================================================= */
 
@@ -873,7 +873,7 @@ fbAuth.onAuthStateChanged(user => {
   fbDb.ref("meta/project").once("value").then(m => {
     if (m.val() !== wantProject) throw Object.assign(new Error('project mismatch'), { mismatch: m.val() });
   }).then(() => {
-  // Allowlist check (mirrors friday-triage.html pattern)
+  // Allowlist check
   const emailKey = user.email.replace(/\./g, ",");
   return fbDb.ref("allowlist/" + emailKey).once("value")
     .then(snap => {

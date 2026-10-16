@@ -185,7 +185,6 @@ const I18N = {
     pie_issue_tooltip_title: "ISSUE units",
     pie_click_hint: "Click to view details",
     btn_close: "Close",
-    btn_glass_triage: "🪟 Glass Triage",
     btn_drawings: "📐 Drawings",
     btn_warehouse: "📦 Warehouse",
     drawings_title: "Drawings",
@@ -378,7 +377,6 @@ const I18N = {
     pie_issue_tooltip_title: "ISSUE 单元",
     pie_click_hint: "点击查看明细",
     btn_close: "关闭",
-    btn_glass_triage: "🪟 玻璃巡检",
     btn_drawings: "📐 图纸",
     btn_warehouse: "📦 仓库",
     drawings_title: "图纸",
@@ -571,7 +569,6 @@ const I18N = {
     pie_issue_tooltip_title: "ISSUE 유닛",
     pie_click_hint: "클릭하여 상세 보기",
     btn_close: "닫기",
-    btn_glass_triage: "🪟 유리 점검",
     btn_drawings: "📐 도면",
     btn_warehouse: "📦 창고",
     drawings_title: "도면",
@@ -2642,7 +2639,7 @@ function closeKpiDetail() {
 
 /* ======================================================
    MAP HIGHLIGHT — driven by ?highlight=SF03,SF20A&order=J04
-   Used by Glass Triage to show "where this crate's glass goes"
+   (deep links: "where this crate's glass goes")
    ====================================================== */
 function applyMapHighlightFromUrl() {
   const params = new URLSearchParams(window.location.search);
@@ -2709,6 +2706,7 @@ function showHighlightBanner(orderLbl, ids) {
    ====================================================== */
 function openDrawings() {
   renderDrawingsList();
+  if (window.AF_FAB) { try { window.AF_FAB.mount(); } catch (e) {} }   // fab drawings, under the links
   const m = document.getElementById('drawingsModal');
   if (m) m.classList.add('show');
 }
@@ -2850,24 +2848,12 @@ function glassStatusOptions(selected) {
 function renderGlassPanelList(panels) {
   const list = document.getElementById('glass-panels-list');
   if (!list) return; // tab not present on this project (e.g. AC3, elevation-tracked glass)
-  const triage = window._triageCache || {};
   list.innerHTML = panels.map((p, i) => {
-    // Cross-reference Glass Triage: show triage status next to the panel.
-    const tag = String(p.panel || '').trim();
-    const key = tag.replace(/[.#$\[\]\/]/g, '_');
-    const triageRow = triage[key];
-    let triageBadge = '';
-    if (triageRow && triageRow.status && triageRow.status !== 'pending') {
-      const cls = `triage-${triageRow.status}`;
-      const label = ({pending:'pending', unloaded:'on-site', staged:'staged'})[triageRow.status] || triageRow.status;
-      triageBadge = `<span class="triage-badge ${cls}" title="From Glass Triage">📦 ${label}</span>`;
-    }
     return `
     <div class="glass-panel-row" data-idx="${i}">
       <input type="text" value="${p.panel||''}" placeholder="e.g. 1F-27" autocomplete="off">
       <select>${glassStatusOptions(p.status||'')}</select>
       <input type="date" value="${p.date||''}">
-      ${triageBadge}
       <button type="button" class="btn-remove" onclick="removeGlassPanel(${i})" title="Remove">×</button>
     </div>`;
   }).join('');
@@ -5793,10 +5779,8 @@ const FEATURE_MODULES = [
   { k:'chatLink',      emoji:'💬', label:{en:'Chat NL updater',zh:'Chat 自然语言更新入口',ko:'Chat 자연어 업데이트 입구'},            sel:['a[href="chat.html"]'] },
   { k:'warehouseLink', emoji:'📦', label:{en:'Warehouse page',zh:'Warehouse 仓库页入口',ko:'Warehouse 창고 페이지 입구'},             sel:['a[href="warehouse.html"]'] },
   { k:'drawingsBtn',   emoji:'📁', label:{en:'Drawings button',zh:'Drawings 图纸按钮',ko:'Drawings 도면 버튼'},                sel:['button[onclick="openDrawings()"]'] },
-  { k:'fabBtn',        emoji:'📑', label:{en:'Fab drawings button',zh:'Fab 加工图按钮',ko:'Fab 제작도 버튼'},              sel:['#fabBtn'] },
   { k:'openItemsBtn',  emoji:'⏳', label:{en:'Open Items panel',zh:'Open Items 卡点面板',ko:'Open Items 패널'},               sel:['#openItemsBtn'] },
   // defaultOff: hidden unless a teammate turns it on in the ⚙ Modules panel.
-  { k:'glassTriage',   emoji:'🪟', label:{en:'Glass Triage page',zh:'Glass Triage 玻璃到货页入口',ko:'Glass Triage 페이지 입구'}, sel:['a[href="friday-triage.html"]'], defaultOff:true },
 ];
 
 /* ------------------------------------------------------------
@@ -6428,7 +6412,7 @@ function openUsagePanel(){
 const _NOEDIT_HIDE = ['a[href="chat.html"]', '#modulesBtn'];
 // Internal reference we keep away from the GC specifically. A viewer is our own staff
 // without editor rights, so they keep both of these (Leo, 2026-09-18).
-const _GC_HIDE = ['a[href="warehouse.html"]', 'button[onclick="openDrawings()"]', '#fabBtn'];
+const _GC_HIDE = ['a[href="warehouse.html"]', 'button[onclick="openDrawings()"]'];
 function applyReadOnlyUI(){
   const noEdit = _noEdit();
   const gc     = _isGC();
@@ -6640,18 +6624,9 @@ function initApp() {
   }
   _appReady = true;
   render();
-  // Pick up ?highlight=SF03,SF20A&order=J04 from Glass Triage "📍 Map" deep-link
+  // Pick up ?highlight=SF03,SF20A&order=J04 deep links
   if (typeof applyMapHighlightFromUrl === 'function') applyMapHighlightFromUrl();
   if (typeof applyEmbedMode === 'function') applyEmbedMode();
-  // Subscribe (read-only) to Glass Triage pieces so the unit modal can show
-  // shipping status (📦 on-site / staged) next to each glass panel.
-  try {
-    if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length) {
-      firebase.database().ref('triage/friday/pieces').on('value', snap => {
-        window._triageCache = snap.val() || {};
-      });
-    }
-  } catch (e) { console.warn('triage subscribe failed', e); }
   if (state._mergeNote) {
     const _note = state._mergeNote;
     delete state._mergeNote;

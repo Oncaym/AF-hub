@@ -728,16 +728,6 @@
   }
   .highlight-banner .hl-clear:hover { border-color: var(--accent); color: var(--accent); }
 
-  /* Triage shipping-status badge (shown in unit modal next to glass panel rows) */
-  .triage-badge {
-    padding: 2px 7px; border-radius: 999px;
-    font-size: 10px; font-weight: 700;
-    white-space: nowrap;
-    align-self: center;
-  }
-  .triage-badge.triage-unloaded { background: rgba(210,153,34,0.18); color: var(--yellow); border: 1px solid rgba(210,153,34,0.4); }
-  .triage-badge.triage-staged   { background: rgba(63,185,80,0.18);  color: var(--green);  border: 1px solid rgba(63,185,80,0.4); }
-  .triage-badge.triage-pending  { background: rgba(139,148,158,0.18); color: var(--text-dim); border: 1px solid var(--border); }
 
   /* Unit grid */
   .unit-grid {
@@ -1773,7 +1763,6 @@ function importDxfInTracker(e){
       <a class="btn" href="chat.html" title="Natural-language chat updater">💬 Chat</a>
       <a class="btn" href="warehouse.html" title="Warehouse"><span data-i18n="btn_warehouse">📦 Warehouse</span></a>
       <button class="btn" type="button" onclick="openDrawings()" title="Project drawings"><span data-i18n="btn_drawings">📐 Drawings</span></button>
-      <button class="btn" type="button" id="fabBtn" onclick="openFab()" title="Fab drawings: the shop's sheet for any unit">📑 Fab drawings</button>
       <a class="btn" href="../takeoff/" title="打开内嵌 Takeoff Tool（在里面 Import DXF）/ Open the embedded takeoff tool (import DXF there)">🛠 Takeoff Tool</a>
       <input type="file" id="trackerDxfFile" accept=".dxf" style="display:none" onchange="importDxfInTracker(event)">
       <button class="btn" type="button" onclick="document.getElementById('trackerDxfFile').click()" title="Import a DXF — parses elevation regions in-page, no takeoff tool needed">⬆ Import DXF</button>

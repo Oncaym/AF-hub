@@ -783,16 +783,6 @@
   }
   .highlight-banner .hl-clear:hover { border-color: var(--accent); color: var(--accent); }
 
-  /* Triage shipping-status badge (shown in unit modal next to glass panel rows) */
-  .triage-badge {
-    padding: 2px 7px; border-radius: 999px;
-    font-size: 10px; font-weight: 700;
-    white-space: nowrap;
-    align-self: center;
-  }
-  .triage-badge.triage-unloaded { background: rgba(210,153,34,0.18); color: var(--yellow); border: 1px solid rgba(210,153,34,0.4); }
-  .triage-badge.triage-staged   { background: rgba(63,185,80,0.18);  color: var(--green);  border: 1px solid rgba(63,185,80,0.4); }
-  .triage-badge.triage-pending  { background: rgba(139,148,158,0.18); color: var(--text-dim); border: 1px solid var(--border); }
 
   /* Unit grid */
   .unit-grid {
@@ -1769,7 +1759,6 @@
            it stayed invisible even once the page itself was dropped into the folder. -->
       <a class="btn" href="warehouse.html" title="Warehouse"><span data-i18n="btn_warehouse">📦 Warehouse</span></a>
       <button class="btn" type="button" onclick="openDrawings()" title="Project drawings"><span data-i18n="btn_drawings">📐 Drawings</span></button>
-      <button class="btn" type="button" id="fabBtn" onclick="openFab()" title="Fab drawings: the shop's sheet for any unit">📑 Fab drawings</button>
       <button class="btn btn-primary" onclick="openAddLog()" data-gc-hide data-om-id="17a02737:21"><span data-i18n="btn_add_log" data-om-id="17a02737:22">+ Add Daily Log</span></button>
     </div>
   </div>

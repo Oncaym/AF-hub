@@ -3,8 +3,9 @@
 'use strict';
 
 // Nodes a tracker database may hold, and what the migration does with each.
-const COPY_NODES = ['state', 'history', 'access', 'gcItems', 'triage', 'warehouse', 'allowlist', 'gcList', 'viewers'];
-const SKIP_NODES = ['presence', 'meta'];   // presence is live-only; meta is written fresh
+const COPY_NODES = ['state', 'history', 'access', 'gcItems', 'warehouse', 'allowlist', 'gcList', 'viewers'];
+// presence is live-only; meta is written fresh; triage was the Glass Triage page, removed 2026-10-16
+const SKIP_NODES = ['presence', 'meta', 'triage'];
 
 const emailKey = e => String(e || '').trim().toLowerCase().replace(/\./g, ',');
 const keyEmail = k => String(k || '').replace(/,/g, '.');

@@ -95,7 +95,7 @@ GitHub → **Actions → Project database → Run workflow**：
 
 ## CP2 迁移（2026-10-16 准备好，约 20 分钟）
 
-代码已经在仓库里：`cp2/` 文件夹，用 `core/` 公共代码。CP2 原来独有的 bay elevation（F-055/56/57）已经并进 `core/app.js`，只在有 `elevations.js`（`window.ELEV_BAYS`）的项目里出现，AC3、Lexington 不变。Glass Triage 页（`cp2/friday-triage.html`）也搬过来了，会先核对数据库是不是 cp2。
+代码已经在仓库里：`cp2/` 文件夹，用 `core/` 公共代码。CP2 原来独有的 bay elevation（F-055/56/57）已经并进 `core/app.js`，只在有 `elevations.js`（`window.ELEV_BAYS`）的项目里出现，AC3、Lexington 不变。Glass Triage 页已永久删除（2026-10-16，Leo），迁移也不再复制它的 `/triage` 数据。
 
 **按顺序做，中间不要停太久**：Push 之后到迁移完成之前，hub 首页 CP2 的 Open 会打开一个还没有数据库的页面，每 2 小时的 Hub report 也会报 CP2 读不到。
 
@@ -103,21 +103,22 @@ GitHub → **Actions → Project database → Run workflow**：
 2. **Firebase 控制台（af-hub-8f188）→ Realtime Database → Create database**：名字 `af-hub-8f188-cp2`，位置 us-central1，Locked mode。然后 Backups 里开每日备份。
 3. **Actions → Project database → Run workflow**：`mode = dry-run`，`project = cp2`。看日志里要搬的单元数、日志条数、照片数、名单人数对不对。
 4. 同一个 workflow 再跑 `mode = migrate`，`project = cp2`。最后一行要是 **✓ VERIFIED**。这一步会冻结旧的 CP2 数据库（旧规则打印在日志里，可以贴回去回滚），并把旧桶里被引用的照片、单元图复制到 `p/cp2/legacy/`。
-5. 打开 https://af-hub-two.vercel.app/cp2/ 看一下：单元、照片、📐 Openings 里的 Elevation、🪟 Glass Triage。
+5. 打开 https://af-hub-two.vercel.app/cp2/ 看一下：单元、照片、📐 Openings 里的 Elevation。
 6. **GitHub Desktop：Copper-Park-2-Install-Progress-Tracking Push**（只在第 4 步 VERIFIED 之后）。这个提交把旧网址整个转到 hub 的 `/cp2/`，书签和发出去的链接都还能用。
 
 工头、GC 不用重新注册：迁移会给名单上的每个人开 hub 账号，他们在新页面点 **First time here** 设一次密码就行。
 
-## Fab drawings（tracker 上的 📑 Fab drawings，2026-10-16）
+## Fab drawings（在 📐 Drawings 窗口里，链接下面，2026-10-16）
 
 工厂和工地自己在 tracker 里找 fab 图，不用再打电话问 Leo。
 
-- **谁能看**：这个项目的 editor、viewer，和所有公司邮箱。**GC 看不到**（按钮不显示，规则也不让读 `/fab`）。
-- **上传**（editor）：📑 Fab drawings → 把 PDF 拖进去（可以一次多个，也可以是一整套）。浏览器逐页读出图上印的单元号（CP2 的图上有 "SF40" 这类 tag），每页存一张图片给手机看，原 PDF 也存着。单个文件最多 100 MB。
-- **找图**：按单元号或文件名搜；或者在 tracker 里点开单元，点「📑 Fab drawing (N)」直接看这个单元的图，右上角 PDF ↗ 打开原文件那一页。
-- **最新版**：同一个单元，最后上传的那份就是当前版，旧的折叠在「older」里。图上没有版本号，所以按上传时间算。
-- 图上没印单元号的（例如只有线条的 PDF），列表里会标黄，点 🏷 Units 手动填。
+- **谁能看**：这个项目的 editor、viewer，和所有公司邮箱。**GC 看不到**（GC 本来就没有 Drawings 按钮，规则也不让读 `/fab`）。
+- **上传**（editor）：📐 Drawings → Fab drawings → ⬆ Add PDFs（或者直接把 PDF 拖进去，可以一次多个、一整套）。选完就自动传：浏览器逐页读出图上印的单元号（CP2 的图上有 "SF40" 这类 tag），每页存一张图片给手机看，原 PDF 也存着。单个文件最多 100 MB。
+- **找图**：在搜索框输单元号或文件名；或者在 tracker 里点开单元，有图的单元标题旁会有「📑 Fab drawing」，点开直接看，右上角 PDF 打开原文件那一页。
+- **最新版**：同一个单元，最后上传的那份就是它的图。图上没有版本号，所以按上传时间算；旧文件还在列表里。
+- 图上没印单元号的 PDF，列表里标黄「no unit no.」，点 🏷 手动填。
 - 存在哪：文件在共享存储桶 `p/<项目>/fab/<id>/`，数据库 `/fab/<id>` 只存链接。
+
 
 **上线要做的（一次）**：
 

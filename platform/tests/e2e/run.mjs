@@ -44,8 +44,7 @@ const seedFor = (id, editors, gcs) => ({
     // Lexington builds its board from project-config.js and keeps cloud rows by key, so it
     // gets one of its real keys; AC3 keeps whatever units the cloud holds.
     units: [id === 'lex' ? { key: 'SD0201', id: 'SD0201', status: 'pending' }
-          : id === 'cp2' ? { key: 'SF01__1', id: 'SF01L', status: 'pending', level: 'GF', zone: 'North', type: 'Storefront',
-                             glassPanels: [{ panel: '1F-09', status: '' }] }
+          : id === 'cp2' ? { key: 'SF01__1', id: 'SF01L', status: 'pending', level: 'GF', zone: 'North', type: 'Storefront' }
                          : { key: 'AC3-1', id: 'AC3-1', status: 'pending', level: 'GF', zone: 'N', type: 'Storefront' }],
     log: [],
   },
@@ -160,14 +159,18 @@ class EmulatorBackend {
   async attach(context) {
     // Belt and braces: a test must never reach the real Firebase project.
     // (Host only: the Auth emulator's own URLs carry "identitytoolkit.googleapis.com" in their PATH.)
-    await context.route(/^https:\/\/([^/]*\.)?(firebaseio\.com|firebasedatabase\.app|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com)\//, r => r.abort());
+    await context.route(/^https:\/\/([^/]*\.)?(firebaseio\.com|firebasedatabase\.app|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com|firebasestorage\.googleapis\.com)\//, r => r.abort());
   }
   config(url) { return { databaseURL: url }; }
   /* Appended to every routed config file: point the real Auth SDK at the emulator the
      first time any page asks for it (tracker, chat, warehouse, recover alike). */
   configExtra() {
+    const [sh, sp] = (process.env.FIREBASE_STORAGE_EMULATOR_HOST || '127.0.0.1:9199').split(':');
     return `(function(){var o=firebase.auth,u='http://${this.authHost}';firebase.auth=function(){var a=o.apply(this,arguments);` +
-      `if(!a.__emu){a.__emu=1;try{a.useEmulator(u,{disableWarnings:true});}catch(e){}}return a;};Object.assign(firebase.auth,o);})();`;
+      `if(!a.__emu){a.__emu=1;try{a.useEmulator(u,{disableWarnings:true});}catch(e){}}return a;};Object.assign(firebase.auth,o);})();` +
+      // Storage too (fab drawings upload): the real bucket must never be reached from a test.
+      `(function(){var o=firebase.storage;if(!o)return;firebase.storage=function(){var s=o.apply(this,arguments);` +
+      `if(!s.__emu){s.__emu=1;try{s.useEmulator('${sh}',${+sp});}catch(e){}}return s;};Object.assign(firebase.storage,o);})();`;
   }
   async refresh() {}
 }
@@ -378,7 +381,7 @@ async function edit(page, status) {
     ok(await until(() => page.evaluate(() => window.CloudSync.isReadOnly())), '…read-only');
     await ctx.close();
 
-    console.log('\n8. Cooper Park 2 in the hub: its saves land in CP2 only, its bay elevations and glass triage work');
+    console.log('\n8. Cooper Park 2 in the hub: its saves land in CP2 only, its bay elevations work');
     const ac3Now = JSON.stringify(await B.read(AC3, 'state')), lexNow8 = JSON.stringify(await B.read(LEX, 'state'));
     ctx = await newContext(browser);
     page = await open(ctx, 'cp2');
@@ -400,32 +403,27 @@ async function edit(page, status) {
     ok(await until(() => ac3p.evaluate(() => !!document.getElementById('openingsSheet'))) &&
        await ac3p.evaluate(() => !document.querySelector('#openingsSheet .op-tabs') && _bays().length === 0),
        'AC3 (no bay elevations) keeps its one-page Openings sheet, no tabs');
-    const tri = await open2(ctx, 'cp2/friday-triage.html');
-    ok(await until(() => tri.evaluate(() => document.getElementById('conn-pill').classList.contains('live'))), 'glass triage page: connected as editor');
-    ok(await until(() => tri.evaluate(() => !!(mainState && mainState.units && mainState.units.length))), 'glass triage reads the CP2 board');
-    await tri.evaluate(() => propagateTriageStatusToMain('1F-09', 'staged'));
-    ok(await until(async () => ((await B.read(CP2, 'state/units/0/glassPanels/0/status')) === 'ready')), 'a staged triage piece marks its glass panel "ready" on the board (the rules accept the write-back)');
-    ok((await B.read(CP2, 'state/_by')) === LEO && (await B.read(CP2, 'state/_clientId')) === 'friday-triage', '…signed by Leo, from the triage page');
-    // The fake SDK pushes only within one page; the real one (emulator) pushes to every client.
-    await page.evaluate(() => window.__fbRefresh && window.__fbRefresh());
-    ok(await until(() => page.evaluate(() => state.units.find(x => x.key === 'SF01__1').glassPanels[0].status === 'ready')), 'the open CP2 board picks it up');
+    ok(await page.evaluate(() => !document.querySelector('a[href="friday-triage.html"]')), 'no Glass Triage link (the page is gone)');
 
-    console.log('\n9. Fab drawings: an editor drops a sheet, anyone on the project finds it from the unit, the GC sees nothing');
-    ok(await page.evaluate(() => { const b = document.getElementById('fabBtn'); return !!b && getComputedStyle(b).display !== 'none'; }), 'the 📑 Fab drawings button is on the board');
-    await page.evaluate(() => openFab());
-    ok(await until(() => page.evaluate(() => /No fab drawings uploaded yet/.test(document.getElementById('fabBody').innerText))), 'the list starts empty');
+    console.log('\n9. Fab drawings (under 📐 Drawings): an editor drops a sheet, anyone on the project finds it from the unit, the GC sees nothing');
+    await page.evaluate(() => { const m = document.getElementById('openingsModal'); if (m) m.classList.remove('show'); openDrawings(); });
+    ok(await until(() => page.evaluate(() => { const s = document.getElementById('fabSection'); return !!s && !!s.closest('#drawingsModal'); })), 'the Drawings window has a Fab drawings section');
+    ok(await until(() => page.evaluate(() => /No fab drawings yet/.test(document.getElementById('fabBody').innerText))), 'it starts empty');
     await page.evaluate(b64 => { const bin = atob(b64), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
-      return AF_FAB.add([new File([a], '01L, 01R.pdf', { type: 'application/pdf' })]); }, sheetPdf('SF01L'));
-    ok(await until(() => page.evaluate(() => { const p = AF_FAB._state.pending[0]; return !!(p && p.ready && p.pages && p.pages[0].includes('SF01L')); }), 20000),
-       'pdf.js reads "SF01L" off the sheet', await page.evaluate(() => JSON.stringify(AF_FAB._state.pending.map(p => [p.status, p.pages]))));
-    await page.evaluate(() => AF_FAB.commit());
-    ok(await until(async () => { const f = await B.read(CP2, 'fab'); return !!f && Object.keys(f).length === 1; }), 'the CP2 database has one fab row');
+      AF_FAB.add([new File([a], '01L, 01R.pdf', { type: 'application/pdf' })]); }, sheetPdf('SF01L'));
+    ok(await until(async () => { const f = await B.read(CP2, 'fab'); return !!f && Object.keys(f).length === 1; }, 30000), 'dropping the PDF reads and uploads it: the CP2 database has one fab row',
+       await page.evaluate(() => (document.getElementById('fabStatus') || {}).textContent));
+    ok(await until(() => page.evaluate(() => /✓ 1 uploaded/.test(document.getElementById('fabStatus').textContent) && /01L, 01R\.pdf/.test(document.getElementById('fabBody').innerText))), 'the list shows it');
     const row = Object.values((await B.read(CP2, 'fab')) || {})[0] || {};
     ok(row._project === 'cp2' && row._by === LEO && /\/p%2Fcp2%2Ffab%2F|\/p\/cp2\/fab\//.test(decodeURIComponent(row.pdf || '')), 'stamped cp2, signed by Leo, PDF under p/cp2/fab/', row.pdf);
-    ok(Array.isArray(row.pages) && row.pages.length === 1 && row.pages[0].img && JSON.stringify(row.pages[0].tags) === '["SF01L"]', 'one sheet image, filed under SF01L', JSON.stringify(row.pages));
+    ok(Array.isArray(row.pages) && row.pages.length === 1 && row.pages[0].img && JSON.stringify(row.pages[0].tags) === '["SF01L"]', 'one sheet image, filed under SF01L (read off the sheet by pdf.js)', JSON.stringify(row.pages));
     ok((await B.read(AC3, 'fab')) === undefined, 'nothing lands in AC3');
-    await page.evaluate(() => { document.getElementById('fabModal').classList.remove('show'); openUnit('SF01__1'); });
-    ok(await until(() => page.evaluate(() => /Fab drawing \(1\)/.test((document.getElementById('fabUnitBtn') || {}).innerText || ''))), 'the unit editor shows "📑 Fab drawing (1)"');
+    await page.evaluate(() => { document.getElementById('fabSearch').value = 'sf01'; document.getElementById('fabSearch').dispatchEvent(new Event('input')); });
+    ok(await until(() => page.evaluate(() => /SF01L/.test(document.getElementById('fabBody').innerText))), 'searching "sf01" finds SF01L');
+    await page.evaluate(() => { closeDrawingsModal(); openUnit('SF01__1'); });
+    ok(await until(() => page.evaluate(() => /Fab drawing/.test((document.getElementById('fabUnitBtn') || {}).innerText || ''))), 'the unit editor shows "📑 Fab drawing"');
+    const other = await page.evaluate(async () => { const u = state.units.find(x => x.id !== 'SF01L'); openUnit(u.key); await new Promise(r => setTimeout(r, 400)); return (document.getElementById('fabUnitBtn') || {}).innerText || ''; });
+    ok(!/Fab/.test(other), 'a unit without a sheet shows no button', other);
     await page.evaluate(() => AF_FAB.forUnit('SF01L'));
     ok(await until(() => page.evaluate(() => { const v = document.getElementById('dwgViewer'); return !!v && v.classList.contains('show') && /SF01L/.test(v.innerText) && !!v.querySelector('a[href*="#page=1"]'); })),
        'it opens that sheet, with the PDF one tap away');
@@ -435,7 +433,7 @@ async function edit(page, status) {
     page = await open(ctx, 'cp2');
     await signIn(page, GC);
     ok(await until(() => page.evaluate(() => window.CloudSync.isGC())), 'the GC opens CP2');
-    ok(await until(() => page.evaluate(() => { const b = document.getElementById('fabBtn'); return !b || getComputedStyle(b).display === 'none'; })), 'no Fab drawings button for the GC');
+    ok(await until(() => page.evaluate(() => { const b = document.querySelector('button[onclick="openDrawings()"]'); return !b || getComputedStyle(b).display === 'none'; })), 'no Drawings button (so no fab drawings) for the GC');
     const gcRead = await page.evaluate(async () => { try { await firebase.database().ref('fab').once('value'); return 'read'; } catch (e) { return 'refused'; } });
     ok(gcRead === 'refused', 'the rules refuse /fab to the GC', gcRead);
     await ctx.close();

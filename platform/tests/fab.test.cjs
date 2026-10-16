@@ -47,18 +47,17 @@ const two = { x: { name: 'x', uploadedAt: 9, pages: [{ img: 1, tags: ['SF12A'] }
 ok(F.sheetsFor(two, 'SF12A').filter(x => x.current).length === 2, 'a unit over two sheets of the newest file: both current');
 ok(F.sheetsFor({ n: null, a: files.a }, 'SF37').length === 1, 'a removed row (null) is skipped');
 
-// 4. search, coverage
+// 4. search
 let r = F.search(files, 'sf3', CP2);
 ok(r.units.map(u => u.unit).join() === 'SF30,SF32,SF35B,SF37', 'search "sf3" → SF30, SF32, SF35B, SF37 in natural order', r.units.map(u => u.unit));
 r = F.search(files, 'SF40', CP2);
 ok(r.units[0].unit === 'SF40' && r.units[0].sheets.length === 1, 'exact unit first, with its sheet');
+ok(!F.search(files, 'SF12', CP2).units.length, 'units without a sheet are not listed (SF12A has none)');
 r = F.search(files, 'part4', CP2);
 ok(r.units.length === 0 && r.files.length === 1 && r.files[0].id === 'b', 'file name search');
 r = F.search(files, '', CP2);
 ok(r.files.map(x => x.id).join() === 'b,c,a,d', 'empty search → every file, newest first', r.files.map(x => x.id));
 ok(F.search({ z: { name: 'z', uploadedAt: 1, pages: [{ tags: ['SF99X'] }] } }, 'SF99', CP2).units.some(u => u.unit === 'SF99X'), 'a unit only a sheet knows about is still findable');
-const miss = F.missing(files, CP2);
-ok(!miss.includes('SF40') && !miss.includes('SF37') && !miss.includes('IS05') && miss.includes('SF12A') && miss.includes('IS21'), 'units without a fab drawing', miss);
 ok(F.fileTags(files.b).join() === 'SF30,SF32,SF35B,SF37', 'a file lists its units');
 
 console.log(`fab drawings: ${pass} passed, ${fail} failed`);
