@@ -43,7 +43,12 @@ for (const k of cases) {
     allowed = false;
   }
   if (allowed === k.want) pass++;
-  else { fail++; console.log(`FAIL  ${k.name}  (got ${allowed ? 'allowed' : 'denied'}, want ${k.want ? 'allowed' : 'denied'})`); }
+  else {
+    fail++;
+    const m = `FAIL  ${k.name}  (got ${allowed ? 'allowed' : 'denied'}, want ${k.want ? 'allowed' : 'denied'})`;
+    console.log(m);
+    if (process.env.GITHUB_ACTIONS) console.log('::error title=rules emulator::' + m.replace(/%/g, '%25'));
+  }
 }
 await env.cleanup();
 console.log(`rules (emulator): ${pass} passed, ${fail} failed`);

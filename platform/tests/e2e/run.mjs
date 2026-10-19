@@ -191,7 +191,10 @@ function serve(port) {
 
 // ───────────────────────────────────────────────────────────── scenarios ──
 let pass = 0, fail = 0;
-const ok = (cond, msg, extra) => { if (cond) { pass++; console.log('  ✓ ' + msg); } else { fail++; console.log('  ✗ ' + msg + (extra ? '\n      ' + extra : '')); } };
+// On GitHub Actions a failure is also written as an annotation, so it can be read from the
+// run's summary (and the public API) without opening the log.
+const gha = m => { if (process.env.GITHUB_ACTIONS) console.log(`::error title=e2e ${BACKEND}::` + String(m).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')); };
+const ok = (cond, msg, extra) => { if (cond) { pass++; console.log('  ✓ ' + msg); } else { fail++; console.log('  ✗ ' + msg + (extra ? '\n      ' + extra : '')); gha(msg + (extra ? ' | ' + String(extra).slice(0, 300) : '')); } };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 // SHOTS=<folder> saves a screenshot at each step (for docs and debugging).
 const SHOTS = process.env.SHOTS || '';
@@ -229,7 +232,10 @@ async function newContext(browser, { lexPointsAt } = {}) {
   await context.route(/\/cp2\/firebase-config\.js/, r => r.fulfill({ contentType: 'text/javascript', body: cfg('cp2', CP2) }));
   // The hub summary writer must hit the test hub database, never the real one.
   await context.route(/\/af-hub-config\.js/, r => r.fulfill({ contentType: 'text/javascript', body: `window.AF_HUB_FIREBASE = ${JSON.stringify(Object.assign({
-    apiKey: 'fake-api-key', authDomain: 'demo-afhub.firebaseapp.com', projectId: 'demo-afhub', appId: '1:1:web:2' }, B.config(B.hubUrl())))};` }));
+    apiKey: 'fake-api-key', authDomain: 'demo-afhub.firebaseapp.com', projectId: 'demo-afhub', appId: '1:1:web:2' }, B.config(B.hubUrl())))};\n` +
+    // The hub overview signs in on this config alone, so it needs the emulator switch too
+    // (guarded: some pages load it without the Auth SDK).
+    (B.configExtra() ? `if (window.firebase && firebase.auth) {${B.configExtra()}}` : '') }));
   await context.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
   // pdf.js (fab drawings read their sheets with it) from the local package, not the CDN.
   await context.route(/cdnjs\.cloudflare\.com\/ajax\/libs\/pdf\.js\/3\.11\.174\/(pdf(\.worker)?)\.min\.js/, r => {
@@ -483,4 +489,4 @@ async function edit(page, status) {
   }
   console.log(`\nend-to-end (${BACKEND}): ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
-})().catch(e => { console.error(e); process.exit(1); });
+})().catch(e => { console.error(e); gha('stopped: ' + ((e && e.stack) || e).toString().slice(0, 600)); process.exit(1); });

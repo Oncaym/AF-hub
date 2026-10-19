@@ -22,7 +22,7 @@ const OLD_BUCKET = 'atlantic-chestnut-3.firebasestorage.app';
 const HUB_BUCKET = 'af-hub-8f188.firebasestorage.app';
 
 let pass = 0, fail = 0;
-const ok = (c, m, x) => { if (c) { pass++; console.log('  ✓ ' + m); } else { fail++; console.log('  ✗ ' + m + (x ? '\n      ' + x : '')); } };
+const ok = (c, m, x) => { if (c) { pass++; console.log('  ✓ ' + m); } else { fail++; console.log('  ✗ ' + m + (x ? '\n      ' + x : '')); if (process.env.GITHUB_ACTIONS) console.log('::error title=migrate e2e::' + String(m).replace(/%/g, '%25')); } };
 const app = (name, u) => initializeApp({ projectId: 'demo-afhub', databaseURL: u, storageBucket: OLD_BUCKET }, name);
 const legacy = app('t-legacy', URLS.legacy), ac3 = app('t-ac3', URLS.ac3), lex = app('t-lex', URLS.lex), design = app('t-design', URLS.design);
 const read = async (a, p) => (await getDatabase(a).ref(p).once('value')).val();
@@ -139,4 +139,4 @@ function run(env) {
   await Promise.all(getApps().map(a => deleteApp(a)));
   console.log(`\nmigration tool: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
-})().catch(e => { console.error(e); process.exit(1); });
+})().catch(e => { console.error(e); if (process.env.GITHUB_ACTIONS) console.log('::error title=migrate e2e::stopped: ' + String((e && e.message) || e).replace(/%/g, '%25').replace(/\n/g, '%0A')); process.exit(1); });
