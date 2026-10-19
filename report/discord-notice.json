@@ -1,6 +1,8 @@
 {
   "_about": "Added under the daily Discord digest (report/discord-digest.js) until 'until' (New York date). Leo 2026-10-19: the bot asks the design team for this week's trial feedback. Empty text or a past date = nothing added.",
   "until": "2026-10-23",
-  "boards": ["ac3"],
-  "text": "📝 **Trial feedback this week — please answer in this channel by Fri, Oct 23** (one line each is fine)\n1. **Design Board**: did you put any review comments on it? If not, what stopped you?\n2. **🔍 Check DXF** (Drawings → 🔍 Check DXF): run it on one sheet set you're working on. Which findings were real mistakes, which were false alarms, and what did it miss?\n3. **One thing** that would make you use the board every day instead of only Discord."
+  "boards": [
+    "ac3"
+  ],
+  "text": "🔑 **Him, Spark, DY: you can now add and close comments on the board.** First time: open the link below → type your @advfacade.com email → **First time here / forgot password** → set a password from the email → sign in.\n\n📝 **Trial feedback this week — please answer in this channel by Fri, Oct 23** (one line each is fine)\n1. **Design Board**: put this week's review comments on it. What was easy, what got in the way?\n2. **🔍 Check DXF** (Drawings → 🔍 Check DXF): run it on one sheet set you're working on. Which findings were real mistakes, which were false alarms, and what did it miss?\n3. **One thing** that would make you use the board every day instead of only Discord."
 }
