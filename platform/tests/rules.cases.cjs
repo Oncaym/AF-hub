@@ -177,5 +177,8 @@ c('a need-by that is not a date is refused', 'FOREMAN', 'set', '/toSend/t1', ask
 c('a note over 300 characters is refused', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'ac3', { note: 'x'.repeat(301) }), false);
 c('a photo that is not a web link is refused', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'ac3', { photo: 'javascript:alert(1)' }), false);
 c('an unknown field is refused', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'ac3', { truck: 'T1' }), false);
+c('a request recorded from WeChat (who asked, when)', 'STAFF', 'set', '/toSend/t1', ask(P.STAFF, 'ac3', { askedBy: '王师傅', askedAt: NOW - 3600e3, src: 'wechat', note: '王师傅: 明天要SD09 2个' }), true);
+c('askedBy over 80 characters is refused', 'STAFF', 'set', '/toSend/t1', ask(P.STAFF, 'ac3', { askedBy: 'x'.repeat(81) }), false);
+c('askedAt must be a time', 'STAFF', 'set', '/toSend/t1', ask(P.STAFF, 'ac3', { askedAt: 'yesterday' }), false);
 
 module.exports = { P, cases, NOW, key };

@@ -517,6 +517,18 @@ async function edit(page, status) {
     await shopp.evaluate(() => window.__fbRefresh && window.__fbRefresh());
     ok(await until(() => shopp.evaluate(() => { const g = document.querySelector('#shopList .grp'); return !!g && /Package 7/.test(g.innerText) && /Mullion caps ×12/.test(g.innerText) && /due today/.test(g.innerText) && !!g.querySelector('img.ts-thumb'); })),
        'Package 7 comes first (due today, red), with ×12 and the photo', await shopp.evaluate(() => (document.querySelector('#shopList .grp') || {}).innerText));
+    // 📋 Record from WeChat: paste the chat, check the lines, add them (who asked, when, the original line)
+    await shopp.click('#wcBox summary');
+    await shopp.selectOption('#wcProject', 'ac3');
+    await shopp.fill('#wcText', '王师傅 08:05\n明天要SD12 门框 2个\n[图片]\n收到\n还有密封胶 3支');
+    await shopp.click('#wcRead');
+    ok(await until(() => shopp.evaluate(() => document.querySelectorAll('#wcRows .wc-row').length === 2 && /Add 2 to the list/.test(document.getElementById('wcAdd').textContent))), 'Record from WeChat: the chat reads as 2 requests (header, [图片], 收到 left out)');
+    await shopp.click('#wcAdd');
+    ok(await until(async () => { const v = Object.values((await B.read(AC3, 'toSend')) || {}); const a = v.find(x => x.what === '明天要SD12 门框 2个'), b = v.find(x => x.what === '还有密封胶 3支');
+      return !!a && !!b && a.qty === 2 && b.qty === 3 && a.askedBy === '王师傅' && a.src === 'wechat' && a.by === BOSS && +a.askedAt > 0 && a.note === undefined; }),
+      'they land in AC3: qty, who asked (王师傅), recorded by the person pasting, src wechat');
+    await shopp.evaluate(() => window.__fbRefresh && window.__fbRefresh());
+    ok(await until(() => shopp.evaluate(() => /王师傅 \(WeChat\)/.test(document.getElementById('shopList').innerText))), 'the list shows "王师傅 (WeChat)" as who asked');
     await shot(shopp, '10-shop-page');
     if (SHOTS) { await shopp.setViewportSize({ width: 390, height: 844 }); await shot(shopp, '10-shop-phone'); }
     await ctx.close();

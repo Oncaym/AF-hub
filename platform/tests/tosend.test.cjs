@@ -47,6 +47,25 @@ ok(g.map(x => x.src.id).join() === 's_pkg7,ac3' && g[0].open.length === 2, 'grou
 
 ok(S.siteId('Package #7') === 's_package_7' && S.siteId('Forest Hill — Gutter') === 's_forest_hill_gutter', 'site ids from names', [S.siteId('Package #7'), S.siteId('Forest Hill — Gutter')]);
 ok(S.siteId('Package 7', { s_package_7: 1 }) === 's_package_7_2' && S.siteId('!!!') === 's_project', 'site ids stay unique');
+// 📋 from WeChat (Leo 10-19): pasted chat → one request per line, with who and when
+{
+  const now = new Date(2026, 9, 19, 12, 0).getTime();          // local noon
+  const at = (h, m, dd = 19) => new Date(2026, 9, dd, h, m).getTime();
+  const chat = ['王师傅 10:21', '明天要SD09 sidelite 2个', '[图片]', '收到', '', 'Joe Foreman 2026/10/19 11:05:12', 'SF04 glass stops x4',
+    'need 3 shims too', 'Leo: ok', '小李：GL-4 IGU 1片 东面', '还有门锁', '14:30', 'door closer ×2', '下午 1:15', 'Sealant 3支'].join('\n');
+  const r = S.parseChat(chat, now);
+  ok(r.length === 7, 'chat → 7 requests (headers, [图片], 收到, ok left out)', r.map(x => x.what));
+  ok(r[0].what === '明天要SD09 sidelite 2个' && r[0].qty === 2 && r[0].askedBy === '王师傅' && r[0].askedAt === at(10, 21), '"Name 10:21" header: who and when; 2个 → qty 2', r[0]);
+  ok(r[1].qty === 4 && r[1].askedBy === 'Joe Foreman' && r[1].askedAt === at(11, 5) && r[2].askedBy === 'Joe Foreman' && r[2].qty === 0, 'dated header; x4 → 4; the next line keeps the speaker', [r[1], r[2]]);
+  ok(r[3].askedBy === '小李' && r[3].what === 'GL-4 IGU 1片 东面' && r[3].qty === 1 && r[4].askedBy === '小李', '"Name：text" inline (full-width colon), and it carries to the next line', [r[3], r[4]]);
+  ok(r[5].askedAt === at(14, 30, 18) && r[5].qty === 2, 'a time later than now was yesterday; ×2', r[5]);
+  ok(r[6].askedAt === at(13, 15, 18) && r[6].qty === 3, '下午 1:15 → 13:15 (yesterday, it is noon); 3支 → 3', r[6]);
+  ok(S.parseChat('', now).length === 0 && S.parseChat('收到\nok\n[Photo]', now).length === 0, 'nothing but chatter → nothing');
+  ok(S.parseChat('SD09', now)[0].askedAt === 0 && S.parseChat('SD09', now)[0].askedBy === '', 'no header: when and who left empty (the page uses now and the person recording)');
+  // the age and the order use when it was asked, not when it was recorded
+  const items = { a: { what: 'old ask, recorded now', at: now, askedAt: now - 5 * D }, b: { what: 'new', at: now - D } };
+  ok(S.split(items, now).open[0].id === 'a' && S.late(items.a, now) && S.days(S.asked(items.a), now) === 5, 'a request asked 5 days ago on WeChat is 5 days old and late, even if recorded today');
+}
 ok(S.safeUrl('https://firebasestorage.googleapis.com/x') && !S.safeUrl('javascript:alert(1)') && !S.safeUrl(42), 'only http(s) photo links are shown');
 console.log(`to send: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

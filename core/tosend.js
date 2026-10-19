@@ -38,17 +38,19 @@
   const hasNeed = x => !!(x && typeof x.need === 'string' && NEED.test(x.need));
   const dayOf = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d).getTime(); };
   /** When it should go out: its need-by date, or LATE days after it was asked. Sorts the list. */
-  const dueKey = x => (hasNeed(x) ? dayOf(x.need) : (+x.at || 0) + LATE * DAY);
+  /** When it was asked: the WeChat message's time when it was logged from WeChat, else when it was added. */
+  const asked = x => +(x && x.askedAt) || +(x && x.at) || 0;
+  const dueKey = x => (hasNeed(x) ? dayOf(x.need) : asked(x) + LATE * DAY);
 
   /** Open items most urgent first, and what was sent in the last week (newest first). */
   function split(items, now) {
     const all = Object.keys(items || {}).map(id => Object.assign({ id }, items[id])).filter(x => x && x.what);
-    const open = all.filter(x => !x.sent).sort((a, b) => dueKey(a) - dueKey(b) || (+a.at || 0) - (+b.at || 0));
+    const open = all.filter(x => !x.sent).sort((a, b) => dueKey(a) - dueKey(b) || asked(a) - asked(b));
     const sent = all.filter(x => x.sent && now - (+x.sent.at || 0) < KEEP_SENT * DAY).sort((a, b) => (+b.sent.at || 0) - (+a.sent.at || 0));
     return { open, sent };
   }
   const days = (at, now) => Math.max(0, Math.floor((now - (+at || now)) / DAY));
-  const late = (x, now) => (hasNeed(x) ? ymd(now) >= x.need : days(x.at, now) >= LATE);
+  const late = (x, now) => (hasNeed(x) ? ymd(now) >= x.need : days(asked(x), now) >= LATE);
   /** "need Oct 22" / "need tomorrow" / "due today" / "late 3 days"; '' with no date. */
   function needLabel(x, now) {
     if (!hasNeed(x)) return '';
@@ -74,7 +76,47 @@
   }
   const safeUrl = u => (typeof u === 'string' && /^https?:\/\//i.test(u) ? u : '');
 
-  const API = { split, days, late, LATE, ymd, dueKey, needLabel, groups, siteId, safeUrl };
+  /* ---------- 📋 from WeChat: pasted chat text → requests (no AI) ----------
+     Leo 10-19: the site keeps asking on WeChat, so Leo records it. WeChat (PC) copies messages
+     as "Name  10:21" / "Name 2026/10/19 10:21:33" header lines followed by the text, or as
+     "Name: text". Each remaining line is one request, with who said it and when; chatter
+     ("收到", "ok", [图片]) is left out. */
+  const CHATTER = /^(\[(图片|照片|photo|image|表情|sticker|动画表情|语音|voice|视频|video|文件|file|链接|link)\]|收到|好的?|好嘞|嗯+|ok(ay)?|thanks?( you)?|谢谢|多谢|👍|🙏|👌)[\s!！。.~～]*$/i;
+  const TIME = /((\d{4})[\/\-年.](\d{1,2})[\/\-月.](\d{1,2})日?\s*)?(上午|下午|早上|晚上|AM|PM)?\s*(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?/i;
+  function chatTime(m, now) {
+    let h = +m[6]; const min = +m[7], ap = (m[5] || m[8] || '').toUpperCase();
+    if (/下午|晚上|PM/.test(ap) && h < 12) h += 12;
+    if (/上午|早上|AM/.test(ap) && h === 12) h = 0;
+    const d = new Date(now);
+    const t = m[2] ? new Date(+m[2], +m[3] - 1, +m[4], h, min) : new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, min);
+    let v = t.getTime();
+    if (!m[2] && v > now + 5 * 60e3) v -= DAY;          // a time later than now was yesterday
+    return v;
+  }
+  const QTY = /(?:^|[\s,，(（])(?:[x×*]\s*(\d{1,5})|(\d{1,5})\s*(?:pcs?|pieces?|ea|sets?|个|片|件|套|根|块|樘|扇|支|条))(?=$|[\s,，.。)）])/i;
+  /** text → [{ what, qty, askedBy, askedAt, quote }] */
+  function parseChat(text, now) {
+    const out = [];
+    let who = '', when = 0;
+    String(text || '').replace(/\r/g, '').split('\n').forEach(raw => {
+      const line = raw.replace(/ /g, ' ').trim();
+      if (!line) return;
+      // "Name  10:21" or "Name 2026/10/19 10:21:33" alone on a line: who and when for what follows
+      const t = line.match(new RegExp('^\\[?' + TIME.source + '\\]?$', 'i'));    // a time alone ("14:30", "下午 1:15")
+      if (t) { when = chatTime(t, now); return; }
+      const h = line.match(new RegExp('^(.{1,24}?)\\s+' + TIME.source + '\\s*$', 'i'));
+      if (h && !/\d{3,}/.test(h[1]) && h[1].split(/\s+/).length <= 3) { who = h[1].trim(); when = chatTime(h.slice(1), now); return; }
+      let body = line, by = who;
+      const inl = line.match(/^([^:：\d\[\]]{1,16})[：:]\s*(.+)$/);    // "Name: text"
+      if (inl) { by = who = inl[1].trim(); body = inl[2].trim(); }
+      if (CHATTER.test(body)) return;
+      const q = body.match(QTY);
+      out.push({ what: body.slice(0, 200), qty: q ? +(q[1] || q[2]) : 0, askedBy: by.slice(0, 80), askedAt: when || 0, quote: line.slice(0, 300) });
+    });
+    return out;
+  }
+
+  const API = { split, days, late, LATE, ymd, dueKey, asked, needLabel, groups, siteId, safeUrl, parseChat };
   root.AF_SEND = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   if (typeof document === 'undefined') return;
@@ -94,7 +136,7 @@
     catch (e) { return false; }
   })());
   const TS = () => firebase.database.ServerValue.TIMESTAMP;
-  const age = (x, now) => { const d = days(x.at, now); return d === 0 ? 'today' : d + (d === 1 ? ' day' : ' days'); };
+  const age = (x, now) => { const d = days(asked(x), now); return d === 0 ? 'today' : d + (d === 1 ? ' day' : ' days'); };
   const say = m => (typeof toast === 'function' ? toast(m) : alert(m));
   const fail = what => e => say(what + ': ' + ((e && (e.code || e.message)) || e));
   const shortDate = t => new Date(+t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -140,9 +182,9 @@
   /* ---------- one request ---------- */
   function rowHtml(x, now, o) {
     const photo = safeUrl(x.photo), need = needLabel(x, now), red = late(x, now);
-    const sub = [esc(who(x.by)) + ' · asked ' + esc(age(x, now))];
+    const sub = [(x.askedBy ? esc(x.askedBy) + (x.src === 'wechat' ? ' (WeChat)' : '') : esc(who(x.by))) + ' · asked ' + esc(age(x, now))];
     if (x.note) sub.push(esc(x.note));
-    return `<div class="ts-row" data-id="${esc(x.id)}">
+    return `<div class="ts-row" data-id="${esc(x.id)}"${x.askedBy ? ` title="Recorded by ${esc(who(x.by))}${x.askedAt ? ', asked ' + esc(new Date(+x.askedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) : ''}"` : ''}>
       ${photo ? `<a href="${esc(photo)}" target="_blank" rel="noopener" title="Photo"><img class="ts-thumb" src="${esc(photo)}" alt="photo" loading="lazy"></a>` : ''}
       <div class="ts-main">
         <div class="ts-what">${o.project ? `<span class="ts-proj">${esc(o.project)} · </span>` : ''}${esc(x.what)}${+x.qty ? ` <b>×${esc(+x.qty)}</b>` : ''}</div>
@@ -192,7 +234,11 @@
     if (f.qty) v.qty = f.qty;
     if (f.need) v.need = f.need;
     if (f.note) v.note = f.note;
-    if (f.photo) {
+    if (f.askedBy) v.askedBy = String(f.askedBy).slice(0, 80);
+    if (f.askedAt) v.askedAt = +f.askedAt;
+    if (f.src) v.src = f.src;
+    if (f.photoUrl) v.photo = f.photoUrl;
+    else if (f.photo) {
       try {
         const r = firebase.storage().ref(`p/${src.store}/send/${id}.jpg`);
         await r.put(await shrink(f.photo), { contentType: 'image/jpeg' });
@@ -382,13 +428,15 @@
       return src;
     });
 
+    const liveSrcs = () => Object.values(S.srcs).filter(s => !s.done && (s.ok || s.site)).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    const projectOptions = () => '<option value="">Project…</option>' + liveSrcs().map(s => `<option value="${esc(s.id)}">${esc(s.name)}${s.site ? '' : ' ●'}</option>`).join('');
     const fillSelect = () => {
       const keep = sel.value || lastProject;
-      const srcs = Object.values(S.srcs).filter(s => !s.done && (s.ok || s.site)).sort((a, b) => String(a.name).localeCompare(String(b.name)));
-      sel.innerHTML = '<option value="">Project…</option>' + srcs.map(s => `<option value="${esc(s.id)}">${esc(s.name)}${s.site ? '' : ' ●'}</option>`).join('')
-        + (staff ? '<option value="__new">＋ New project (no dashboard)…</option>' : '');
-      if (srcs.some(s => s.id === keep)) sel.value = keep;
+      sel.innerHTML = projectOptions() + (staff ? '<option value="__new">＋ New project (no dashboard)…</option>' : '');
+      if (liveSrcs().some(s => s.id === keep)) sel.value = keep;
       sel.dataset.prev = sel.value;
+      const wp = $('wcProject');
+      if (wp) { const k = wp.value || keep; wp.innerHTML = projectOptions(); if (liveSrcs().some(s => s.id === k)) wp.value = k; }
     };
     // "＋ New project…" in the list: ask for the name, add it, select it.
     sel.addEventListener('change', () => {
@@ -456,6 +504,77 @@
         .catch(e => { fail('Could not add the project')(e); return null; });
     }
     API._newSite = newSite;
+
+    /* ---------- 📋 Record from WeChat (staff): paste the chat, check the lines, add them ---------- */
+    const wc = $('shopWeChat');
+    let wcShot = null, wcList = [];
+    if (wc && staff) {
+      wc.hidden = false;
+      wc.innerHTML = `<details id="wcBox"><summary style="cursor:pointer;font-weight:600">📋 Record from WeChat
+          <span style="font-weight:400;color:var(--text-dim);font-size:12.5px">paste the chat → check → add, with who asked and when</span></summary>
+        <div class="ts-add" style="margin-top:10px">
+          <select id="wcProject" aria-label="Project for these messages" style="flex:0 1 240px"></select>
+          <label class="ts-photobtn">📷 <span id="wcShotName">Screenshot (proof)</span><input type="file" id="wcShot" accept="image/*"></label>
+        </div>
+        <textarea id="wcText" rows="6" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 11px;font:inherit;font-size:14px;color:var(--text)"
+          placeholder="In WeChat select the messages → Copy, then paste here. You can paste a screenshot too (Ctrl+V)."></textarea>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button type="button" class="ts-addbtn" id="wcRead">Read it</button><span id="wcMsg" class="ts-sub"></span></div>
+        <div id="wcRows" style="margin-top:8px"></div></details>`;
+      const shotName = () => { $('wcShotName').textContent = wcShot ? '1 screenshot' : 'Screenshot (proof)'; };
+      $('wcShot').onchange = e => { wcShot = (e.target.files || [])[0] || null; shotName(); };
+      $('wcText').addEventListener('paste', e => {
+        const f = [...((e.clipboardData && e.clipboardData.files) || [])].find(x => /^image\//.test(x.type));
+        if (f) { wcShot = f; shotName(); e.preventDefault(); }
+      });
+      const when = t => (t ? new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'now');
+      $('wcRead').onclick = () => {
+        wcList = parseChat($('wcText').value, Date.now());
+        $('wcMsg').textContent = wcList.length ? `${wcList.length} line(s) — untick what isn't a request, fix anything, then add.` : 'Nothing to add in that text.';
+        const opts = projectOptions(), def = $('wcProject').value;
+        $('wcRows').innerHTML = wcList.length ? wcList.map((r, i) => `<div class="ts-add wc-row" data-i="${i}" style="align-items:center;margin-bottom:4px">
+            <input type="checkbox" class="wcc" checked aria-label="Add this line" style="width:18px;height:18px">
+            <select class="wcp" style="flex:0 1 170px">${opts}</select>
+            <input type="text" class="wcw ts-whatin" maxlength="200" value="${esc(r.what)}">
+            <input type="number" class="wcq" min="1" max="99999" placeholder="qty" value="${r.qty || ''}" style="width:80px">
+            <input type="text" class="wcb" maxlength="80" placeholder="who asked" value="${esc(r.askedBy)}" style="width:120px">
+            <span class="ts-sub" title="${esc(r.quote)}">${esc(when(r.askedAt))}</span></div>`).join('')
+          + `<button type="button" class="ts-addbtn" id="wcAdd" style="margin-top:6px">Add ${wcList.length} to the list</button>` : '';
+        $('wcRows').querySelectorAll('.wcp').forEach(x => { x.value = def; });
+        const btn = $('wcAdd');
+        const count = () => { if (btn) btn.textContent = `Add ${$('wcRows').querySelectorAll('.wcc:checked').length} to the list`; };
+        $('wcRows').querySelectorAll('.wcc').forEach(c => c.onchange = count);
+        if (btn) btn.onclick = addAll;
+      };
+      async function addAll() {
+        const rows = [...$('wcRows').querySelectorAll('.wc-row')].filter(r => r.querySelector('.wcc').checked).map(r => {
+          const base = wcList[+r.dataset.i] || {};
+          const q = Math.floor(+r.querySelector('.wcq').value || 0);
+          return { src: S.srcs[r.querySelector('.wcp').value], what: r.querySelector('.wcw').value.trim().slice(0, 200), qty: q > 0 && q <= 99999 ? q : 0,
+            askedBy: r.querySelector('.wcb').value.trim().slice(0, 80), askedAt: base.askedAt || 0, quote: base.quote || '' };
+        }).filter(r => r.what);
+        if (!rows.length) { say('Nothing ticked.'); return; }
+        if (rows.some(r => !r.src)) { say('Choose the project for every line.'); return; }
+        const btn = $('wcAdd'); btn.disabled = true; btn.textContent = 'Adding…';
+        let photoUrl = '';
+        if (wcShot) {
+          try {
+            const r = firebase.storage().ref(`p/${rows[0].src.store}/send/wechat-${Date.now()}.jpg`);
+            await r.put(await shrink(wcShot), { contentType: 'image/jpeg' });
+            photoUrl = await r.getDownloadURL();
+          } catch (e) { say('The screenshot was not saved (' + ((e && (e.code || e.message)) || e) + '); the lines are.'); }
+        }
+        let n = 0;
+        for (const r of rows) {
+          try {
+            await addRequest(r.src, { what: r.what, qty: r.qty, askedBy: r.askedBy, askedAt: r.askedAt, src: 'wechat',
+              note: r.quote && r.quote !== r.what ? r.quote.slice(0, 300) : '', photoUrl });
+            n++;
+          } catch (e) { fail('Could not save "' + r.what.slice(0, 40) + '"')(e); }
+        }
+        $('wcMsg').textContent = `✓ ${n} added${photoUrl ? ', with the screenshot' : ''}.`;
+        $('wcRows').innerHTML = ''; $('wcText').value = ''; wcShot = null; shotName(); wcList = [];
+      }
+    }
     watch(projects, st => { S = st; draw(); });
     isShop().then(v => { shopper = v; if (S) draw(); });
     setInterval(() => S && draw(), 60 * 60 * 1000);

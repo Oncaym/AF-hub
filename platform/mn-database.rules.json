@@ -62,6 +62,10 @@
         "qty": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 99999" },
         "need": { ".validate": "newData.isString() && newData.val().matches(/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/)" },
         "note": { ".validate": "newData.isString() && newData.val().length <= 300" },
+        // recorded from WeChat by someone else (Leo 10-19): who asked, when, where it came from
+        "askedBy": { ".validate": "newData.isString() && newData.val().length <= 80" },
+        "askedAt": { ".validate": "newData.isNumber()" },
+        "src": { ".validate": "newData.isString() && newData.val().length <= 20" },
         "photo": { ".validate": "newData.isString() && newData.val().length <= 1500 && (newData.val().beginsWith('https://') || newData.val().beginsWith('http://'))" },
         "sent": {
           ".write": "auth != null && auth.token.email_verified == true && auth.token.shop == true",

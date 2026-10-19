@@ -61,6 +61,7 @@ c('sent in somebody else\'s name is refused', db2(SHOP).write('/toSend/s_package
 c('the shop cannot add a request (only Sent)', db2(SHOP).write('/toSend/s_package_7/r9', req('shop.lead@gmail.com')).allowed, false);
 c('GC cannot mark sent', db2(GC).write('/toSend/s_package_7/r1/sent', { by: 'pm@turner.com', at: 2 }).allowed, false);
 c('an unknown field is refused', db2(STAFF2).write('/toSend/s_package_7/r2', req('shop@advfacade.com', { truck: 1 })).allowed, false);
+c('staff records a WeChat request (who asked, when)', db2(STAFF2).write('/toSend/s_package_7/r3', req('shop@advfacade.com', { askedBy: '小李', askedAt: 5, src: 'wechat' })).allowed, true);
 c('a bad need-by is refused', db2(STAFF2).write('/toSend/s_package_7/r2', req('shop@advfacade.com', { need: '10/21' })).allowed, false);
 console.log(`hub rules (local simulator): ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
