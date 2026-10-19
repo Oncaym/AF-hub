@@ -93,8 +93,10 @@ const HUB = { id: 'hub', name: 'AF Hub overview database', hub: true,
 function entry(id) {
   if (id === HUB.id) return HUB;
   if (REG.design && id === REG.design.id) return REG.design;
+  const h = (REG.hosted || []).find(x => x.id === id);
+  if (h) return Object.assign({ hosted: true }, h);
   const p = REG.projects.find(x => x.id === id);
-  if (!p) die(`PROJECT "${id}" is not in platform/projects.json (have: ${REG.projects.map(x => x.id).concat(REG.design ? [REG.design.id] : []).join(', ')})`);
+  if (!p) die(`PROJECT "${id}" is not in platform/projects.json (have: ${REG.projects.map(x => x.id).concat(REG.design ? [REG.design.id] : [], (REG.hosted || []).map(x => x.id), [HUB.id]).join(', ')})`);
   return p;
 }
 /* Which rules file a database gets: trackers share project-database.rules.json;
@@ -209,6 +211,7 @@ function printMembers(list, oldAccounts, hadGcList) {
 async function dryRunOrMigrate(dry) {
   const p = entry(PID);
   if (!p.legacy) die(`"${p.id}" has no old database to move (use MODE=init to start it)`);
+  if (p.hosted) return hostedCopy(p, dry);
   const legacyApp = appFor('legacy', p.legacy.databaseURL, p.legacy.secret, p.legacy.storageBucket);
   const hubApp = appFor(p.id, p.databaseURL, 'HUB_SERVICE_ACCOUNT', REG.storageBucket);
   log(`${dry ? 'DRY RUN' : 'MIGRATE'} — ${p.name} (${p.id})`);
@@ -283,8 +286,78 @@ async function dryRunOrMigrate(dry) {
   log(`\nNext: open ${(REG.projects.find(x => x.id === p.id) || {}).folder ? 'https://af-hub-two.vercel.app/' + p.folder + '/' : 'the tracker'} and sign in.`);
 }
 
+/* A hosted page (Morgan North = Benji's tracker): copy its data nodes (units, plan) from its
+   own Firebase into its af-hub database. Its old database is open (no login), so it is read
+   without a key; it is NOT frozen from here (no access) — its owner locks it after the move.
+   Re-running replaces those nodes only: /meta, the member lists and /toSend stay.
+   EMAIL = people to make editors (added, never removed). */
+async function readOpen(url, node) {
+  if (EMU) return (await getDatabase(appFor('legacy', url)).ref(node).once('value')).val();
+  const r = await fetch(`${url.replace(/\/$/, '')}/${node}.json`);
+  if (r.status === 401 || r.status === 403) die(`the old database refuses to be read without a login now (HTTP ${r.status}) — it is probably locked already. Ask its owner to open it for reading for one copy, or to export the JSON.`);
+  if (!r.ok) die(`${node}: HTTP ${r.status} from the old database`);
+  return r.json();
+}
+async function hostedCopy(p, dry) {
+  const app = appFor(p.id, p.databaseURL, 'HUB_SERVICE_ACCOUNT');
+  const nodes = p.legacy.nodes || ['units', 'plan'];
+  log(`${dry ? 'DRY RUN' : 'COPY'} — ${p.name} (${p.id}), a page hosted as-is`);
+  log(`  from ${p.legacy.databaseURL}  (${nodes.join(', ')})`);
+  log(`  to   ${p.databaseURL}`);
+  let target;
+  try { target = await readRoot(app); }
+  catch (e) { die(`cannot read the new database (${e.code || e.message}). Did you create "${new URL(p.databaseURL).hostname.split('.')[0]}" in the Firebase console (Realtime Database → Create database)?`); }
+  const tMeta = target && target.meta && target.meta.project;
+  if (tMeta && tMeta !== p.id) die(`the new database says it belongs to "${tMeta}", not "${p.id}". Stopping — nothing written.`);
+  const has = nodes.filter(n => target && target[n] != null);
+  log(`\nNew database now: ${target ? Object.keys(target).join(', ') : 'empty'}`);
+  if (has.length && !FORCE) {
+    const msg = `the new database already has ${has.join(', ')}. Run with force to replace them with the old database's (meta, member lists and To send stay).`;
+    if (dry) log('  ! ' + msg); else die(msg);
+  }
+  const src = {};
+  for (const n of nodes) src[n] = await readOpen(p.legacy.databaseURL, n);
+  log('\nOld database:');
+  nodes.forEach(n => log(`  ${n.padEnd(8)} ${C.describe(src[n])}`));
+  if (src.units) {
+    const st = Object.values(src.units).reduce((m, u) => { const k = (u && u.status) || '?'; m[k] = (m[k] || 0) + 1; return m; }, {});
+    log(`  units by status: ${Object.entries(st).map(([k, v]) => k + ' ' + v).join(', ')}`);
+  }
+  if (src.plan && src.plan.windows) log(`  plan: ${Object.keys(src.plan.windows).length} windows (rev ${src.plan.rev || 0})`);
+  if (!nodes.some(n => src[n] != null)) die('the old database has none of ' + nodes.join(', ') + ' — nothing to copy.');
+  const bad = EMAILS.filter(e => !isEmail(e));
+  if (bad.length) die(`not an email address: ${bad.map(C.maskEmail).join(', ')}`);
+  if (dry) { log(`\nDRY RUN finished — nothing was written.${EMAILS.length ? ` Editors to add: ${EMAILS.map(C.maskEmail).join(', ')}` : ''}`); return; }
+
+  await putRules(app, rulesFor(p));
+  log('✓ rules put on the new database');
+  const db = getDatabase(app);
+  const now = Date.now();
+  if (!tMeta) await db.ref('meta').set({ project: p.id, name: p.name, createdAt: now, migratedFrom: p.legacy.databaseURL, migratedAt: new Date(now).toISOString() });
+  else await db.ref('meta/migratedAt').set(new Date(now).toISOString());
+  for (const n of nodes) await db.ref(n).set(src[n] == null ? null : src[n]);
+  log(`✓ copied ${nodes.join(', ')}`);
+  if (EMAILS.length) {
+    await db.ref('allowlist').update(Object.fromEntries(EMAILS.map(e => [C.emailKey(e), true])));
+    const auth = getAuth(app);
+    for (const e of EMAILS) {
+      try { log(`  editor ${C.maskEmail(e)}: ${await ensureUser(auth, e)}`); }
+      catch (er) { log(`  ! editor ${C.maskEmail(e)}: ${er.code || er.message}`); }
+    }
+  }
+  for (const n of nodes) {
+    const back = (await db.ref(n).once('value')).val();
+    const d = C.diff(src[n] == null ? null : src[n], back);
+    if (d.length) die(`${n}: read-back differs from what was written at ${d.length} place(s): ${d.slice(0, 10).join(', ')}`);
+  }
+  log('\n✓ VERIFIED — the new database holds exactly what was copied.');
+  log(`\nNext: open https://af-hub-two.vercel.app/${p.folder}/ and sign in.` +
+      `\nThe old database (${p.legacy.databaseURL}) is still open and still in use by the old page: when everyone has moved,` +
+      `\nits owner locks it (Firebase console → Realtime Database → Rules → ".read": false, ".write": false).`);
+}
+
 async function rulesMode() {
-  const ids = PID === 'all' ? REG.projects.map(x => x.id).concat(REG.design ? [REG.design.id] : [], [HUB.id]) : [PID];
+  const ids = PID === 'all' ? REG.projects.map(x => x.id).concat(REG.design ? [REG.design.id] : [], (REG.hosted || []).map(x => x.id), [HUB.id]) : [PID];
   for (const id of ids) {
     const p = entry(id);
     const app = appFor(p.id, p.databaseURL, 'HUB_SERVICE_ACCOUNT');

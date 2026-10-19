@@ -86,6 +86,26 @@ for (const p of REG.projects) {
   }
 }
 
+// Hosted projects: someone else's page in the hub (Morgan North = Benji's tracker), with
+// mn/hub-adapter.js on its own database. Not the tracker engine, so none of the checks above.
+for (const h of REG.hosted || []) {
+  ok(!REG.projects.some(p => p.id === h.id || p.databaseURL === h.databaseURL), `${h.id}: its own id and database (not a tracker's)`);
+  ok(!/default-rtdb/.test(h.databaseURL) && h.databaseURL !== (REG.design || {}).databaseURL, `${h.id}: not the hub's or the design database`);
+  ok(h.rules && exists('platform/' + h.rules), `${h.id}: rules file platform/${h.rules} exists`);
+  ok(exists(h.folder + '/hub-adapter.js') && exists(h.folder + '/build.mjs'), `${h.folder}/ has hub-adapter.js and build.mjs`);
+  const ad = read(h.folder + '/hub-adapter.js');
+  ok(ad.includes(h.databaseURL), `${h.folder}/hub-adapter.js points at ${h.databaseURL}`);
+  ok(ad.includes(`projects/${h.id}/summary`), `${h.folder}/hub-adapter.js reports as "${h.id}" on the overview`);
+  if (exists(h.folder + '/index.html')) {
+    const html = read(h.folder + '/index.html');
+    ok(/<script defer src="hub-adapter\.js\?v=[0-9a-f]{8}"><\/script>/.test(html) && /src="\.\.\/af-hub-config\.js"/.test(html) && /firebase-auth-compat\.js/.test(html),
+      `${h.folder}/index.html has the hub lines (rebuild it with node ${h.folder}/build.mjs)`);
+    ok(!/\.netlify\/scripts\//.test(html), `${h.folder}/index.html has no Netlify script`);
+  }
+  const roster = read('core/roster.js');
+  ok(new RegExp(`id:'${h.id}'[^}]*url:'${h.folder}/'`).test(roster), `core/roster.js lists ${h.id} (overview and Shop page)`);
+}
+
 // The engine stamps and checks the project.
 const cs = read('core/cloud-sync.js');
 ok(/_project:\s*\(window\.PROJECT \|\| \{\}\)\.hubId/.test(cs), 'core/cloud-sync.js stamps _project on every save');

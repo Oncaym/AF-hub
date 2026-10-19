@@ -144,6 +144,29 @@ GitHub → **Actions → Project database → Run workflow**：
   - 工厂的人没有公司邮箱的，现在只能看到被加成 viewer 的项目（Actions → Project database → member），看不到没有 dashboard 的项目。
 - **规则**：项目数据库用 Actions → Project database → `mode = rules`、`project = all`。`all` 现在也包括 hub 自己的数据库（`firebase-database-rules.json`），不用再去 console 里贴；换之前的旧规则会存一份在 hub 数据库的 `/_admin/rulesBefore`。只换 hub 的：`project = hub`。
 
+## Morgan North（Benji 的 Glass Replacement Tracker，2026-10-19）
+
+Benji 自己做、自己改的页面，原样放进 hub，地址是 `/mn/`。hub 只加了登录、数据库和总览这几样。
+
+- **页面**：`mn/index.html` = Benji 网站上的页面 + 3 行 script（`mn/build.mjs` 加的）。Benji 的代码一行都不改。
+  - Actions → **Morgan North page** 每天早上自动去 Benji 的网站取最新版；手动也可以 Run workflow。有变化就自动 commit。
+  - 如果他的新版本开始往 hub 规则不允许的地方存东西（新的数据库路径、每块玻璃新的字段），这一步会失败并写明原因，hub 继续用上一个能用的版本。这时要先改 `platform/mn-database.rules.json`，再把 `mn/build.mjs` 里的 ALLOWED_NODES / ALLOWED_FIELDS 一起改掉。
+- **`mn/hub-adapter.js`**：
+  - 不登录就挡住页面；登录后才让页面连数据库。
+  - 页面自己的 Firebase 设置换成 hub 的 `af-hub-8f188-mn`。
+  - 有人打开页面时，把进度推到 hub 总览（`projects/mn/summary`），按楼层分。
+  - 左下角显示登录的人，还有 Hub 和 Sign out。
+- **数据库** `af-hub-8f188-mn`，规则是 `platform/mn-database.rules.json`：
+  - `/units/<窗#玻璃>` = { status, date, crew, notes }；
+  - `/plan` = 窗和要换的玻璃；
+  - `/toSend`；
+  - 名单和其他项目一样：editor 改；viewer、GC、公司邮箱只能看。
+- **搬数据**：Actions → Project database，mode = `migrate`，project = `mn`，email = 要加成 editor 的人。
+  - 从 Benji 的旧库复制 `units` 和 `plan`。旧库是开放的，不用钥匙。
+  - 正式切换前用 `force` 再跑一次，换成最新数据；名单和 To send 不受影响。
+  - 切换后 Benji 要自己把旧库锁上（Rules → `.read`、`.write` 都设成 false）。
+- **照片**：Benji 的页面把照片只存在拍照的那个浏览器里，hub 版也一样。要共享得改他的页面。
+
 ## 日常操作
 
 **加人 / 改权限 / 删人**：Actions → Project database → Run workflow

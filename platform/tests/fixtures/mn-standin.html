@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!-- This site is hosted on Netlify. Anyone can build and deploy a site
+     like this one for free. -->
+<meta name="hosting-provider" content="Netlify">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Morgan North · stand-in for the e2e test</title>
+<!-- A small stand-in for Benji's Glass Replacement Tracker (the real page is ~800 KB and
+     lives on his Netlify site). It keeps the parts mn/build.mjs and mn/hub-adapter.js rely on,
+     written the way his page writes them: the inline FIREBASE_CONFIG, the deferred SDK tags,
+     `var state` with windows/units, fbStat / fbInit / fbBoot, update() on /units, set() on /plan. -->
+<style>:root{--bg:#eef2f7;--panel:#fff;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--accent:#0ea5e9}
+body{font:14px sans-serif;background:var(--bg);color:var(--ink)} #fbStatus{font-weight:600} .pane{margin:4px}</style>
+<script>window.__boot=function(m){console.log('boot',m);};</script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" onerror="window.__fbBlocked=1"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js" onerror="window.__fbBlocked=1"></script>
+<script>
+var FIREBASE_CONFIG={apiKey:"x",authDomain:"morgan-north-6b898.firebaseapp.com",databaseURL:"https://morgan-north-6b898-default-rtdb.firebaseio.com",projectId:"morgan-north-6b898"};
+</script>
+</head>
+<body>
+<h1>Morgan North</h1>
+<div id="fbStatus">● Connecting…</div>
+<div id="dash"></div>
+<div id="panes"></div>
+<script defer src="/.netlify/scripts/hud?variant=public" data-nf-variant="public"></script>
+<script>
+var SYNC_FIELDS=['status','date','crew','notes'];
+var state={building:'Morgan North',windows:[
+  {id:'10-1',face:'E',floor:10,rows:2,cols:2,mode:'pane',type:'H',replace:[1,2,4]},
+  {id:'9-3',face:'W',floor:9,rows:1,cols:2,mode:'pane',type:'C',replace:[1,2]},
+  {id:'2-1',face:'N',floor:2,rows:1,cols:1,mode:'pane',type:'A',replace:[0]}
+],units:{}};
+var fbDB=null,fbRef=null,fbConnected=false,fbSynced={},fbApplying=false;
+function fbEnc(k){return k.replace(/[.#$/\[\]]/g,function(c){return '~'+c.charCodeAt(0)+'~';});}
+function fbDec(k){return k.replace(/~(\d+)~/g,function(_,n){return String.fromCharCode(+n);});}
+function fbStat(t,c){var e=document.getElementById('fbStatus');e.textContent=t;e.className=c||'';}
+function pick(u){var o={};SYNC_FIELDS.forEach(function(f){o[f]=u[f]||(f==='status'?'original':'');});return o;}
+function getUnit(k){if(!state.units[k])state.units[k]={status:'original',date:'',crew:'',notes:''};return state.units[k];}
+function render(){
+  var total=0,done=0,h='';
+  state.windows.forEach(function(w){(w.replace||[]).forEach(function(i){if(!i)return;var k=w.id+'#'+i,u=state.units[k]||{};total++;if(u.status==='replaced')done++;
+    h+='<button class="pane" data-k="'+k+'">'+k+' '+(u.status||'original')+'</button>';});});
+  document.getElementById('panes').innerHTML=h;
+  document.getElementById('dash').textContent='REPLACED '+done+' / '+total;
+  document.querySelectorAll('.pane').forEach(function(b){b.onclick=function(){var u=getUnit(b.dataset.k);u.status='replaced';u.date=new Date().toISOString().slice(0,10);render();fbPush();};});
+}
+function fbWriteFail(e){fbStat('● Not saved: '+(e&&(e.code||e.message)),'err');window.__lastWriteError=String(e&&(e.code||e.message));}
+function fbWrite(upd){if(!fbRef||!Object.keys(upd).length)return;fbRef.update(upd).then(function(){window.__lastWriteOk=Date.now();},fbWriteFail);}
+function fbApplyRemote(v){fbApplying=true;Object.keys(v).forEach(function(k){var key=fbDec(k);var u=getUnit(key);Object.assign(u,v[k]);fbSynced[key]=pick(u);});fbApplying=false;render();}
+function fbPush(){if(!fbRef||fbApplying)return;var upd={};Object.keys(state.units).forEach(function(k){var cur=pick(state.units[k]);var prev=fbSynced[k];
+  if(cur.status!=='original'&&(!prev||JSON.stringify(prev)!==JSON.stringify(cur))){upd[fbEnc(k)]=cur;fbSynced[k]=cur;}});fbWrite(upd);}
+function fbInit(){
+  if(typeof firebase==='undefined'||!FIREBASE_CONFIG||!FIREBASE_CONFIG.databaseURL){fbStat('● Local only','off');return;}
+  try{firebase.initializeApp(FIREBASE_CONFIG);fbDB=firebase.database();fbRef=fbDB.ref('units');}catch(e){fbStat('● Local only','off');return;}
+  fbDB.ref('.info/connected').on('value',function(s){fbConnected=!!s.val();fbStat(fbConnected?'● Live':'● Connecting…','live');});
+  fbRef.on('value',function(snap){fbApplyRemote(snap.val()||{});});
+  fbDB.ref('plan').on('value',function(s){var v=s.val();if(!v||!v.windows)fbDB.ref('plan').set({rev:1,building:state.building,windows:state.windows});});
+}
+try{render();window.__appReady=1;}catch(e){window.__boot(e.message);}
+function fbBoot(){
+  if(fbRef)return;
+  if(window.__fbBlocked||typeof firebase==='undefined'){fbStat('● Offline — saved on this device','off');return;}
+  try{fbInit();}catch(e){fbStat('● Offline — saved on this device','off');}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fbBoot);
+else fbBoot();
+setTimeout(function(){if(!fbRef&&!fbConnected)fbBoot();},6000);
+</script>
+</body>
+</html>

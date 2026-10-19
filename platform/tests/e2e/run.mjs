@@ -23,6 +23,8 @@ const ROOT = path.join(here, '..', '..', '..');
 const BACKEND = (process.argv.find(a => a.startsWith('--backend=')) || '--backend=fake').split('=')[1];
 const RULES = fs.readFileSync(path.join(ROOT, 'platform', 'project-database.rules.json'), 'utf8');
 const REG = JSON.parse(fs.readFileSync(path.join(ROOT, 'platform', 'projects.json'), 'utf8'));
+const MN_RULES = fs.readFileSync(path.join(ROOT, 'platform', 'mn-database.rules.json'), 'utf8');
+const ruleTree = text => JSON.parse(text.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n'));
 const HUB_DEFAULT = 'https://af-hub-8f188-default-rtdb.firebaseio.com';
 const { chromium } = require('playwright');
 
@@ -74,14 +76,15 @@ function serverValues(v, now) {
 class FakeBackend {
   constructor() {
     this.targaryen = require('targaryen');
-    this.rules = JSON.parse(RULES.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n'));
-    this.dbs = {}; this.users = {}; this.ruled = new Set();
+    this.rules = ruleTree(RULES);
+    this.dbs = {}; this.users = {}; this.ruled = new Set(); this.rulesOf = {};
   }
   async start() {}
   async stop() {}
-  url(id) { return REG.projects.find(p => p.id === id).databaseURL; }
+  url(id) { return REG.projects.concat(REG.hosted || []).find(p => p.id === id).databaseURL; }
   hubUrl() { return HUB_DEFAULT; }
-  async seed(url, tree, withRules = true) { this.dbs[url] = clone(tree); if (withRules) this.ruled.add(url); }
+  /** withRules: true = the project rules, a string = that rules file's text, false = open. */
+  async seed(url, tree, withRules = true) { this.dbs[url] = clone(tree); if (withRules) this.ruled.add(url); if (typeof withRules === 'string') this.rulesOf[url] = ruleTree(withRules); }
   async read(url, p) { return clone(dget(this.dbs[url] || {}, p)); }
   async createUser(email, verified) { this.users[email] = { uid: 'u_' + email.replace(/\W/g, '_'), email, emailVerified: !!verified, password: PW }; }
   async verify(email) { this.users[email].emailVerified = true; }
@@ -92,7 +95,7 @@ class FakeBackend {
     if (op === 'sendVerification' || op === 'reset' || op === 'upload') return null;
     const data = this.dbs[a.url] = this.dbs[a.url] || {};
     const ruled = this.ruled.has(a.url);
-    const db = ruled ? this.targaryen.database(this.rules, clone(data), now).as(a.auth || null) : null;
+    const db = ruled ? this.targaryen.database(this.rulesOf[a.url] || this.rules, clone(data), now).as(a.auth || null) : null;
     if (op === 'read') {
       const allowed = ruled ? db.read(a.path).allowed : true;
       return { allowed, value: allowed ? clone(dget(data, a.path)) : undefined };
@@ -142,7 +145,7 @@ class EmulatorBackend {
   }
   async seed(url, tree, withRules = true) {
     const ns = new URL(url).searchParams.get('ns');
-    const rules = withRules ? RULES : '{"rules":{".read":true,".write":true}}';
+    const rules = typeof withRules === 'string' ? withRules : withRules ? RULES : '{"rules":{".read":true,".write":true}}';
     const r = await fetch(`http://${this.host}/.settings/rules.json?ns=${ns}`, { method: 'PUT', headers: { Authorization: 'Bearer owner' }, body: rules });
     if (!r.ok) throw new Error('rules: ' + r.status + ' ' + await r.text());
     await this.D.getDatabase(this.app(url)).ref('/').set(tree);
@@ -217,7 +220,7 @@ function sheetPdf(tag) {
   out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${x}\n%%EOF\n`;
   return Buffer.from(out, 'latin1').toString('base64');
 }
-const AC3 = B.url('ac3'), LEX = B.url('lex'), CP2 = B.url('cp2');
+const AC3 = B.url('ac3'), LEX = B.url('lex'), CP2 = B.url('cp2'), MN = B.url('mn');
 const BASE = 'http://127.0.0.1:8833';
 
 async function newContext(browser, { lexPointsAt } = {}) {
@@ -277,6 +280,14 @@ async function edit(page, status) {
   await B.seed(LEX, seedFor('lex', [LEO]));
   await B.seed(CP2, seedFor('cp2', [LEO], [GC]));
   await B.seed(B.hubUrl(), {}, false);
+  // Morgan North (Benji's page hosted with mn/hub-adapter.js): its own database and rules
+  await B.seed(MN, {
+    meta: { project: 'mn', name: 'Morgan North' },
+    allowlist: { [LEO.replace(/\./g, ',')]: true },
+    viewers: { [JOE.replace(/\./g, ',')]: true },
+    units: { '10-1~35~1': { status: 'replaced', date: '2026-10-01', crew: 'A', notes: '' } },
+    plan: { rev: 1, building: 'Morgan North', windows: [{ id: '10-1', face: 'E', floor: 10, rows: 2, cols: 2, mode: 'pane', type: 'H', replace: [1, 2, 4] }] },
+  }, MN_RULES);
   for (const e of [LEO, JOE, BOSS, GC]) await B.createUser(e, true);
   await B.createUser(NEWBIE, false);
   const lexBefore = JSON.stringify(await B.read(LEX, 'state'));
@@ -445,7 +456,7 @@ async function edit(page, status) {
     await ctx.close();
 
     console.log('\n10. 🚚 To send: the foreman asks on the 📦 Warehouse page; the hub counts it; the Shop page lists every project, marks sent, and takes projects without a dashboard');
-    const dbMap = { ac3: AC3, cp2: CP2, lex: LEX };
+    const dbMap = { ac3: AC3, cp2: CP2, lex: LEX, mn: MN };
     ctx = await newContext(browser);
     page = await open(ctx, 'ac3');
     await signIn(page, JOE);
@@ -508,6 +519,45 @@ async function edit(page, status) {
     const gcSend = await page.evaluate(async () => { try { await firebase.database().ref('toSend').once('value'); return 'read'; } catch (e) { return 'refused'; } });
     ok(gcSend === 'refused' && await page.evaluate(() => { const b = document.getElementById('toSendBtn'); return !b || b.style.display === 'none'; }), 'the GC sees no 🚚 and cannot read the list', gcSend);
     await ctx.close();
+
+    console.log('\n11. Morgan North (Benji\'s page + mn/hub-adapter.js): hub login, the hub\'s mn database, progress on the overview');
+    const { build: buildMn } = await import(path.join(ROOT, 'mn', 'build.mjs'));
+    const mnHtml = buildMn(fs.readFileSync(path.join(here, '..', 'fixtures', 'mn-standin.html'), 'utf8'), { minSize: 0 }).html;
+    const openMn = async () => {
+      const c = await newContext(browser);
+      await c.addInitScript(u => { window.AF_MN_DB_URL = u; }, MN);
+      await c.route(/\/mn\/standin\.html/, r => r.fulfill({ contentType: 'text/html', body: mnHtml }));
+      // Benji's own database must never be reached from the hub page
+      await c.route(/morgan-north-6b898/, r => r.abort());
+      const pg = await open2(c, 'mn/standin.html');
+      return { c, pg };
+    };
+    const signInMn = async (pg, email) => { await pg.waitForSelector('#afEmail', { state: 'visible', timeout: 20000 }); await pg.fill('#afEmail', email); await pg.fill('#afPw', PW); await pg.click('#afGo'); };
+    let mn = await openMn();
+    ok(await until(() => mn.pg.evaluate(() => !document.getElementById('afGate').hidden && /Sign in to sync/.test(document.getElementById('fbStatus').textContent) && fbRef === null)),
+       'signed out: the login screen covers the page and it has not connected', await mn.pg.evaluate(() => document.getElementById('fbStatus').textContent));
+    await signInMn(mn.pg, LEO);
+    ok(await until(() => mn.pg.evaluate(() => document.getElementById('afGate').hidden && /REPLACED 1 \/ 5/.test(document.getElementById('dash').textContent))),
+       'Leo (editor) signs in: the page connects to the hub\'s Morgan North database (1 of 5 replaced)', await mn.pg.evaluate(() => document.getElementById('dash').textContent));
+    await mn.pg.click('.pane[data-k="10-1#2"]');
+    ok(await until(async () => ((await B.read(MN, 'units/10-1~35~2')) || {}).status === 'replaced'), 'marking a pane replaced lands in af-hub-8f188-mn');
+    await mn.pg.evaluate(() => window.AF_MN.push());
+    ok(await until(async () => { const s = await B.read(B.hubUrl(), 'projects/mn/summary'); return !!s && s.name === 'Morgan North' && s.done === 2 && s.total === 5 && s.unit === 'panes' && Array.isArray(s.breakdown) && s.breakdown.length === 2 && /Floor 10/.test(s.breakdown[0].scope); }),
+       'the hub overview gets Morgan North: 2 / 5 panes, by floor (10, 9)', JSON.stringify(await B.read(B.hubUrl(), 'projects/mn/summary')));
+    ok(await mn.pg.evaluate(() => /leo\.sun/.test(document.getElementById('afChip').textContent)), 'the chip shows who is signed in, with Hub and Sign out');
+    await mn.c.close();
+    mn = await openMn();
+    await signInMn(mn.pg, JOE);
+    await until(() => mn.pg.evaluate(() => document.getElementById('afGate').hidden && /REPLACED 2 \/ 5/.test(document.getElementById('dash').textContent)));
+    await mn.pg.click('.pane[data-k="9-3#1"]');
+    ok(await until(() => mn.pg.evaluate(() => /permission|denied/i.test(window.__lastWriteError || ''))) && !((await B.read(MN, 'units/9-3~35~1')) || null),
+       'a viewer reads it, but cannot change it (the database refuses)', await mn.pg.evaluate(() => window.__lastWriteError));
+    await mn.c.close();
+    mn = await openMn();
+    await signInMn(mn.pg, GC);
+    ok(await until(() => mn.pg.evaluate(() => !document.getElementById('afGate').hidden && /no access to Morgan North/.test(document.getElementById('afGateMsg').textContent) && fbRef === null)),
+       'someone not on Morgan North\'s lists gets "no access", and the page never connects');
+    await mn.c.close();
   } finally {
     await browser.close();
     server.close();

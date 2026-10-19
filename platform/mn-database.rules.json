@@ -1,0 +1,90 @@
+{
+  // ======================================================================
+  //  AF Hub - rules for the Morgan North database (af-hub-8f188-mn).
+  //  Morgan North is Benji's Glass Replacement Tracker (mn/index.html, his
+  //  page unchanged + mn/hub-adapter.js). Its data is not a tracker /state:
+  //    /units/<window~35~pane> = { status, date, crew, notes }  one per glass pane
+  //    /plan = { rev, building, project, windows: [...] }       which panes are in scope
+  //  Who is who is the same as every project database (see
+  //  project-database.rules.json): editor = /allowlist, gc = /gcList,
+  //  viewer = /viewers, staff = verified @advfacade.com (reads).
+  //  Tests: platform/tests/mn-rules.local.test.cjs.
+  // ======================================================================
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    // Which project this database is. Written by the Admin SDK only.
+    "meta": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".write": false
+    },
+
+    // The whole tracker state, saved in one piece by the page (last write wins).
+
+    // One row per glass pane, written by the page with update() (the key is the pane id
+    // with '#' encoded as ~35~). A pane back to plain 'original' is removed (null).
+    "units": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      "$pane": {
+        ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+        ".validate": "newData.hasChildren(['status'])",
+        "status": { ".validate": "newData.isString() && newData.val().length <= 20" },
+        "date": { ".validate": "newData.isString() && newData.val().length <= 20" },
+        "crew": { ".validate": "newData.isString() && newData.val().length <= 120" },
+        "notes": { ".validate": "newData.isString() && newData.val().length <= 2000" },
+        "$other": { ".validate": false }
+      }
+    },
+
+    // The replacement plan (windows, pane grids, which panes are in scope). The page
+    // publishes it whole; only editors can, and it can never be emptied from a page.
+    "plan": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() && newData.exists()",
+      ".validate": "newData.hasChildren(['windows'])"
+    },
+
+    // 🚚 To send (core/tosend.js): what the site needs from the shop, until someone marks it
+    // sent. Editors (foremen, PM) add and remove any; staff add (Shop page) and change or
+    // remove only their own; editors, viewers and staff mark it sent. Not the GC.
+    "toSend": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      "$id": {
+        ".write": "auth != null && auth.token.email_verified == true && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || (auth.token.email.matches(/@advfacade\\.com$/i) && (!data.exists() || data.child('by').val() == auth.token.email)))",
+        ".validate": "newData.hasChildren(['what', 'by', 'at', '_project']) && root.child('meta/project').isString() && newData.child('_project').val() == root.child('meta/project').val() && (data.exists() || newData.child('by').val() == auth.token.email)",
+        "what": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200" },
+        "by": { ".validate": "newData.isString()" },
+        "at": { ".validate": "newData.isNumber()" },
+        "_project": { ".validate": "newData.isString()" },
+        "qty": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 99999" },
+        "need": { ".validate": "newData.isString() && newData.val().matches(/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/)" },
+        "note": { ".validate": "newData.isString() && newData.val().length <= 300" },
+        "photo": { ".validate": "newData.isString() && newData.val().length <= 1500 && (newData.val().beginsWith('https://') || newData.val().beginsWith('http://'))" },
+        "sent": {
+          ".write": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+          ".validate": "newData.hasChildren(['by', 'at']) && newData.child('by').val() == auth.token.email",
+          "by": { ".validate": "newData.isString()" },
+          "at": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        },
+        "$other": { ".validate": false }
+      }
+    },
+
+    // Warehouse (receive).
+
+    "allowlist": {
+      ".read": false, ".write": false,
+      "$emailKey": { ".read": "auth != null && auth.token.email_verified == true && auth.token.email.replace('.', ',') == $emailKey" }
+    },
+    "gcList": {
+      ".read": false, ".write": false,
+      "$emailKey": { ".read": "auth != null && auth.token.email_verified == true && auth.token.email.replace('.', ',') == $emailKey" }
+    },
+    "viewers": {
+      ".read": false, ".write": false,
+      "$emailKey": { ".read": "auth != null && auth.token.email_verified == true && auth.token.email.replace('.', ',') == $emailKey" }
+    }
+  }
+}

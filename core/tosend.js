@@ -303,6 +303,7 @@
       s => { S.data[src.id] = s.val() || {}; src.ok = true; fire(); },
       () => { delete S.data[src.id]; src.ok = false; fire(); });
     (projects || []).forEach(p => {
+      if (!p.databaseURL) return;
       try {
         const src = S.srcs[p.id] = { id: p.id, name: p.name, db: firebase.app().database(p.databaseURL), base: 'toSend', store: p.id, dash: true };
         listen(src, 'toSend');

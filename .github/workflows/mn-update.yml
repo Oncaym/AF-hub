@@ -1,0 +1,44 @@
+# Morgan North — copy Benji's latest page into the hub (mn/index.html).
+#
+# Benji keeps building the Glass Replacement Tracker on his own site. This fetches it,
+# adds the hub's three <script> lines (mn/build.mjs: hub login, the af-hub-8f188-mn
+# database, progress on the overview) and commits mn/index.html when it changed.
+# If his page starts saving something the hub rules do not allow yet, the build stops
+# and the hub keeps the last version that works (the run fails and says why).
+#
+# Runs every morning, or by hand: Actions → Morgan North page → Run workflow.
+name: Morgan North page
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '17 10 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mn-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Build mn/index.html from Benji's site
+        run: node mn/build.mjs
+      - name: Static checks
+        run: node platform/tests/config.test.cjs
+      - name: Commit if it changed
+        run: |
+          git add mn/index.html
+          if git diff --cached --quiet; then echo "Benji's page has not changed."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Morgan North: Benji's latest page (mn/build.mjs)"
+          git push

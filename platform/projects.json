@@ -47,5 +47,24 @@
     "folder": "design",
     "databaseURL": "https://af-hub-8f188-design.firebaseio.com",
     "rules": "design-database.rules.json"
-  }
+  },
+  "hosted": [
+    {
+      "_about": "A project whose page is NOT the hub tracker engine: someone else's page, hosted in the hub as-is with mn/hub-adapter.js (hub login, its own af-hub database, progress on the overview). Morgan North = Benji's Glass Replacement Tracker; mn/index.html is built from his site by mn/build.mjs (.github/workflows/mn-update.yml).",
+      "id": "mn",
+      "name": "Morgan North",
+      "folder": "mn",
+      "databaseURL": "https://af-hub-8f188-mn.firebaseio.com",
+      "rules": "mn-database.rules.json",
+      "source": "https://stirring-moonbeam-e1c834.netlify.app/",
+      "legacy": {
+        "databaseURL": "https://morgan-north-6b898-default-rtdb.firebaseio.com",
+        "public": true,
+        "nodes": [
+          "units",
+          "plan"
+        ]
+      }
+    }
+  ]
 }
