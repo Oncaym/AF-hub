@@ -3,7 +3,8 @@
 #   review comments are still to fix (and for whom), waiting for an answer, and
 #   fixed but waiting for the reviewer — plus what changed since yesterday.
 #   Code: report/discord-digest.js. Run by hand with "dry run" to see the message
-#   in the log without posting.
+#   in the log without posting. Nothing open → a short nudge to use the board.
+#   report/discord-notice.json adds a note under it until a date (e.g. questions).
 #   Needs: secret HUB_SERVICE_ACCOUNT (already there), secret DISCORD_BOT_TOKEN,
 #   repo variable DISCORD_CHANNELS = {"ac3":"<channel id>"}; the bot needs
 #   "Send Messages" in those channels.
@@ -12,12 +13,19 @@ name: Discord digest
 on:
   schedule:
     - cron: '40 12 * * 1-5'   # 8:40 New York (summer time; 7:40 in winter). GitHub often starts 10–15 min late.
+    # A second try: GitHub sometimes starts a scheduled run hours late or not at all (10-19 it
+    # skipped every schedule all morning). The script skips a channel it already posted in today.
+    - cron: '10 14 * * 1-5'
   workflow_dispatch:
     inputs:
       dry_run:
         description: 'Dry run: print the messages, post nothing'
         type: boolean
         default: true
+      again:
+        description: 'Post even if today''s digest is already in the channel'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -42,6 +50,7 @@ jobs:
         run: node report/discord-digest.js
         env:
           DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+          AGAIN: ${{ inputs.again && '1' || '' }}
           HUB_SERVICE_ACCOUNT: ${{ secrets.HUB_SERVICE_ACCOUNT }}
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           DISCORD_CHANNELS: ${{ vars.DISCORD_CHANNELS }}

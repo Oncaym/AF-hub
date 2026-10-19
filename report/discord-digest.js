@@ -7,12 +7,15 @@
    database and posts one short message in that board's channel:
    how many review comments are still to fix (and for whom), waiting for an
    answer, fixed and waiting for the reviewer's check, what changed since
-   yesterday, and the oldest open one. Nothing to report → no message.
+   yesterday, and the oldest open one. Nothing open → a one-line nudge to
+   put comments on the board (Leo 10-19). report/discord-notice.json adds a
+   note under the counts until a date (this week's questions for the team).
 
    env  HUB_SERVICE_ACCOUNT  service account of af-hub-8f188 (reads the design DB)
         DISCORD_BOT_TOKEN    the AF bot (needs "Send Messages" in the channel)
         DISCORD_CHANNELS     {"ac3":"<channel id>", …}  (repo variable)
         DRY_RUN=1            print the messages, post nothing
+        AGAIN=1              post even if today's digest is already in the channel
    ============================================================ */
 'use strict';
 const DESIGN_DB = 'https://af-hub-8f188-design.firebaseio.com';
@@ -30,8 +33,14 @@ function byPerson(list, field, pub) {
   return Object.entries(m).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([k, v]) => `${k} ${v}`).join(' · ');
 }
 
-/** The message for one board, or null when there is nothing to say.
-    opts.pub: the copy for the public Actions log (initials, no comment text). */
+const dayOf = now => new Date(now).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+const ymdNY = now => new Date(now).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });   // YYYY-MM-DD
+
+/** The message for one board (every weekday, even with nothing open: Leo 10-19, the board
+    must not go quiet while the team is still learning to use it).
+    opts.pub: the copy for the public Actions log (initials, no comment text).
+    opts.notice: { text, until: 'YYYY-MM-DD', boards?: [ids] } — added under the counts
+    until that date (New York), e.g. this week's questions for the team. */
 function build(boardId, info, issuesObj, drawingsObj, now, opts) {
   const pub = !!(opts && opts.pub);
   const issues = Object.values(issuesObj || {}).filter(i => i && i.status);
@@ -43,9 +52,17 @@ function build(boardId, info, issuesObj, drawingsObj, now, opts) {
   const fresh = issues.filter(i => (+i.created || 0) >= since).length;
   const closed = issues.filter(i => i.status === 'closed' && (+i.closedAt || 0) >= since).length;
   const nowFixed = issues.filter(i => i.status === 'fixed' && (+i.fixedAt || 0) >= since).length;
-  if (!open.length && !ask.length && !fixed.length && !fresh && !closed) return null;
-  const day = new Date(now).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+  const day = dayOf(now);
   const lines = [`**${(info && info.name) || boardId} · review comments** — ${day}`];
+  const notice = noticeFor(opts && opts.notice, boardId, now);
+  if (!open.length && !ask.length && !fixed.length && !fresh && !closed) {
+    lines.push(issues.length
+      ? '✅ Nothing open on the board. New review comments go on the board too, one per change, so none get lost.'
+      : '📭 No review comments on the board yet. Please put each review comment on the board (one per change, paste the screenshot) instead of only here: then nothing gets lost, and this message shows every morning who still has what to fix.');
+    if (notice) lines.push('', notice);
+    lines.push(`${SITE}/design/#b=${boardId}`);
+    return lines.join('\n');
+  }
   lines.push(`🔴 To fix: **${open.length}**${open.length ? ' — ' + byPerson(open, 'owner', pub) : ''}`);
   if (ask.length) lines.push(`❓ Asked, waiting for an answer: **${ask.length}**`);
   lines.push(`🟡 Fixed, waiting for the reviewer's check: **${fixed.length}**${fixed.length ? ' — ' + byPerson(fixed, 'reviewer', pub) : ''}`);
@@ -55,8 +72,32 @@ function build(boardId, info, issuesObj, drawingsObj, now, opts) {
     const days = Math.floor((now - +oldest.created) / DAY);
     lines.push(`Oldest still open: #${oldest.n}${oldest.dwg ? ' ' + dwgNo(oldest.dwg) : ''}${pub ? '' : ` "${short(oldest.text, 70)}"`}${days >= 1 ? ` (${days} day${days > 1 ? 's' : ''})` : ''}`);
   }
+  if (notice) lines.push('', notice);
   lines.push(`${SITE}/design/#b=${boardId}`);
   return lines.join('\n');
+}
+
+function noticeFor(n, boardId, now) {
+  if (!n || !n.text) return '';
+  if (n.until && ymdNY(now) > n.until) return '';
+  if (Array.isArray(n.boards) && n.boards.length && !n.boards.includes(boardId)) return '';
+  return String(n.text).trim();
+}
+
+/** GitHub sometimes starts a scheduled run late or not at all, so the workflow has a second,
+    later schedule. This keeps that second run from posting the same day twice. */
+function alreadyPosted(messages, botId, now) {
+  const mark = 'review comments** — ' + dayOf(now);
+  return (messages || []).some(m => m && m.author && m.author.id === botId && typeof m.content === 'string' && m.content.includes(mark));
+}
+async function postedToday(token, channel, now) {
+  const H = { Authorization: 'Bot ' + token };
+  try {
+    const me = await (await fetch('https://discord.com/api/v10/users/@me', { headers: H })).json();
+    const r = await fetch(`https://discord.com/api/v10/channels/${channel}/messages?limit=30`, { headers: H });
+    if (!r.ok || !me || !me.id) return false;           // cannot tell: post
+    return alreadyPosted(await r.json(), me.id, now);
+  } catch (e) { return false; }
 }
 
 async function post(token, channel, content) {
@@ -84,15 +125,18 @@ async function main() {
   const db = app.database();
   if ((await db.ref('meta/project').once('value')).val() !== 'design') throw new Error('not the design database');
   const now = Date.now();
+  let notice = null;
+  try { notice = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, 'discord-notice.json'), 'utf8')); } catch (e) {}
+  const again = !!process.env.AGAIN;
   let failed = 0;
   for (const [board, channel] of Object.entries(channels)) {
     const [info, issues, drawings] = await Promise.all(['boardInfo/' + board, 'boards/' + board + '/issues', 'boards/' + board + '/drawings'].map(p => db.ref(p).once('value').then(s => s.val())));
     if (!info) { console.log(`- ${board}: no such board, skipped`); continue; }
-    const msg = build(board, info, issues, drawings, now);
-    if (!msg) { console.log(`- ${board}: nothing to report`); continue; }
+    const msg = build(board, info, issues, drawings, now, { notice });
     // The log is public: print the redacted copy; Discord gets the full message.
-    console.log(`--- ${board}${dry ? ' (dry run, not posted)' : ''}\n${build(board, info, issues, drawings, now, { pub: true })}\n`);
+    console.log(`--- ${board}${dry ? ' (dry run, not posted)' : ''}\n${build(board, info, issues, drawings, now, { pub: true, notice })}\n`);
     if (dry) continue;
+    if (!again && await postedToday(process.env.DISCORD_BOT_TOKEN, channel, now)) { console.log('  already posted today: skipped'); continue; }
     try { await post(process.env.DISCORD_BOT_TOKEN, channel, msg); console.log(`  posted`); }
     catch (e) { failed++; console.log(`  NOT posted: ${e.message}`); }
   }
@@ -100,5 +144,5 @@ async function main() {
   if (failed) process.exit(1);
 }
 
-module.exports = { build };
+module.exports = { build, alreadyPosted, noticeFor };
 if (require.main === module) main().catch(e => { console.error(e.message || e); process.exit(1); });
