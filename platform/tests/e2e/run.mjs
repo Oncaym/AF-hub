@@ -532,16 +532,23 @@ async function edit(page, status) {
       await c.route(/\/mn\/standin\.html/, r => r.fulfill({ contentType: 'text/html', body: mnHtml }));
       // Benji's own database must never be reached from the hub page
       await c.route(/morgan-north-6b898/, r => r.abort());
-      const pg = await open2(c, 'mn/standin.html');
+      const pg = await c.newPage();
+      // this page's own warnings (the adapter's "[mn hub] …", the SDK's) go to the log: CI only shows the log
+      pg.on('console', m => { if (/warn|error/.test(m.type())) console.log('    [mn ' + m.type() + ']', m.text().slice(0, 240)); });
+      pg.on('pageerror', e => console.log('    [pageerror mn]', e.message.slice(0, 200)));
+      await pg.goto(`${BASE}/mn/standin.html`, { waitUntil: 'domcontentloaded' });
       return { c, pg };
     };
+    const mnState = pg => pg.evaluate(() => JSON.stringify({ gate: !document.getElementById('afGate').hidden, msg: (document.getElementById('afGateMsg') || {}).textContent,
+      err: (document.getElementById('afErr') || {}).textContent, status: document.getElementById('fbStatus').textContent, dash: document.getElementById('dash').textContent,
+      user: (() => { try { const u = firebase.auth(window.AF_MN.app).currentUser; return u ? u.email + (u.emailVerified ? '' : ' (unverified)') : null; } catch (e) { return 'ERR ' + e.message; } })() }));
     const signInMn = async (pg, email) => { await pg.waitForSelector('#afEmail', { state: 'visible', timeout: 20000 }); await pg.fill('#afEmail', email); await pg.fill('#afPw', PW); await pg.click('#afGo'); };
     let mn = await openMn();
     ok(await until(() => mn.pg.evaluate(() => !document.getElementById('afGate').hidden && /Sign in to sync/.test(document.getElementById('fbStatus').textContent) && fbRef === null)),
        'signed out: the login screen covers the page and it has not connected', await mn.pg.evaluate(() => document.getElementById('fbStatus').textContent));
     await signInMn(mn.pg, LEO);
     ok(await until(() => mn.pg.evaluate(() => document.getElementById('afGate').hidden && /REPLACED 1 \/ 5/.test(document.getElementById('dash').textContent))),
-       'Leo (editor) signs in: the page connects to the hub\'s Morgan North database (1 of 5 replaced)', await mn.pg.evaluate(() => document.getElementById('dash').textContent));
+       'Leo (editor) signs in: the page connects to the hub\'s Morgan North database (1 of 5 replaced)', await mnState(mn.pg));
     await mn.pg.click('.pane[data-k="10-1#2"]');
     ok(await until(async () => ((await B.read(MN, 'units/10-1~35~2')) || {}).status === 'replaced'), 'marking a pane replaced lands in af-hub-8f188-mn');
     await mn.pg.evaluate(() => window.AF_MN.push());
