@@ -181,10 +181,15 @@ class EmulatorBackend {
 
 // ───────────────────────────────────────────────────────────── server ──
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
+/* Pages a test builds on the fly (the Morgan North stand-in). Served by this server, not by
+   Playwright's route.fulfill: Chromium counts a fulfilled page as a PUBLIC address and then
+   refuses its calls to the Auth emulator on 127.0.0.1 (Private Network Access). */
+const VIRTUAL = new Map();
 function serve(port) {
   return new Promise(res => {
     const s = http.createServer((q, r) => {
       let u = decodeURIComponent(q.url.split('?')[0]);
+      if (VIRTUAL.has(u)) { r.writeHead(200, { 'content-type': 'text/html' }); return r.end(VIRTUAL.get(u)); }
       if (u.endsWith('/')) u += 'index.html';
       const f = path.join(ROOT, u);
       if (!f.startsWith(ROOT)) { r.writeHead(403); return r.end(); }
@@ -525,11 +530,10 @@ async function edit(page, status) {
 
     console.log('\n11. Morgan North (Benji\'s page + mn/hub-adapter.js): hub login, the hub\'s mn database, progress on the overview');
     const { build: buildMn } = await import(path.join(ROOT, 'mn', 'build.mjs'));
-    const mnHtml = buildMn(fs.readFileSync(path.join(here, '..', 'fixtures', 'mn-standin.html'), 'utf8'), { minSize: 0 }).html;
+    VIRTUAL.set('/mn/standin.html', buildMn(fs.readFileSync(path.join(here, '..', 'fixtures', 'mn-standin.html'), 'utf8'), { minSize: 0 }).html);
     const openMn = async () => {
       const c = await newContext(browser);
       await c.addInitScript(u => { window.AF_MN_DB_URL = u; }, MN);
-      await c.route(/\/mn\/standin\.html/, r => r.fulfill({ contentType: 'text/html', body: mnHtml }));
       // Benji's own database must never be reached from the hub page
       await c.route(/morgan-north-6b898/, r => r.abort());
       const pg = await c.newPage();
