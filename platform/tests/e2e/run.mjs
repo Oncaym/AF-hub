@@ -479,7 +479,9 @@ async function edit(page, status) {
     await shopp.evaluate(() => window.__fbRefresh && window.__fbRefresh());
     ok(await until(() => shopp.evaluate(() => !/SD01/.test(document.getElementById('shopList').innerText) && /SF04/.test(document.getElementById('shopList').innerText) && /SD01 sidelite[\s\S]*undo/.test(document.getElementById('shopSent').innerText))), 'it leaves the list and shows under "Sent in the last 7 days"; SF04 stays');
     // a project with no dashboard: staff add it and a request with qty, need-by, note and photo
-    await shopp.evaluate(() => AF_SEND._newSite('Package 7'));
+    ok(await shopp.evaluate(() => [...document.getElementById('tsProject').options].some(o => o.value === '__new' && /New project/.test(o.textContent))), 'the project list ends with "＋ New project (no dashboard)…"');
+    shopp.once('dialog', d => d.accept('Package 7'));
+    await shopp.selectOption('#tsProject', '__new');
     ok(await until(async () => { const s = await B.read(B.hubUrl(), 'sendSites/s_package_7'); return !!s && s.name === 'Package 7' && s.by === BOSS; }), 'staff add "Package 7" (no dashboard): it lands in the hub database');
     await until(() => shopp.evaluate(() => [...document.getElementById('tsProject').options].some(o => o.value === 's_package_7')));
     await shopp.selectOption('#tsProject', 's_package_7');

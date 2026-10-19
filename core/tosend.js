@@ -322,7 +322,7 @@
         hub.ref('toSend/' + id).off(); delete S.srcs[id]; delete S.data[id];
       });
       fire();
-    }, () => { S.sitesOk = false; fire(); });
+    }, () => { S.sitesOk = false; S.sitesDenied = true; fire(); });   // hub rules not put yet, or not staff
     fire();
     return S;
   }
@@ -374,9 +374,18 @@
     const fillSelect = () => {
       const keep = sel.value || lastProject;
       const srcs = Object.values(S.srcs).filter(s => !s.done && (s.ok || s.site)).sort((a, b) => String(a.name).localeCompare(String(b.name)));
-      sel.innerHTML = '<option value="">Project…</option>' + srcs.map(s => `<option value="${esc(s.id)}">${esc(s.name)}${s.site ? '' : ' ●'}</option>`).join('');
+      sel.innerHTML = '<option value="">Project…</option>' + srcs.map(s => `<option value="${esc(s.id)}">${esc(s.name)}${s.site ? '' : ' ●'}</option>`).join('')
+        + (staff ? '<option value="__new">＋ New project (no dashboard)…</option>' : '');
       if (srcs.some(s => s.id === keep)) sel.value = keep;
+      sel.dataset.prev = sel.value;
     };
+    // "＋ New project…" in the list: ask for the name, add it, select it.
+    sel.addEventListener('change', () => {
+      if (sel.value !== '__new') { sel.dataset.prev = sel.value; return; }
+      const prev = sel.dataset.prev || '';
+      sel.value = prev;
+      newSite().then(id => { if (id) { sel.value = id; sel.dataset.prev = id; } });
+    });
     const draw = () => {
       const now = Date.now(), lists = listsOf(S);
       const gs = groups(lists, now);
@@ -406,7 +415,12 @@
     };
     const drawSites = () => {
       const box = $('shopSites');
-      if (!S.sitesOk || !staff) { box.innerHTML = ''; return; }
+      if (!staff) { box.innerHTML = ''; return; }
+      if (!S.sitesOk) {
+        box.innerHTML = !S.sitesDenied ? '' : `<div class="ts-empty">Projects without a dashboard are not switched on yet: the hub database needs its new rules
+          (GitHub → Actions → Project database → Run workflow: mode <b>rules</b>, project <b>hub</b>). Then reload this page.</div>`;
+        return;
+      }
       const ids = Object.keys(S.sites).sort((a, b) => String(S.sites[a].name).localeCompare(String(S.sites[b].name)));
       box.innerHTML = `<details><summary>Projects without a dashboard (${ids.length})</summary>
         <div style="margin:8px 0">${ids.map(id => `<label style="display:flex;gap:8px;align-items:center;padding:3px 0;font-size:13px">
@@ -418,6 +432,7 @@
       $('shopNewSite').onclick = () => newSite();
     };
     function newSite(name) {
+      if (!S.sitesOk) { say(S.sitesDenied ? 'Projects without a dashboard are not switched on yet: run GitHub → Actions → Project database (mode rules, project hub), then reload.' : 'Still loading, try again in a moment.'); return Promise.resolve(null); }
       name = (name || prompt('Project name (it has no dashboard yet), e.g. Package 7') || '').trim().slice(0, 80);
       if (!name) return Promise.resolve(null);
       const existing = Object.keys(S.sites).find(id => String(S.sites[id].name).toLowerCase() === name.toLowerCase());
