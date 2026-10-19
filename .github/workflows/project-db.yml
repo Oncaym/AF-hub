@@ -3,7 +3,8 @@
 #   dry-run  show what moving the project's old Firebase into af-hub would copy (writes nothing)
 #   migrate  move it: rules first, freeze the old database, copy, check every byte
 #   member   add / change / remove one person (email + role)
-#   rules    put platform/project-database.rules.json on the project ("all" = every project)
+#   rules    put platform/project-database.rules.json on the project ("all" = every project);
+#            project = hub puts /firebase-database-rules.json on the hub's own database
 #   init     start an empty database for a NEW project (email = its first editor)
 #   design   project = design is the design team's database (Design Boards, /design/):
 #            editors and viewers only, its own rules file
@@ -22,7 +23,7 @@ on:
         options: [dry-run, migrate, member, rules, init]
         default: dry-run
       project:
-        description: 'Project id: ac3, lex … or design (Design Boards). rules: "all" for every database'
+        description: 'Project id: ac3, lex … or design (Design Boards), hub (overview database, rules only). rules: "all" for every database, the hub too'
         type: string
         required: true
       email:

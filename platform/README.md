@@ -52,7 +52,7 @@ d. **Storage**：
 
 e. （建议）**Realtime Database → 选中 af-hub-8f188-ac3 → Backups → 开启每日备份**，lex 也一样。
 
-f. **Realtime Database → 默认数据库（af-hub-8f188-default-rtdb）→ Rules**：把仓库根目录 `firebase-database-rules.json` 全部内容贴进去，点 Publish。这是 hub 首页的规则，改动有三处：
+f. **Realtime Database → 默认数据库（af-hub-8f188-default-rtdb）→ Rules**：把仓库根目录 `firebase-database-rules.json` 全部内容贴进去，点 Publish（2026-10-19 起也可以用 Actions → Project database → `mode = rules`、`project = hub`）。这是 hub 首页的规则，改动有三处：
    - 删掉 v2；
    - 总览只给已验证的公司邮箱看；
    - 汇总写入规则不变。
@@ -125,15 +125,24 @@ GitHub → **Actions → Project database → Run workflow**：
 1. Push 以后，Actions → Project database → Run workflow：`mode = rules`，`project = all`。不做这步，AC3、Lexington 的 Fab drawings 会显示 "not shared with this account"。（CP2 迁移时会自动带上新规则。）
 2. 只有 PDF 超过 15 MB 才需要：Firebase 控制台 → Storage → Rules，把 `platform/storage.rules` 全部贴进去，Publish。15 MB 以下现在的规则就能传。
 
-## 🚚 To send（要送到工地的东西，2026-10-16）
+## 🚚 To send（要送到工地的东西，2026-10-16；所有项目 + Shop 页，2026-10-19）
 
-工地要什么框、门、sidelite，工头直接在 tracker 上记，不用先打电话给 Leo 再转工厂。
+工地要什么框、门、sidelite，记在清单上，一直挂到工厂点「Sent ✓」为止。
 
-- **工头**（editor）：tracker 上的 📦 Warehouse → 页面最上面「🚚 To send to site」→ 写一句（例如 `SD01 sidelite`）→ Add。有没送的东西时，tracker 的 Warehouse 链接后面会显示「🚚 N」，超过 2 天变红。
-- **工厂**：hub 首页最上面「🚚 To send to site」，所有项目的都在一起，最老的在最上面。发车后点「Sent ✓」，这一条就从清单上消失；点错了可以在 Warehouse 页的清单底下 undo。
-- 没点「Sent ✓」的会一直挂着，按天数算，**超过 2 天变红**。
-- 谁能做什么：editor 加/删；editor、viewer、公司邮箱都能点 Sent；GC 看不到。工厂的人没有公司邮箱的，要在每个项目加成 viewer（Actions → Project database → member）；hub 首页只给公司邮箱看。
-- 数据在每个项目自己的数据库 `/toSend`。
+- **Shop 页 `/send/`**（hub 首页右上角「🚚 Shop」）：所有项目一张清单，按项目分组，最急的项目和最急的一条在最上面。
+  - 发车后点「Sent ✓」，这一条移到底下「Sent in the last 7 days」，点错了可以 undo。
+  - 🖨 Print 打印成装车用的勾选清单。
+  - 公司邮箱的人可以在这里给任何项目加一条：选项目 → 写一句（例如 `SD01 sidelite`）→ Add。
+  - 「＋ qty · date · note · photo」可选：数量、需要日期、备注、照片（手机可以直接拍）。
+- **还没有 dashboard 的项目**（例如 Package 7、Forest Hill）：在 Shop 页底下「Projects without a dashboard」→「＋ Project」加名字。项目做完了勾「finished」就隐藏。
+  - 这些项目的数据在 hub 自己的数据库：`/sendSites/<s_名字>`、`/toSend/<s_名字>/<id>`。
+- **有 dashboard 的项目**：工头（editor）在 tracker 的 📦 Warehouse 页最上面也能加；tracker 的 Warehouse 链接后面会显示「🚚 N」。数据在项目自己的数据库 `/toSend`。
+- **什么算晚了（红色）**：填了需要日期的，当天和之后算晚；没填日期的，挂了 2 天以上算晚。
+- **谁能做什么**：
+  - 有 dashboard 的项目：editor 加、删任何一条；公司邮箱的人加，只能改、删自己加的；editor、viewer、公司邮箱都能点 Sent；GC 看不到。
+  - 没有 dashboard 的项目：只有公司邮箱的人能看、能加、能点 Sent；只能改、删自己加的。
+  - 工厂的人没有公司邮箱的，现在只能看到被加成 viewer 的项目（Actions → Project database → member），看不到没有 dashboard 的项目。
+- **规则**：项目数据库用 Actions → Project database → `mode = rules`、`project = all`。`all` 现在也包括 hub 自己的数据库（`firebase-database-rules.json`），不用再去 console 里贴；换之前的旧规则会存一份在 hub 数据库的 `/_admin/rulesBefore`。只换 hub 的：`project = hub`。
 
 ## 日常操作
 

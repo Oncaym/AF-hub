@@ -102,17 +102,29 @@
     },
 
     // 🚚 To send (core/tosend.js): what the site needs from the shop, until someone marks it
-    // sent. Editors (foremen, PM) add and remove; editors, viewers and staff (the shop) mark it
-    // sent. Not the GC.
+    // sent. Editors (foremen, PM) add and remove any; staff add (Shop page) and change or
+    // remove only their own; editors, viewers and staff mark it sent. Not the GC.
     "toSend": {
       ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
       "$id": {
-        ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
-        ".validate": "newData.hasChildren(['what', 'by', 'at', '_project']) && newData.child('what').isString() && newData.child('what').val().length > 0 && newData.child('what').val().length <= 200 && root.child('meta/project').isString() && newData.child('_project').val() == root.child('meta/project').val() && (data.exists() || newData.child('by').val() == auth.token.email)",
+        ".write": "auth != null && auth.token.email_verified == true && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || (auth.token.email.matches(/@advfacade\\.com$/i) && (!data.exists() || data.child('by').val() == auth.token.email)))",
+        ".validate": "newData.hasChildren(['what', 'by', 'at', '_project']) && root.child('meta/project').isString() && newData.child('_project').val() == root.child('meta/project').val() && (data.exists() || newData.child('by').val() == auth.token.email)",
+        "what": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200" },
+        "by": { ".validate": "newData.isString()" },
+        "at": { ".validate": "newData.isNumber()" },
+        "_project": { ".validate": "newData.isString()" },
+        "qty": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 99999" },
+        "need": { ".validate": "newData.isString() && newData.val().matches(/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/)" },
+        "note": { ".validate": "newData.isString() && newData.val().length <= 300" },
+        "photo": { ".validate": "newData.isString() && newData.val().length <= 1500 && (newData.val().beginsWith('https://') || newData.val().beginsWith('http://'))" },
         "sent": {
           ".write": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
-          ".validate": "newData.hasChildren(['by', 'at']) && newData.child('by').val() == auth.token.email"
-        }
+          ".validate": "newData.hasChildren(['by', 'at']) && newData.child('by').val() == auth.token.email",
+          "by": { ".validate": "newData.isString()" },
+          "at": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+        },
+        "$other": { ".validate": false }
       }
     },
 

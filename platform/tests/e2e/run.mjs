@@ -198,7 +198,7 @@ const ok = (cond, msg, extra) => { if (cond) { pass++; console.log('  ✓ ' + ms
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 // SHOTS=<folder> saves a screenshot at each step (for docs and debugging).
 const SHOTS = process.env.SHOTS || '';
-async function shot(page, name) { if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot({ path: path.join(SHOTS, name + '.png') }); } }
+async function shot(page, name) { if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); try { await page.screenshot({ path: path.join(SHOTS, name + '.png'), timeout: 10000 }); } catch (e) { console.log('    (no screenshot ' + name + ': ' + e.message.split('\n')[0] + ')'); } } }
 async function until(fn, ms = 15000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (await fn()) return true; } catch (e) {} await sleep(150); } return false; }
 
 const B = BACKEND === 'emulator' ? new EmulatorBackend() : new FakeBackend();
@@ -232,7 +232,7 @@ async function newContext(browser, { lexPointsAt } = {}) {
   await context.route(/\/cp2\/firebase-config\.js/, r => r.fulfill({ contentType: 'text/javascript', body: cfg('cp2', CP2) }));
   // The hub summary writer must hit the test hub database, never the real one.
   await context.route(/\/af-hub-config\.js/, r => r.fulfill({ contentType: 'text/javascript', body: `window.AF_HUB_FIREBASE = ${JSON.stringify(Object.assign({
-    apiKey: 'fake-api-key', authDomain: 'demo-afhub.firebaseapp.com', projectId: 'demo-afhub', appId: '1:1:web:2' }, B.config(B.hubUrl())))};\n` +
+    apiKey: 'fake-api-key', authDomain: 'demo-afhub.firebaseapp.com', projectId: 'demo-afhub', storageBucket: 'af-hub-8f188.firebasestorage.app', appId: '1:1:web:2' }, B.config(B.hubUrl())))};\n` +
     // The hub overview signs in on this config alone, so it needs the emulator switch too
     // (guarded: some pages load it without the Auth SDK).
     (B.configExtra() ? `if (window.firebase && firebase.auth) {${B.configExtra()}}` : '') }));
@@ -444,7 +444,7 @@ async function edit(page, status) {
     ok(gcRead === 'refused', 'the rules refuse /fab to the GC', gcRead);
     await ctx.close();
 
-    console.log('\n10. 🚚 To send (on the 📦 Warehouse page): the foreman asks, the shop sees every project on the hub and marks it sent');
+    console.log('\n10. 🚚 To send: the foreman asks on the 📦 Warehouse page; the hub counts it; the Shop page lists every project, marks sent, and takes projects without a dashboard');
     const dbMap = { ac3: AC3, cp2: CP2, lex: LEX };
     ctx = await newContext(browser);
     page = await open(ctx, 'ac3');
@@ -467,13 +467,37 @@ async function edit(page, status) {
     const hubp = await open2(ctx, '');
     await hubp.waitForSelector('#email', { state: 'visible', timeout: 20000 });
     await hubp.fill('#email', BOSS); await hubp.fill('#pw', PW); await hubp.click('#go');
-    ok(await until(() => hubp.evaluate(() => { const t = (document.getElementById('toSend') || {}).innerText || ''; return /SD01 sidelite/.test(t) && /SF04 sidelite/.test(t) && /Atlantic-Chestnut/.test(t) && /8 days/.test(t); })),
-       'the hub overview lists both, with the project and the age', await hubp.evaluate(() => (document.getElementById('toSend') || {}).innerText));
-    await hubp.evaluate(() => { const row = [...document.querySelectorAll('#toSend [data-sent]')].find(b => /SD01/.test(b.closest('div').innerText)); row.click(); });
-    ok(await until(async () => Object.values((await B.read(AC3, 'toSend')) || {}).some(x => x.what === 'SD01 sidelite' && x.sent && x.sent.by === BOSS)), 'the shop marks SD01 sent (signed by them)');
-    await hubp.evaluate(() => window.__fbRefresh && window.__fbRefresh());
-    ok(await until(() => hubp.evaluate(() => !/SD01/.test(document.getElementById('toSend').innerText) && /SF04/.test(document.getElementById('toSend').innerText))), 'it leaves the list; SF04 stays');
+    ok(await until(() => hubp.evaluate(() => { const t = (document.getElementById('toSend') || {}).innerText || ''; return /2 waiting/.test(t) && /1 late/.test(t) && /Atlantic-Chestnut[^\n]*SD01 sidelite/.test(t) && !!document.querySelector('#toSend a[href="/send/"]'); })),
+       'the hub overview: "2 waiting · 1 late", the most urgent first, and a link to the shop list', await hubp.evaluate(() => (document.getElementById('toSend') || {}).innerText));
     await shot(hubp, '10-hub-to-send');
+    // the Shop page (/send/): every project, grouped, most urgent first
+    const shopp = await open2(ctx, 'send/');
+    ok(await until(() => shopp.evaluate(() => { const t = (document.getElementById('shopList') || {}).innerText || ''; return /Atlantic-Chestnut/.test(t) && /SD01 sidelite[\s\S]*SF04 sidelite/.test(t); })),
+       'the Shop page lists both (signed in already), oldest first', await shopp.evaluate(() => (document.getElementById('shopList') || {}).innerText));
+    await shopp.evaluate(() => { const row = [...document.querySelectorAll('#shopList .ts-row')].find(r => /SD01/.test(r.innerText)); row.querySelector('[data-sent]').click(); });
+    ok(await until(async () => Object.values((await B.read(AC3, 'toSend')) || {}).some(x => x.what === 'SD01 sidelite' && x.sent && x.sent.by === BOSS)), 'the shop marks SD01 sent (signed by them)');
+    await shopp.evaluate(() => window.__fbRefresh && window.__fbRefresh());
+    ok(await until(() => shopp.evaluate(() => !/SD01/.test(document.getElementById('shopList').innerText) && /SF04/.test(document.getElementById('shopList').innerText) && /SD01 sidelite[\s\S]*undo/.test(document.getElementById('shopSent').innerText))), 'it leaves the list and shows under "Sent in the last 7 days"; SF04 stays');
+    // a project with no dashboard: staff add it and a request with qty, need-by, note and photo
+    await shopp.evaluate(() => AF_SEND._newSite('Package 7'));
+    ok(await until(async () => { const s = await B.read(B.hubUrl(), 'sendSites/s_package_7'); return !!s && s.name === 'Package 7' && s.by === BOSS; }), 'staff add "Package 7" (no dashboard): it lands in the hub database');
+    await until(() => shopp.evaluate(() => [...document.getElementById('tsProject').options].some(o => o.value === 's_package_7')));
+    await shopp.selectOption('#tsProject', 's_package_7');
+    await shopp.fill('#toSendWhat', 'Mullion caps');
+    await shopp.click('#tsMoreBtn');
+    const todayStr = await shopp.evaluate(() => AF_SEND.ymd(Date.now()));
+    await shopp.fill('#tsQty', '12');
+    await shopp.fill('#tsNeed', todayStr);
+    await shopp.fill('#tsNote', 'bay 3, east side');
+    await shopp.setInputFiles('#tsPhoto', { name: 'cap.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64') });
+    await shopp.click('#toSendAdd');
+    ok(await until(async () => Object.values((await B.read(B.hubUrl(), 'toSend/s_package_7')) || {}).some(x => x.what === 'Mullion caps' && x.qty === 12 && x.need === todayStr && x.note === 'bay 3, east side' && /^https?:\/\//.test(x.photo || '') && x.by === BOSS && x._project === 's_package_7'), 20000),
+       'the request lands with qty 12, need-by today, the note and a photo link', JSON.stringify(await B.read(B.hubUrl(), 'toSend/s_package_7')));
+    await shopp.evaluate(() => window.__fbRefresh && window.__fbRefresh());
+    ok(await until(() => shopp.evaluate(() => { const g = document.querySelector('#shopList .grp'); return !!g && /Package 7/.test(g.innerText) && /Mullion caps ×12/.test(g.innerText) && /due today/.test(g.innerText) && !!g.querySelector('img.ts-thumb'); })),
+       'Package 7 comes first (due today, red), with ×12 and the photo', await shopp.evaluate(() => (document.querySelector('#shopList .grp') || {}).innerText));
+    await shot(shopp, '10-shop-page');
+    if (SHOTS) { await shopp.setViewportSize({ width: 390, height: 844 }); await shot(shopp, '10-shop-phone'); }
     await ctx.close();
     ctx = await newContext(browser);
     page = await open(ctx, 'ac3');

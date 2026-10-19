@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>🚚 To send to site — Advanced Facade</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1419'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle'%3E%F0%9F%9A%9A%3C/text%3E%3C/svg%3E">
+<style>
+  /* 🚚 Shop page (core/tosend.js → AF_SEND.shop). Palette = the hub's and the trackers'. */
+  :root {
+    --bg: #0f1419; --panel: #1a2028; --panel-2: #232b36; --border: #2d3744;
+    --text: #e6edf3; --text-dim: #8b949e; --accent: #4493f8;
+    --green: #2ea043; --yellow: #d29922; --red: #f85149;
+  }
+  body.day-mode {
+    --bg: #f2f4f7; --panel: #ffffff; --panel-2: #e9edf2; --border: #d0d7de;
+    --text: #1f2328; --text-dim: #59636e; --accent: #0969da;
+    --green: #1a7f37; --yellow: #9a6700; --red: #cf222e;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  a { color: var(--accent); }
+  header { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--border);
+    padding: 10px 16px calc(10px) 16px; padding-top: max(10px, env(safe-area-inset-top)); }
+  .bar { max-width: 860px; margin: 0 auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; }
+  #shopCount { color: var(--text-dim); font-size: 13.5px; }
+  .grow { flex: 1; }
+  .btn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 11px; font-size: 13px; cursor: pointer; text-decoration: none; display: inline-block; }
+  main { max-width: 860px; margin: 0 auto; padding: 14px 16px 60px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+  #shopFilter { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  #shopFilter:empty { display: none; }
+  .chip { background: var(--panel); border: 1px solid var(--border); color: var(--text-dim); border-radius: 999px;
+    padding: 4px 11px; font-size: 12.5px; cursor: pointer; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chip.late:not(.on) { border-color: var(--red); color: var(--red); }
+  .grp { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 6px 14px 4px; margin-bottom: 12px; }
+  .grp h3 { font-size: 15px; margin: 6px 0 2px; }
+  .grp h3 span { color: var(--text-dim); font-weight: 400; font-size: 12.5px; margin-left: 4px; }
+  #shopSites details { font-size: 13px; color: var(--text-dim); }
+  #shopSites summary { cursor: pointer; }
+  .gate { max-width: 340px; margin: 12vh auto 0; padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
+  .gate h2 { margin: 0; }
+  .gate p { margin: 0 0 6px; color: var(--text-dim); font-size: 14px; }
+  .gate input { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 11px 12px;
+    font-size: 16px; color: var(--text); }
+  .gate .go { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 11px; font-size: 15px; cursor: pointer; }
+  .err { color: var(--red); font-size: 13px; min-height: 18px; }
+  .note { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin: 16px; }
+  @media (max-width: 560px) {
+    .ts-row { flex-wrap: wrap; }
+    .ts-row .ts-main { flex-basis: calc(100% - 60px); }
+    .ts-row .ts-chips { flex-direction: row; }
+    .ts-row .ts-btn.go { margin-left: auto; padding: 8px 16px; font-size: 14px; }
+  }
+  /* Print: a pick list for loading the truck — one box to tick per line. */
+  @media print {
+    :root, body.day-mode { --bg: #fff; --panel: #fff; --panel-2: #fff; --border: #bbb; --text: #000; --text-dim: #444; --red: #000; }
+    header .btn, #shopAdd, #shopFilter, #shopSites, #shopSent, .ts-btn, .ts-x, .ts-thumb { display: none !important; }
+    header { position: static; }
+    .grp { break-inside: avoid; border: 0; padding: 0; }
+    .ts-row::before { content: "☐"; font-size: 20px; margin-right: 4px; }
+    .ts-chip.red { background: none; color: #000; font-weight: 700; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app" hidden>
+  <header>
+    <div class="bar">
+      <h1>🚚 To send to site</h1>
+      <span id="shopCount"></span>
+      <span class="grow"></span>
+      <button class="btn" type="button" id="print" title="Print a pick list">🖨 Print</button>
+      <a class="btn" href="/" title="Project overview">Hub</a>
+      <button class="btn" type="button" id="theme" title="Day / night">☀️</button>
+      <button class="btn" type="button" id="out" title="Sign out"><span id="me"></span> · Sign out</button>
+    </div>
+  </header>
+  <main id="shop">
+    <div class="card" id="shopAdd"></div>
+    <div id="shopFilter"></div>
+    <div id="shopList"><div class="ts-empty">Loading…</div></div>
+    <div id="shopSent"></div>
+    <div id="shopSites" style="margin-top:18px"></div>
+  </main>
+</div>
+
+<div class="note" id="note" hidden></div>
+
+<form class="gate" id="gate" hidden>
+  <h2>🚚 To send to site</h2>
+  <p>What every site is waiting for, until the shop sends it. Sign in with your hub account.</p>
+  <input type="email" id="email" placeholder="you@advfacade.com" autocomplete="email" required>
+  <input type="password" id="pw" placeholder="Password" autocomplete="current-password" required>
+  <button class="go" type="submit" id="go">Sign in</button>
+  <div class="err" id="err"></div>
+  <a href="/" style="font-size:13px">Forgot password or first time here? Use the hub →</a>
+</form>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script src="../af-hub-config.js"></script>
+<script src="../core/roster.js?v=20261019a"></script>
+<script src="../core/tosend.js?v=20261019a"></script>
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  // Day / night, remembered on this device (same key as the hub).
+  try { if (localStorage.getItem('af_hub_theme') === 'day') document.body.classList.add('day-mode'); } catch (e) {}
+  $('theme').onclick = () => {
+    const day = document.body.classList.toggle('day-mode');
+    try { localStorage.setItem('af_hub_theme', day ? 'day' : 'night'); } catch (e) {}
+  };
+  $('print').onclick = () => window.print();
+
+  const cfg = window.AF_HUB_FIREBASE;
+  if (!cfg || typeof firebase === 'undefined') { $('note').hidden = false; $('note').textContent = 'Could not load. Check the connection and reload.'; return; }
+  firebase.initializeApp(cfg);
+  const auth = firebase.auth();
+  const dbUrl = window.AF_DB_URL || (id => `https://af-hub-8f188-${id}.firebaseio.com`);
+  const projects = (window.AF_ROSTER || []).filter(r => !/^https?:/.test(r.url))
+    .map(r => ({ id: r.id, name: r.name, databaseURL: dbUrl(r.id) }));
+
+  auth.onAuthStateChanged(u => {
+    if (!u || u.isAnonymous) { $('app').hidden = true; $('note').hidden = true; $('gate').hidden = false; return; }
+    $('gate').hidden = true;
+    $('me').textContent = (u.email || '').split('@')[0];
+    if (!u.emailVerified) {
+      $('note').hidden = false;
+      $('note').innerHTML = 'Confirm your email first: open the <a href="/">hub</a>, tap “Send the link” and open it. Then reload this page.';
+      return;
+    }
+    $('note').hidden = true;
+    $('app').hidden = false;
+    AF_SEND.shop($('shop'), projects);
+  });
+  $('gate').addEventListener('submit', async e => {
+    e.preventDefault();
+    $('err').textContent = '';
+    try { await auth.signInWithEmailAndPassword($('email').value.trim(), $('pw').value); }
+    catch (er) { $('err').textContent = /wrong-password|invalid-credential|user-not-found|invalid-login/.test(er.code || '') ? 'Wrong email or password.' : (er.message || er.code); }
+  });
+  $('out').onclick = () => auth.signOut().then(() => location.reload());
+})();
+</script>
+</body>
+</html>

@@ -16,6 +16,9 @@
                   overwrite) and ALWAYS refuses if it belongs to another project.
    MODE=rules     Put platform/project-database.rules.json on the database(s)
                   (PROJECT=all for every project in platform/projects.json).
+                  PROJECT=hub is the hub's own database (overview, damage, 🚚
+                  projects without a dashboard): /firebase-database-rules.json,
+                  old rules kept under /_admin/rulesBefore. "all" includes it.
                   PROJECT=design is the design team's database (Design Boards):
                   it gets platform/design-database.rules.json instead, and
                   "all" includes it. It has editors and viewers, no GC.
@@ -82,7 +85,13 @@ function appFor(name, databaseURL, secret, storageBucket) {
   if (storageBucket) opts.storageBucket = storageBucket;
   return initializeApp(opts, name);
 }
+/* The hub's own database (overview summaries, damage, 🚚 projects without a dashboard).
+   Rules mode only: PROJECT=hub (or all) puts /firebase-database-rules.json on it, after
+   keeping a copy of the rules it had under /_admin/rulesBefore/<time> (no page can read it). */
+const HUB = { id: 'hub', name: 'AF Hub overview database', hub: true,
+  databaseURL: `https://${REG.firebaseProject}-default-rtdb.firebaseio.com`, rules: '../firebase-database-rules.json' };
 function entry(id) {
+  if (id === HUB.id) return HUB;
   if (REG.design && id === REG.design.id) return REG.design;
   const p = REG.projects.find(x => x.id === id);
   if (!p) die(`PROJECT "${id}" is not in platform/projects.json (have: ${REG.projects.map(x => x.id).concat(REG.design ? [REG.design.id] : []).join(', ')})`);
@@ -275,10 +284,17 @@ async function dryRunOrMigrate(dry) {
 }
 
 async function rulesMode() {
-  const ids = PID === 'all' ? REG.projects.map(x => x.id).concat(REG.design ? [REG.design.id] : []) : [PID];
+  const ids = PID === 'all' ? REG.projects.map(x => x.id).concat(REG.design ? [REG.design.id] : [], [HUB.id]) : [PID];
   for (const id of ids) {
     const p = entry(id);
     const app = appFor(p.id, p.databaseURL, 'HUB_SERVICE_ACCOUNT');
+    if (p.hub) {
+      const before = await getRules(app);
+      if (before) await getDatabase(app).ref('_admin/rulesBefore/' + Date.now()).set(before);
+      await putRules(app, rulesFor(p));
+      log(`✓ rules put on the hub database (${p.databaseURL})${before ? '; the old rules are kept under /_admin/rulesBefore' : ''}`);
+      continue;
+    }
     const meta = (await getDatabase(app).ref('meta/project').once('value')).val();
     if (meta && meta !== p.id) die(`${p.databaseURL} says it belongs to "${meta}", not "${p.id}"`);
     await putRules(app, rulesFor(p));

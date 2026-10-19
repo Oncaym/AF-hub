@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* 🚚 To send (core/tosend.js): what is still open, oldest first; what counts as late. */
+/* 🚚 To send (core/tosend.js): what is still open, most urgent first; what counts as late; need-by dates; groups. */
 const S = require('../../core/tosend.js');
 let pass = 0, fail = 0;
 const ok = (c, m, x) => { if (c) pass++; else { fail++; console.log('FAIL  ' + m + (x !== undefined ? '  :: ' + JSON.stringify(x) : '')); } };
@@ -18,5 +18,35 @@ ok(r.sent.map(x => x.id).join() === 'c', 'sent in the last week only', r.sent.ma
 ok(S.days(items.b.at, NOW) === 8 && S.days(items.a.at, NOW) === 0, 'age in whole days');
 ok(S.late(items.b, NOW) && !S.late(items.a, NOW) && S.late({ at: NOW - 2 * D }, NOW) && !S.late({ at: NOW - 2 * D + 1 }, NOW), `late from ${S.LATE} days`);
 ok(S.split(null, NOW).open.length === 0, 'empty list');
+
+// need-by dates (2026-10-19): late on or after the date; the list sorts by when it must go out
+const today = S.ymd(NOW), plus = n => S.ymd(NOW + n * D);
+const withDates = {
+  old: { what: 'asked 1 h ago, no date', by: 'joe', at: NOW - 3600e3 },          // due NOW + 2 days
+  soon: { what: 'needed tomorrow', by: 'leo', at: NOW, need: plus(1) },
+  past: { what: 'needed 3 days ago', by: 'leo', at: NOW - D, need: plus(-3) },
+  far: { what: 'needed in 9 days', by: 'leo', at: NOW - 20 * D, need: plus(9) },  // asked long ago but not due: not late
+  bad: { what: 'junk date', by: 'leo', at: NOW - 3 * D, need: 'next week' },       // ignored: treated as no date
+};
+const o = S.split(withDates, NOW).open.map(x => x.id);
+ok(o.join() === 'past,bad,soon,old,far', 'most urgent first: past due, then by due date', o);
+ok(S.late(withDates.past, NOW) && !S.late(withDates.soon, NOW) && !S.late(withDates.far, NOW), 'with a date, late means on or past it');
+ok(S.late({ at: NOW, need: today }, NOW), 'due today counts as late (it has to go out today)');
+ok(S.late(withDates.bad, NOW), 'a junk date falls back to the age rule');
+ok(S.needLabel(withDates.past, NOW) === 'late 3 days' && S.needLabel({ need: today }, NOW) === 'due today'
+  && S.needLabel(withDates.soon, NOW) === 'need tomorrow' && /^need [A-Z][a-z]{2} \d{1,2}$/.test(S.needLabel(withDates.far, NOW))
+  && S.needLabel(withDates.old, NOW) === '', 'need-by labels', [S.needLabel(withDates.past, NOW), S.needLabel(withDates.far, NOW)]);
+
+// several projects → groups, the one with the most urgent request first; empty projects left out
+const g = S.groups([
+  { src: { id: 'ac3', name: 'AC3' }, items: { a: { what: 'x', at: NOW } } },
+  { src: { id: 's_pkg7', name: 'Package 7' }, items: { b: { what: 'y', at: NOW, need: plus(-1) }, c: { what: 'z', at: NOW } } },
+  { src: { id: 'lex', name: 'Lex' }, items: { d: { what: 'w', at: NOW, sent: { by: 's', at: NOW } } } },
+], NOW);
+ok(g.map(x => x.src.id).join() === 's_pkg7,ac3' && g[0].open.length === 2, 'groups: most urgent project first, nothing-open projects left out', g.map(x => x.src.id));
+
+ok(S.siteId('Package #7') === 's_package_7' && S.siteId('Forest Hill — Gutter') === 's_forest_hill_gutter', 'site ids from names', [S.siteId('Package #7'), S.siteId('Forest Hill — Gutter')]);
+ok(S.siteId('Package 7', { s_package_7: 1 }) === 's_package_7_2' && S.siteId('!!!') === 's_project', 'site ids stay unique');
+ok(S.safeUrl('https://firebasestorage.googleapis.com/x') && !S.safeUrl('javascript:alert(1)') && !S.safeUrl(42), 'only http(s) photo links are shown');
 console.log(`to send: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

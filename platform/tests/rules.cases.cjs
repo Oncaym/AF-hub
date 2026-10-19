@@ -140,7 +140,7 @@ const ask = (who, project, extra) => Object.assign({ what: 'SF04 sidelite', by: 
 for (const [who, want] of [['EDITOR', true], ['FOREMAN', true], ['STAFF', true], ['VIEWER', true], ['GC', false], ['STRANGER', false], ['ANON', false]])
   c(`read /toSend as ${who}`, who, 'read', '/toSend', undefined, want);
 c('foreman asks for something', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'ac3'), true);
-c('staff (not an editor) cannot add a request', 'STAFF', 'set', '/toSend/t1', ask(P.STAFF, 'ac3'), false);
+c('staff (not an editor) adds a request (Shop page, 2026-10-19)', 'STAFF', 'set', '/toSend/t1', ask(P.STAFF, 'ac3'), true);
 c('gc cannot add a request', 'GC', 'set', '/toSend/t1', ask(P.GC, 'ac3'), false);
 c('a request stamped with ANOTHER project is refused', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'lex'), false);
 c('a request in somebody else\'s name is refused', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'ac3', { by: P.EDITOR.email }), false);
@@ -154,5 +154,17 @@ c('staff cannot change what was asked', 'STAFF', 'set', '/toSend/t1/what', 'some
 c('staff cannot remove a request', 'STAFF', 'set', '/toSend/t1', null, false, WITH_ASK);
 c('marking sent cannot create a request', 'STAFF', 'set', '/toSend/t9/sent', { by: P.STAFF.email, at: NOW }, false);
 c('an editor removes a request', 'EDITOR', 'set', '/toSend/t1', null, true, WITH_ASK);
+// staff's own request: they can change and remove it; the optional fields are checked
+const WITH_STAFF_ASK = Object.assign({}, AC3, { toSend: { t2: ask(P.STAFF, 'ac3') } });
+c('staff removes their own request', 'STAFF', 'set', '/toSend/t2', null, true, WITH_STAFF_ASK);
+c('staff fixes the quantity on their own request', 'STAFF', 'set', '/toSend/t2/qty', 4, true, WITH_STAFF_ASK);
+c('an unverified @advfacade account cannot add', 'FAKE', 'set', '/toSend/t1', ask(P.FAKE, 'ac3'), false);
+c('a request with qty, need-by, note and photo', 'FOREMAN', 'set', '/toSend/t1',
+  ask(P.FOREMAN, 'ac3', { qty: 4, need: '2026-10-22', note: 'east side, level 2', photo: 'https://firebasestorage.googleapis.com/v0/b/x/o/p%2Fac3%2Fsend%2Ft1.jpg?alt=media' }), true);
+c('qty 0 is refused', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'ac3', { qty: 0 }), false);
+c('a need-by that is not a date is refused', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'ac3', { need: 'next week' }), false);
+c('a note over 300 characters is refused', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'ac3', { note: 'x'.repeat(301) }), false);
+c('a photo that is not a web link is refused', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'ac3', { photo: 'javascript:alert(1)' }), false);
+c('an unknown field is refused', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'ac3', { truck: 'T1' }), false);
 
 module.exports = { P, cases, NOW, key };
