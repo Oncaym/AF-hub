@@ -12,6 +12,7 @@ const who = (email, verified = true) => ({ uid: 'u_' + email.replace(/\W/g, '_')
 const ANON = { uid: 'anon', provider: 'anonymous', token: { firebase: { sign_in_provider: 'anonymous' } } };
 const STAFF = who('boss@advfacade.com'), UNVER = who('x@advfacade.com', false), GC = who('pm@turner.com'), FOREMAN = who('joe@gmail.com');
 const ADMIN_GMAIL = who('owner@gmail.com');
+const SHOP = Object.assign(who('shop.lead@gmail.com'), {}); SHOP.token.shop = true;   // the shop list (custom claim)
 const data = { admins: { [ADMIN_GMAIL.uid]: true }, projects: { ac3: { summary: { name: 'AC3', done: 1, total: 2, ts: 1 } } } };
 const summary = { name: 'AC3', unit: 'openings', done: 2, total: 2, ts: 2, url: 'https://af-hub-two.vercel.app/ac3/' };
 let pass = 0, fail = 0;
@@ -52,8 +53,12 @@ c('a request stamped with another project is refused', db2(STAFF2).write('/toSen
 c('a request in somebody else\'s name is refused', db2(STAFF2).write('/toSend/s_package_7/r2', req('boss@advfacade.com')).allowed, false);
 c('staff cannot remove somebody else\'s request', db2(STAFF2).write('/toSend/s_package_7/r1', null).allowed, false);
 c('whoever added it removes it', db2(STAFF).write('/toSend/s_package_7/r1', null).allowed, true);
-c('staff marks somebody else\'s request sent', db2(STAFF2).write('/toSend/s_package_7/r1/sent', { by: 'shop@advfacade.com', at: 2 }).allowed, true);
-c('sent in somebody else\'s name is refused', db2(STAFF2).write('/toSend/s_package_7/r1/sent', { by: 'boss@advfacade.com', at: 2 }).allowed, false);
+c('staff (not on the shop list) cannot mark it sent', db2(STAFF2).write('/toSend/s_package_7/r1/sent', { by: 'shop@advfacade.com', at: 2 }).allowed, false);
+c('whoever added it cannot mark it sent either', db2(STAFF).write('/toSend/s_package_7/r1', req('boss@advfacade.com', { sent: { by: 'boss@advfacade.com', at: 2 } })).allowed, false);
+c('the shop reads the list', db2(SHOP).read('/toSend').allowed && db2(SHOP).read('/sendSites').allowed, true);
+c('the shop marks it sent', db2(SHOP).write('/toSend/s_package_7/r1/sent', { by: 'shop.lead@gmail.com', at: 2 }).allowed, true);
+c('sent in somebody else\'s name is refused', db2(SHOP).write('/toSend/s_package_7/r1/sent', { by: 'boss@advfacade.com', at: 2 }).allowed, false);
+c('the shop cannot add a request (only Sent)', db2(SHOP).write('/toSend/s_package_7/r9', req('shop.lead@gmail.com')).allowed, false);
 c('GC cannot mark sent', db2(GC).write('/toSend/s_package_7/r1/sent', { by: 'pm@turner.com', at: 2 }).allowed, false);
 c('an unknown field is refused', db2(STAFF2).write('/toSend/s_package_7/r2', req('shop@advfacade.com', { truck: 1 })).allowed, false);
 c('a bad need-by is refused', db2(STAFF2).write('/toSend/s_package_7/r2', req('shop@advfacade.com', { need: '10/21' })).allowed, false);

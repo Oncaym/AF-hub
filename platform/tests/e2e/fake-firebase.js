@@ -99,9 +99,10 @@
     function userObj(u) {
       if (!u) return null;
       const o = {
-        uid: u.uid, email: u.email || null, emailVerified: !!u.emailVerified, isAnonymous: !!u.anonymous,
+        uid: u.uid, email: u.email || null, emailVerified: !!u.emailVerified, isAnonymous: !!u.anonymous, __claims: u.claims || null,
         reload: () => call('user', { uid: u.uid }).then(x => { if (x) { o.emailVerified = !!x.emailVerified; u.emailVerified = !!x.emailVerified; } }),
         getIdToken: () => Promise.resolve('fake-token'),
+        getIdTokenResult: () => Promise.resolve({ token: 'fake-token', claims: Object.assign({}, u.claims || {}) }),
         sendEmailVerification: () => call('sendVerification', { uid: u.uid }),
       };
       return o;
@@ -129,7 +130,7 @@
       __token() {
         if (!current) return null;
         if (current.isAnonymous) return { uid: current.uid, provider: 'anonymous', token: { firebase: { sign_in_provider: 'anonymous' } } };
-        return { uid: current.uid, provider: 'password', token: { email: current.email, email_verified: current.emailVerified, firebase: { sign_in_provider: 'password' } } };
+        return { uid: current.uid, provider: 'password', token: Object.assign({ email: current.email, email_verified: current.emailVerified, firebase: { sign_in_provider: 'password' } }, current.__claims || {}) };
       },
     };
     if (persisted) { current = userObj(persisted); auth.currentUser = current; }

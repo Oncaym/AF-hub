@@ -85,6 +85,14 @@
   const user = () => { try { return firebase.auth().currentUser; } catch (e) { return null; } };
   const me = () => (user() || {}).email || '';
   const isStaff = () => { const u = user(); return !!(u && u.emailVerified && /@advfacade\.com$/i.test(u.email || '')); };
+  /* Only the shop marks a request Sent (Leo 10-19): the custom claim shop = true on the login
+     (Actions → Project database, role shop). The rules refuse anyone else; the page just
+     does not offer the button. Resolves to false when it cannot tell. */
+  let shopP = null;
+  const isShop = () => (shopP = shopP || (async () => {
+    try { const u = user(); if (!u || !u.getIdTokenResult) return false; return !!((await u.getIdTokenResult()).claims || {}).shop; }
+    catch (e) { return false; }
+  })());
   const TS = () => firebase.database.ServerValue.TIMESTAMP;
   const age = (x, now) => { const d = days(x.at, now); return d === 0 ? 'today' : d + (d === 1 ? ' day' : ' days'); };
   const say = m => (typeof toast === 'function' ? toast(m) : alert(m));
@@ -143,7 +151,7 @@
       <div class="ts-chips">
         ${need ? `<span class="ts-chip${red ? ' red' : ''}">${esc(need)}</span>` : `<span class="ts-chip${red ? ' red' : ''}">${esc(age(x, now))}</span>`}
       </div>
-      <button type="button" class="ts-btn${o.big ? ' go' : ''}" data-sent="${esc(x.id)}">Sent ✓</button>
+      ${o.canSend ? `<button type="button" class="ts-btn${o.big ? ' go' : ''}" data-sent="${esc(x.id)}">Sent ✓</button>` : ''}
       ${o.canRemove && o.canRemove(x) ? `<button type="button" class="ts-x" data-del="${esc(x.id)}" title="Remove (asked by mistake)">×</button>` : ''}
     </div>`;
   }
@@ -151,7 +159,7 @@
     if (!list.length) return '';
     return `<div class="ts-sent">${o.title ? `<div style="font-weight:600;margin-bottom:2px">${esc(o.title)}</div>` : ''}${list.map(x =>
       `<div data-id="${esc(x.id)}">✓ ${o.project ? esc(o.project(x)) + ' · ' : ''}${esc(x.what)}${+x.qty ? ' ×' + esc(+x.qty) : ''} · sent ${esc(shortDate(x.sent.at))} by ${esc(who(x.sent.by))}
-        <button type="button" class="ts-link" data-unsend="${esc(x.id)}">undo</button></div>`).join('')}</div>`;
+        ${o.canSend ? `<button type="button" class="ts-link" data-unsend="${esc(x.id)}">undo</button>` : ''}</div>`).join('')}</div>`;
   }
 
   /* ---------- writes (src: { id, name, db, base, store }) ---------- */
@@ -249,14 +257,15 @@
       ${can ? formHtml(false) : ''}
       <div id="toSendList"><div class="empty">Loading…</div></div>`;
     const list = el.querySelector('#toSendList');
-    let items = {};
+    let items = {}, shop = false;
     const draw = () => {
       const now = Date.now(), r = split(items, now);
-      list.innerHTML = (r.open.length ? r.open.map(x => rowHtml(x, now, { canRemove: x2 => editor || x2.by === me() })).join('')
-        : '<div class="ts-empty">Nothing waiting to be sent.</div>') + sentHtml(r.sent, {});
+      list.innerHTML = (r.open.length ? r.open.map(x => rowHtml(x, now, { canSend: shop, canRemove: x2 => editor || x2.by === me() })).join('')
+        : '<div class="ts-empty">Nothing waiting to be sent.</div>') + sentHtml(r.sent, { canSend: shop });
       wire(list, src);
     };
     src.db.ref('toSend').on('value', snap => { items = snap.val() || {}; draw(); }, () => { el.hidden = true; });
+    isShop().then(v => { shop = v; draw(); });
     if (can) wireForm(el, () => src);
   }
 
@@ -360,6 +369,7 @@
     css();
     const $ = id => el.querySelector('#' + id) || document.getElementById(id);
     const staff = isStaff();
+    let shopper = false;
     let filter = '', lastProject = '';
     try { lastProject = localStorage.getItem('afSendProject') || ''; } catch (e) {}
     $('shopAdd').innerHTML = formHtml(true);
@@ -399,14 +409,16 @@
       const shown = gs.filter(g => !filter || g.src.id === filter);
       $('shopList').innerHTML = shown.length ? shown.map(g => `<section class="grp" data-src="${esc(g.src.id)}">
           <h3>${esc(g.src.name)} <span>${g.open.length}${g.src.site ? ' · no dashboard yet' : ''}</span></h3>
-          ${g.open.map(x => rowHtml(x, now, { big: true, canRemove: x2 => x2.by === me() })).join('')}
+          ${g.open.map(x => rowHtml(x, now, { big: true, canSend: shopper, canRemove: x2 => x2.by === me() })).join('')}
         </section>`).join('') : '<div class="ts-empty" style="padding:24px 0;text-align:center">Nothing waiting to be sent. 🎉</div>';
       shown.forEach(g => wire($('shopList').querySelector(`[data-src="${CSS.escape(g.src.id)}"]`), g.src));
       // sent this week, newest first, each with its project
       const sent = [];
       lists.forEach(l => split(l.items, now).sent.forEach(x => sent.push(Object.assign({ src: l.src }, x))));
       sent.sort((a, b) => (+b.sent.at || 0) - (+a.sent.at || 0));
-      $('shopSent').innerHTML = sent.length ? sentHtml(sent, { title: 'Sent in the last 7 days', project: x => x.src.name }) : '';
+      $('shopSent').innerHTML = sent.length ? sentHtml(sent, { title: 'Sent in the last 7 days', project: x => x.src.name, canSend: shopper }) : '';
+      const who = $('shopWho');
+      if (who) who.textContent = shopper ? '' : 'Only the shop marks things Sent. You can see the list and add to it.';
       $('shopSent').querySelectorAll('[data-unsend]').forEach(b => {
         const x = sent.find(s => s.id === b.dataset.unsend);
         if (x) b.onclick = () => unsend(x.src, x.id).catch(fail('Could not save'));
@@ -445,6 +457,7 @@
     }
     API._newSite = newSite;
     watch(projects, st => { S = st; draw(); });
+    isShop().then(v => { shopper = v; if (S) draw(); });
     setInterval(() => S && draw(), 60 * 60 * 1000);
   }
 

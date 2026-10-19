@@ -25,7 +25,10 @@
    MODE=init      Start an empty database for a NEW project: rules + /meta +
                   EMAIL as its first editor.
    MODE=member    Add EMAIL to the project as ROLE (editor | gc | viewer), or
-                  ROLE=remove to take them off every list. Creates the login if
+                  ROLE=remove to take them off every list. ROLE=staff (any
+                  PROJECT, e.g. hub): a confirmed company login on no list.
+                  ROLE=shop (any PROJECT): may mark 🚚 To send "Sent" on
+                  every project; PROJECT=shop ROLE=remove takes that away. Creates the login if
                   it does not exist, so they only need "First time here".
 
    Env: MODE, PROJECT, EMAIL, ROLE, FORCE, COPY_PHOTOS (default 1),
@@ -390,13 +393,54 @@ async function initMode() {
   for (const e of EMAILS) log(`  editor ${C.maskEmail(e)} (${await ensureUser(getAuth(app), e)})`);
 }
 
+/* ROLE=staff: a company (@advfacade.com) login only — confirmed, on no list. Staff read the
+   overview and every project already; what they lack is a login whose email is confirmed.
+   An account made in the Firebase console (or self-made) is NOT confirmed, and the email
+   with the link does not always arrive (10-19). This makes or fixes it without any email. */
+async function staffMode() {
+  if (!EMAILS.length) die('EMAIL is missing');
+  const bad = EMAILS.filter(e => !isEmail(e));
+  if (bad.length) die(`not an email address: ${bad.map(C.maskEmail).join(', ')} (nothing was changed)`);
+  const outside = EMAILS.filter(e => !C.isStaff(e));
+  if (outside.length) die(`role "staff" is only for @advfacade.com addresses (${outside.map(C.maskEmail).join(', ')}): add them to a project as editor, viewer or gc instead. Nothing was changed.`);
+  const auth = getAuth(appFor(HUB.id, HUB.databaseURL, 'HUB_SERVICE_ACCOUNT'));
+  for (const e of EMAILS) log(`✓ ${C.maskEmail(e)}: company login ${await ensureUser(auth, e)} (email confirmed; no list changed).`);
+  log('They read the hub overview and every project. First time: open the hub, enter their email and tap "Forgot password" to set one.');
+}
+
+/* ROLE=shop: the people who mark 🚚 To send requests "Sent ✓" (Leo 10-19: only them, on every
+   project). A custom claim on the login (shop = true) that every database's rules check, so it
+   is one list for all projects, company email or not. PROJECT=shop with ROLE=remove takes it
+   away. It reaches a signed-in page within an hour, or at the next sign-in. */
+async function shopMode(on) {
+  if (!EMAILS.length) die('EMAIL is missing');
+  const bad = EMAILS.filter(e => !isEmail(e));
+  if (bad.length) die(`not an email address: ${bad.map(C.maskEmail).join(', ')} (nothing was changed)`);
+  const auth = getAuth(appFor(HUB.id, HUB.databaseURL, 'HUB_SERVICE_ACCOUNT'));
+  for (const e of EMAILS) {
+    let how = 'exists';
+    if (on) how = await ensureUser(auth, e);
+    let u;
+    try { u = await auth.getUserByEmail(e); } catch (er) { log(`  ${C.maskEmail(e)}: no login, nothing to remove`); continue; }
+    const claims = Object.assign({}, u.customClaims || {});
+    if (on) claims.shop = true; else delete claims.shop;
+    await auth.setCustomUserClaims(u.uid, claims);
+    log(on ? `✓ ${C.maskEmail(e)} is on the shop list (marks 🚚 Sent ✓ on every project); login ${how}.`
+           : `✓ ${C.maskEmail(e)} is off the shop list (can no longer mark Sent).`);
+  }
+  log(on ? 'It works at their next sign-in, or within an hour. Shop page: https://af-hub-two.vercel.app/send/' : '');
+}
+
 async function memberMode() {
+  if (ROLE === 'staff') return staffMode();
+  if (ROLE === 'shop') return shopMode(true);
+  if (ROLE === 'remove' && PID === 'shop') return shopMode(false);
   const p = entry(PID);
   if (!EMAILS.length) die('EMAIL is missing');
   const bad = EMAILS.filter(e => !isEmail(e));
   if (bad.length) die(`not an email address: ${bad.map(C.maskEmail).join(', ')} (nothing was changed)`);
   const node = { editor: 'allowlist', gc: 'gcList', viewer: 'viewers' }[ROLE];
-  if (!node && ROLE !== 'remove') die('ROLE must be editor, gc, viewer or remove');
+  if (!node && ROLE !== 'remove') die('ROLE must be editor, gc, viewer, staff, shop or remove');
   if (p.rules && ROLE === 'gc') die(`"${p.id}" has no GC list: use editor or viewer`);
   const app = appFor(p.id, p.databaseURL, 'HUB_SERVICE_ACCOUNT');
   const meta = (await getDatabase(app).ref('meta/project').once('value')).val();

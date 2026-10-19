@@ -348,7 +348,7 @@
 <script src="af-hub-config.js"></script>
 <script src="hub-stamp.js"></script>
 <script src="core/roster.js?v=20261019c"></script>
-<script src="core/tosend.js?v=20261019c"></script>
+<script src="core/tosend.js?v=20261019d"></script>
 <script>
 /* ────────────────────────────────────────────────────────────────────────
    AF Hub — executive overview
@@ -706,7 +706,8 @@ function showGate(msg){
     const n = showNote('<b>Confirm your email to see progress.</b> We send one link to '
       + esc(user.email) + '; open it, then tap “I opened the link”.'
       + '<div><button class="btn btn-primary" type="button" id="vSend">Send the link</button>'
-      + '<button class="btn" type="button" id="vDone">I opened the link</button></div><div class="nmsg" id="vMsg"></div>');
+      + '<button class="btn" type="button" id="vDone">I opened the link</button></div><div class="nmsg" id="vMsg"></div>'
+      + '<div class="nmsg" style="margin-top:6px">No email after a few minutes? Look in Junk / Quarantine, or ask Leo to confirm your account (no email needed).</div>');
     const msg = t => { document.getElementById('vMsg').textContent = t; };
     n.querySelector('#vSend').onclick = () => user.sendEmailVerification()
       .then(() => msg('Sent. It comes from firebaseapp.com — check spam the first time.'))

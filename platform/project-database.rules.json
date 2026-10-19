@@ -101,14 +101,16 @@
       }
     },
 
-    // 🚚 To send (core/tosend.js): what the site needs from the shop, until someone marks it
-    // sent. Editors (foremen, PM) add and remove any; staff add (Shop page) and change or
-    // remove only their own; editors, viewers and staff mark it sent. Not the GC.
+    // 🚚 To send (core/tosend.js): what the site needs from the shop, until the shop marks it
+    // sent. Editors (foremen, PM) add and remove any; staff add (Shop page) and change or remove
+    // only their own. Only the SHOP marks it sent or undoes that (Leo 10-19): accounts with the
+    // custom claim shop = true (Actions → Project database, member, role shop) — on every
+    // project, company email or not. They also read the list. Not the GC.
     "toSend": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists() || auth.token.shop == true)",
       "$id": {
         ".write": "auth != null && auth.token.email_verified == true && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || (auth.token.email.matches(/@advfacade\\.com$/i) && (!data.exists() || data.child('by').val() == auth.token.email)))",
-        ".validate": "newData.hasChildren(['what', 'by', 'at', '_project']) && root.child('meta/project').isString() && newData.child('_project').val() == root.child('meta/project').val() && (data.exists() || newData.child('by').val() == auth.token.email)",
+        ".validate": "newData.hasChildren(['what', 'by', 'at', '_project']) && root.child('meta/project').isString() && newData.child('_project').val() == root.child('meta/project').val() && (data.exists() || newData.child('by').val() == auth.token.email) && (auth.token.shop == true || data.child('sent').exists() == newData.child('sent').exists())",
         "what": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200" },
         "by": { ".validate": "newData.isString()" },
         "at": { ".validate": "newData.isNumber()" },
@@ -118,7 +120,7 @@
         "note": { ".validate": "newData.isString() && newData.val().length <= 300" },
         "photo": { ".validate": "newData.isString() && newData.val().length <= 1500 && (newData.val().beginsWith('https://') || newData.val().beginsWith('http://'))" },
         "sent": {
-          ".write": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+          ".write": "auth != null && auth.token.email_verified == true && auth.token.shop == true",
           ".validate": "newData.hasChildren(['by', 'at']) && newData.child('by').val() == auth.token.email",
           "by": { ".validate": "newData.isString()" },
           "at": { ".validate": "newData.isNumber()" },

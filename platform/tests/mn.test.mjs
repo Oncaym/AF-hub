@@ -75,6 +75,10 @@ ok(!as(EDITOR).write('/meta/project', 'ac3').allowed, 'no page can change /meta'
 ok(as(LEO).write('/toSend/t1', { what: 'GL-4 IGU', by: 'leosun@advfacade.com', at: 1, _project: 'mn' }).allowed, '🚚 To send works here too (stamped mn)');
 ok(!as(LEO).write('/toSend/t1', { what: 'GL-4 IGU', by: 'leosun@advfacade.com', at: 1, _project: 'ac3' }).allowed, '… and refuses another project\'s stamp');
 ok(!as(EDITOR).write('/somethingElse', 1).allowed, 'nothing else can be written');
+const SHOP = who('shop.lead@gmail.com'); SHOP.token.shop = true;
+const withAsk = targaryen.database(rules, Object.assign({}, DATA, { toSend: { t1: { what: 'GL-4', by: 'leosun@advfacade.com', at: 1, _project: 'mn' } } }), 1790000000000);
+ok(withAsk.as(SHOP).write('/toSend/t1/sent', { by: 'shop.lead@gmail.com', at: 2 }).allowed && !withAsk.as(LEO).write('/toSend/t1/sent', { by: 'leosun@advfacade.com', at: 2 }).allowed,
+   'only the shop list marks a Morgan North request sent');
 
 console.log(`morgan north: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

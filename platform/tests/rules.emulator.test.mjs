@@ -25,7 +25,7 @@ function ctxOf(name) {
   const p = P[name];
   if (!p) return env.unauthenticatedContext();
   if (p.anonymous) return env.authenticatedContext(p.uid, { firebase: { sign_in_provider: 'anonymous' } });
-  return env.authenticatedContext(p.uid, { email: p.email, email_verified: p.verified, firebase: { sign_in_provider: 'password' } });
+  return env.authenticatedContext(p.uid, Object.assign({ email: p.email, email_verified: p.verified, firebase: { sign_in_provider: 'password' } }, p.claims || {}));
 }
 const clean = v => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
 

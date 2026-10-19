@@ -2,7 +2,9 @@
 #
 #   dry-run  show what moving the project's old Firebase into af-hub would copy (writes nothing)
 #   migrate  move it: rules first, freeze the old database, copy, check every byte
-#   member   add / change / remove one person (email + role)
+#   member   add / change / remove one person (email + role). role staff = a company login only,
+#            already confirmed (no email needed), for people who just need to read
+#            role shop = the people who mark 🚚 To send "Sent" (every project); project = shop
 #   (mn = Morgan North, Benji's page hosted as-is: migrate copies units + plan from his open
 #    database, email = the editors to add; run it again with force to refresh before the switch)
 #   rules    put platform/project-database.rules.json on the project ("all" = every project);
@@ -33,9 +35,9 @@ on:
         type: string
         required: false
       role:
-        description: 'member: editor (can change), gc, viewer, or remove'
+        description: 'member: editor, gc, viewer, remove · staff = @advfacade.com login only (project: hub) · shop = may mark To send Sent on every project (project: shop; remove + project shop takes it away)'
         type: choice
-        options: [editor, gc, viewer, remove]
+        options: [editor, gc, viewer, staff, shop, remove]
         default: editor
       force:
         description: 'migrate / init: replace data already in the new database'

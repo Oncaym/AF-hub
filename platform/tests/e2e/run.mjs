@@ -32,7 +32,7 @@ const { chromium } = require('playwright');
 const PW = 'test-password-1';
 const LEO = 'leo.sun@advfacade.com';       // staff, editor on ac3 AND lex
 const JOE = 'joe.foreman@gmail.com';       // editor on ac3 only, personal email
-const BOSS = 'boss@advfacade.com';         // staff, on no list
+const BOSS = 'boss@advfacade.com';         // staff, on no list; on the shop list (custom claim shop)
 const GC = 'pm@turner.com';                // GC on ac3
 const NEWBIE = 'new.hire@advfacade.com';   // email not verified yet
 const key = e => e.replace(/\./g, ',');
@@ -86,11 +86,11 @@ class FakeBackend {
   /** withRules: true = the project rules, a string = that rules file's text, false = open. */
   async seed(url, tree, withRules = true) { this.dbs[url] = clone(tree); if (withRules) this.ruled.add(url); if (typeof withRules === 'string') this.rulesOf[url] = ruleTree(withRules); }
   async read(url, p) { return clone(dget(this.dbs[url] || {}, p)); }
-  async createUser(email, verified) { this.users[email] = { uid: 'u_' + email.replace(/\W/g, '_'), email, emailVerified: !!verified, password: PW }; }
+  async createUser(email, verified, claims) { this.users[email] = { uid: 'u_' + email.replace(/\W/g, '_'), email, emailVerified: !!verified, password: PW, claims: claims || null }; }
   async verify(email) { this.users[email].emailVerified = true; }
   handle(op, a) {
     const now = Date.now();
-    if (op === 'signIn') { const u = this.users[a.email]; return u && u.password === a.password ? { uid: u.uid, email: u.email, emailVerified: u.emailVerified } : null; }
+    if (op === 'signIn') { const u = this.users[a.email]; return u && u.password === a.password ? { uid: u.uid, email: u.email, emailVerified: u.emailVerified, claims: u.claims || null } : null; }
     if (op === 'user') { const u = Object.values(this.users).find(x => x.uid === a.uid); return u ? { emailVerified: u.emailVerified } : null; }
     if (op === 'sendVerification' || op === 'reset' || op === 'upload') return null;
     const data = this.dbs[a.url] = this.dbs[a.url] || {};
@@ -152,11 +152,12 @@ class EmulatorBackend {
   }
   async read(url, p) { return (await this.D.getDatabase(this.app(url)).ref(p).once('value')).val() ?? undefined; }
   authAdmin() { return this.U.getAuth(this.apps.__auth = this.apps.__auth || this.A.initializeApp({ projectId: 'demo-afhub' }, 'auth')); }
-  async createUser(email, verified) {
+  async createUser(email, verified, claims) {
     // The migration test that runs before this one may already have made the account.
     const a = this.authAdmin();
     try { const u = await a.getUserByEmail(email); await a.updateUser(u.uid, { password: PW, emailVerified: !!verified }); }
     catch (e) { if (e.code !== 'auth/user-not-found') throw e; await a.createUser({ email, password: PW, emailVerified: !!verified }); }
+    await a.setCustomUserClaims((await a.getUserByEmail(email)).uid, claims || null);
   }
   async verify(email) { const u = await this.authAdmin().getUserByEmail(email); await this.authAdmin().updateUser(u.uid, { emailVerified: true }); }
   async attach(context) {
@@ -288,7 +289,8 @@ async function edit(page, status) {
     units: { '10-1~35~1': { status: 'replaced', date: '2026-10-01', crew: 'A', notes: '' } },
     plan: { rev: 1, building: 'Morgan North', windows: [{ id: '10-1', face: 'E', floor: 10, rows: 2, cols: 2, mode: 'pane', type: 'H', replace: [1, 2, 4] }] },
   }, MN_RULES);
-  for (const e of [LEO, JOE, BOSS, GC]) await B.createUser(e, true);
+  for (const e of [LEO, JOE, GC]) await B.createUser(e, true);
+  await B.createUser(BOSS, true, { shop: true });   // the shop list (custom claim): marks 🚚 Sent
   await B.createUser(NEWBIE, false);
   const lexBefore = JSON.stringify(await B.read(LEX, 'state'));
   // PW_EXEC: a Chromium already on the machine (same switch as the design e2e tests).
@@ -469,6 +471,7 @@ async function edit(page, status) {
     ok(await until(async () => Object.values((await B.read(AC3, 'toSend')) || {}).some(x => x.what === 'SF04 sidelite' && x.by === JOE && x._project === 'ac3')), 'it lands in AC3, signed by the foreman');
     await wh10.evaluate(by => { firebase.database().ref('toSend').push().set({ what: 'SD01 sidelite', by, at: Date.now() - 8 * 864e5, _project: 'ac3' }); }, JOE);
     ok(await until(() => wh10.evaluate(() => /SD01 sidelite[\s\S]*8 days[\s\S]*SF04 sidelite[\s\S]*today/.test(document.getElementById('toSendList').innerText))), 'the list puts the oldest first, with its age');
+    ok(await wh10.evaluate(() => !document.querySelector('#toSendList [data-sent]')), 'the foreman (an editor, not on the shop list) gets no Sent ✓ button');
     await shot(wh10, '10-warehouse-to-send');
     await page.evaluate(() => window.__fbRefresh && window.__fbRefresh());
     ok(await until(() => page.evaluate(() => { const b = document.querySelector('a[href="warehouse.html"] .to-send-n'); return !!b && /🚚 2/.test(b.textContent) && /red/.test(b.style.cssText); })), 'the tracker\'s Warehouse link shows 🚚 2, red (one waits 8 days)');

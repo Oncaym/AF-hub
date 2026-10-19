@@ -19,7 +19,7 @@ function authOf(name) {
   if (!p) return null;
   if (p.anonymous) return { uid: p.uid, provider: 'anonymous', token: { firebase: { sign_in_provider: 'anonymous' } } };
   return { uid: p.uid, provider: 'password',
-    token: { email: p.email, email_verified: p.verified, firebase: { sign_in_provider: 'password' } } };
+    token: Object.assign({ email: p.email, email_verified: p.verified, firebase: { sign_in_provider: 'password' } }, p.claims || {}) };
 }
 const clean = v => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
 

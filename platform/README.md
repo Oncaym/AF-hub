@@ -139,9 +139,9 @@ GitHub → **Actions → Project database → Run workflow**：
 - **有 dashboard 的项目**：工头（editor）在 tracker 的 📦 Warehouse 页最上面也能加；tracker 的 Warehouse 链接后面会显示「🚚 N」。数据在项目自己的数据库 `/toSend`。
 - **什么算晚了（红色）**：填了需要日期的，当天和之后算晚；没填日期的，挂了 2 天以上算晚。
 - **谁能做什么**：
-  - 有 dashboard 的项目：editor 加、删任何一条；公司邮箱的人加，只能改、删自己加的；editor、viewer、公司邮箱都能点 Sent；GC 看不到。
-  - 没有 dashboard 的项目：只有公司邮箱的人能看、能加、能点 Sent；只能改、删自己加的。
-  - 工厂的人没有公司邮箱的，现在只能看到被加成 viewer 的项目（Actions → Project database → member），看不到没有 dashboard 的项目。
+  - 有 dashboard 的项目：editor 可以加、删任何一条；公司邮箱的人可以加，但只能改、删自己加的；GC 看不到。
+  - 没有 dashboard 的项目：公司邮箱的人可以看、可以加，只能改、删自己加的。
+  - **点 Sent ✓、undo 只能是 shop 名单上的人**（见「日常操作」），所有项目都是。shop 名单上的人也能看所有项目的清单，非公司邮箱也行。
 - **规则**：项目数据库用 Actions → Project database → `mode = rules`、`project = all`。`all` 现在也包括 hub 自己的数据库（`firebase-database-rules.json`），不用再去 console 里贴；换之前的旧规则会存一份在 hub 数据库的 `/_admin/rulesBefore`。只换 hub 的：`project = hub`。
 
 ## Morgan North（Benji 的 Glass Replacement Tracker，2026-10-19）
@@ -168,6 +168,13 @@ Benji 自己做、自己改的页面，原样放进 hub，地址是 `/mn/`。hub
 - **照片**：Benji 的页面把照片只存在拍照的那个浏览器里，hub 版也一样。要共享得改他的页面。
 
 ## 日常操作
+
+**加人一律用这个 workflow，不要在 Firebase console 里加。** console 里建的账号没有确认过邮箱，登录后会被要求确认，确认邮件又不一定能收到（10-19 haodong 就是这样）。用 workflow 建的账号已经确认过，第一次登录只要设一个密码。
+- **🚚 谁能点 Sent ✓**：只有 shop 名单上的人（10-19 Leo 定的），所有项目都一样，公司邮箱和非公司邮箱都可以。
+  - 加人：`mode = member`、`project = shop`、`role = shop`、`email = …`（可以一次填好几个）。
+  - 拿掉：`project = shop`、`role = remove`。
+  - 加完以后，对方重新登录一次就生效（最晚一小时）。
+- 公司同事只需要看（总览 + 所有项目只读）：`mode = member`、`project = hub`、`role = staff`、`email = 他的 @advfacade.com 邮箱`。console 里建过、卡在确认邮箱那一步的账号，也这样跑一次就好了。
 
 **加人 / 改权限 / 删人**：Actions → Project database → Run workflow
 - `mode = member`

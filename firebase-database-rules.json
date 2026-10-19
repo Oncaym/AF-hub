@@ -74,11 +74,12 @@
 
     // 🚚 To send — projects WITHOUT a dashboard yet (core/tosend.js, /send/ Shop page).
     // Projects with a dashboard keep their requests in their own database (/toSend there).
-    // Staff (verified @advfacade.com) add projects and requests and mark them sent; a request
-    // is changed or removed only by whoever added it, or an admin. A project is never
+    // Staff (verified @advfacade.com) add projects and requests; a request is changed or removed
+    // only by whoever added it, or an admin. Only the shop (custom claim shop = true) marks it
+    // sent or undoes that (Leo 10-19); the shop also reads the list. A project is never
     // deleted from the page, only marked done (hidden); admins can delete.
     "sendSites": {
-      ".read": "(auth != null && auth.token.email_verified == true && auth.token.email.matches(/@advfacade\\.com$/i)) || (auth != null && root.child('admins').child(auth.uid).exists())",
+      ".read": "(auth != null && auth.token.email_verified == true && auth.token.email.matches(/@advfacade\\.com$/i)) || (auth != null && root.child('admins').child(auth.uid).exists()) || (auth != null && auth.token.email_verified == true && auth.token.shop == true)",
       "$site": {
         ".write": "((auth != null && auth.token.email_verified == true && auth.token.email.matches(/@advfacade\\.com$/i)) || (auth != null && root.child('admins').child(auth.uid).exists())) && (newData.exists() || (auth != null && root.child('admins').child(auth.uid).exists()))",
         ".validate": "$site.matches(/^s_[a-z0-9_]+$/) && $site.length <= 40 && newData.hasChildren(['name', 'by', 'at'])",
@@ -90,11 +91,11 @@
       }
     },
     "toSend": {
-      ".read": "(auth != null && auth.token.email_verified == true && auth.token.email.matches(/@advfacade\\.com$/i)) || (auth != null && root.child('admins').child(auth.uid).exists())",
+      ".read": "(auth != null && auth.token.email_verified == true && auth.token.email.matches(/@advfacade\\.com$/i)) || (auth != null && root.child('admins').child(auth.uid).exists()) || (auth != null && auth.token.email_verified == true && auth.token.shop == true)",
       "$site": {
         "$id": {
           ".write": "((auth != null && auth.token.email_verified == true && auth.token.email.matches(/@advfacade\\.com$/i)) || (auth != null && root.child('admins').child(auth.uid).exists())) && (!data.exists() || data.child('by').val() == auth.token.email || (auth != null && root.child('admins').child(auth.uid).exists()))",
-          ".validate": "newData.hasChildren(['what', 'by', 'at', '_project']) && newData.child('_project').val() == $site && root.child('sendSites').child($site).exists() && (data.exists() || newData.child('by').val() == auth.token.email)",
+          ".validate": "newData.hasChildren(['what', 'by', 'at', '_project']) && newData.child('_project').val() == $site && root.child('sendSites').child($site).exists() && (data.exists() || newData.child('by').val() == auth.token.email) && (auth.token.shop == true || (auth != null && root.child('admins').child(auth.uid).exists()) || data.child('sent').exists() == newData.child('sent').exists())",
           "what": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200" },
           "by": { ".validate": "newData.isString()" },
           "at": { ".validate": "newData.isNumber()" },
@@ -104,7 +105,7 @@
           "note": { ".validate": "newData.isString() && newData.val().length <= 300" },
           "photo": { ".validate": "newData.isString() && newData.val().length <= 1500 && (newData.val().beginsWith('https://') || newData.val().beginsWith('http://'))" },
           "sent": {
-            ".write": "(auth != null && auth.token.email_verified == true && auth.token.email.matches(/@advfacade\\.com$/i)) || (auth != null && root.child('admins').child(auth.uid).exists())",
+            ".write": "(auth != null && auth.token.email_verified == true && auth.token.shop == true) || (auth != null && root.child('admins').child(auth.uid).exists())",
             ".validate": "newData.hasChildren(['by', 'at']) && newData.child('by').val() == auth.token.email",
             "by": { ".validate": "newData.isString()" },
             "at": { ".validate": "newData.isNumber()" },

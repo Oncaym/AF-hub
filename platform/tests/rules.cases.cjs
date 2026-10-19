@@ -5,7 +5,7 @@
 const key = e => e.replace(/\./g, ',');
 const NOW = 1790000000000;
 
-const person = (email, verified = true) => ({ uid: 'u_' + email.replace(/\W/g, '_'), email, verified });
+const person = (email, verified = true, claims) => ({ uid: 'u_' + email.replace(/\W/g, '_'), email, verified, claims });
 const P = {
   EDITOR:   person('leo.sun@advfacade.com'),   // staff AND on the allowlist
   FOREMAN:  person('joe.foreman@gmail.com'),   // editor by allowlist, personal email
@@ -14,6 +14,7 @@ const P = {
   GC:       person('pm@turner.com'),           // on gcList
   VIEWER:   person('owner.rep@client.com'),    // on viewers
   STRANGER: person('someone@gmail.com'),       // signed in, no access here
+  SHOP:     person('shop.lead@gmail.com', true, { shop: true }),  // on the shop list (custom claim), on no project list
   FAKE:     person('fake@advfacade.com', false), // self-signup, unverified
   ANON:     { uid: 'anon1', anonymous: true },
   NOBODY:   null,
@@ -137,7 +138,7 @@ c('editor cannot overwrite the whole fab node', 'EDITOR', 'set', '/fab', { f1: f
 
 // 🚚 to send: the foreman adds, the shop (staff) marks sent, the GC sees nothing
 const ask = (who, project, extra) => Object.assign({ what: 'SF04 sidelite', by: who.email, at: NOW, _project: project }, extra || {});
-for (const [who, want] of [['EDITOR', true], ['FOREMAN', true], ['STAFF', true], ['VIEWER', true], ['GC', false], ['STRANGER', false], ['ANON', false]])
+for (const [who, want] of [['EDITOR', true], ['FOREMAN', true], ['STAFF', true], ['VIEWER', true], ['SHOP', true], ['GC', false], ['STRANGER', false], ['ANON', false]])
   c(`read /toSend as ${who}`, who, 'read', '/toSend', undefined, want);
 c('foreman asks for something', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'ac3'), true);
 c('staff (not an editor) adds a request (Shop page, 2026-10-19)', 'STAFF', 'set', '/toSend/t1', ask(P.STAFF, 'ac3'), true);
@@ -146,13 +147,23 @@ c('a request stamped with ANOTHER project is refused', 'FOREMAN', 'set', '/toSen
 c('a request in somebody else\'s name is refused', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'ac3', { by: P.EDITOR.email }), false);
 c('an empty request is refused', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'ac3', { what: '' }), false);
 const WITH_ASK = Object.assign({}, AC3, { toSend: { t1: ask(P.FOREMAN, 'ac3') } });
-c('the shop (staff) marks it sent', 'STAFF', 'set', '/toSend/t1/sent', { by: P.STAFF.email, at: NOW }, true, WITH_ASK);
-c('a viewer marks it sent', 'VIEWER', 'set', '/toSend/t1/sent', { by: P.VIEWER.email, at: NOW }, true, WITH_ASK);
-c('sent in somebody else\'s name is refused', 'STAFF', 'set', '/toSend/t1/sent', { by: P.EDITOR.email, at: NOW }, false, WITH_ASK);
+// only the shop list marks it sent (Leo 10-19: a read-only company account could)
+c('the shop marks it sent', 'SHOP', 'set', '/toSend/t1/sent', { by: P.SHOP.email, at: NOW }, true, WITH_ASK);
+c('staff (not on the shop list) cannot mark it sent', 'STAFF', 'set', '/toSend/t1/sent', { by: P.STAFF.email, at: NOW }, false, WITH_ASK);
+c('a viewer cannot mark it sent', 'VIEWER', 'set', '/toSend/t1/sent', { by: P.VIEWER.email, at: NOW }, false, WITH_ASK);
+c('an editor cannot mark it sent', 'FOREMAN', 'set', '/toSend/t1/sent', { by: P.FOREMAN.email, at: NOW }, false, WITH_ASK);
+c('an editor cannot mark it sent by rewriting the request', 'FOREMAN', 'set', '/toSend/t1', ask(P.FOREMAN, 'ac3', { sent: { by: P.FOREMAN.email, at: NOW } }), false, WITH_ASK);
+c('sent in somebody else\'s name is refused', 'SHOP', 'set', '/toSend/t1/sent', { by: P.EDITOR.email, at: NOW }, false, WITH_ASK);
 c('the gc cannot mark it sent', 'GC', 'set', '/toSend/t1/sent', { by: P.GC.email, at: NOW }, false, WITH_ASK);
 c('staff cannot change what was asked', 'STAFF', 'set', '/toSend/t1/what', 'something else', false, WITH_ASK);
 c('staff cannot remove a request', 'STAFF', 'set', '/toSend/t1', null, false, WITH_ASK);
-c('marking sent cannot create a request', 'STAFF', 'set', '/toSend/t9/sent', { by: P.STAFF.email, at: NOW }, false);
+c('marking sent cannot create a request', 'SHOP', 'set', '/toSend/t9/sent', { by: P.SHOP.email, at: NOW }, false);
+const WITH_SENT = Object.assign({}, AC3, { toSend: { t1: ask(P.FOREMAN, 'ac3', { sent: { by: P.SHOP.email, at: NOW } }) } });
+c('the shop undoes Sent', 'SHOP', 'set', '/toSend/t1/sent', null, true, WITH_SENT);
+c('an editor cannot undo Sent', 'FOREMAN', 'set', '/toSend/t1/sent', null, false, WITH_SENT);
+c('staff cannot undo Sent', 'STAFF', 'set', '/toSend/t1/sent', null, false, WITH_SENT);
+c('an editor still removes a sent request', 'EDITOR', 'set', '/toSend/t1', null, true, WITH_SENT);
+c('the shop cannot add requests (only Sent)', 'SHOP', 'set', '/toSend/t2', ask(P.SHOP, 'ac3'), false);
 c('an editor removes a request', 'EDITOR', 'set', '/toSend/t1', null, true, WITH_ASK);
 // staff's own request: they can change and remove it; the optional fields are checked
 const WITH_STAFF_ASK = Object.assign({}, AC3, { toSend: { t2: ask(P.STAFF, 'ac3') } });
