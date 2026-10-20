@@ -10,7 +10,7 @@
       ]
     },
     {
-      "source": "/(design|assistant|send|mn)/(.*)",
+      "source": "/(design|assistant|send|mn|followup)/(.*)",
       "headers": [
         {
           "key": "Cache-Control",

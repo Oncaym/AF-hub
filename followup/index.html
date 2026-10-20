@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>📬 Follow-up — Advanced Facade</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1419'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle'%3E%F0%9F%93%AC%3C/text%3E%3C/svg%3E">
+<style>
+  /* 📬 Follow-up (core/followup.js → AF_FOLLOWUP.view). Palette = the hub's and the trackers'. */
+  :root {
+    --bg: #0f1419; --panel: #1a2028; --panel-2: #232b36; --border: #2d3744;
+    --text: #e6edf3; --text-dim: #8b949e; --accent: #4493f8;
+    --green: #2ea043; --yellow: #d29922; --red: #f85149;
+  }
+  body.day-mode {
+    --bg: #f2f4f7; --panel: #ffffff; --panel-2: #e9edf2; --border: #d0d7de;
+    --text: #1f2328; --text-dim: #59636e; --accent: #0969da;
+    --green: #1a7f37; --yellow: #9a6700; --red: #cf222e;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  a { color: var(--accent); }
+  header { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--border);
+    padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); }
+  .bar { max-width: 900px; margin: 0 auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; }
+  .grow { flex: 1; }
+  .btn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 11px; font-size: 13px; cursor: pointer; text-decoration: none; display: inline-block; font-family: inherit; }
+  .btn.go { background: var(--accent); border-color: var(--accent); color: #fff; }
+  main { max-width: 900px; margin: 0 auto; padding: 12px 16px 60px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+  .card h2 { margin: 0 0 6px; font-size: 17px; }
+  .card ol { margin: 6px 0 10px; padding-left: 20px; }
+  .card li { margin: 4px 0; }
+  .card code { background: var(--panel-2); border-radius: 4px; padding: 1px 5px; font-size: 13px; word-break: break-all; }
+  .chip { background: var(--panel); border: 1px solid var(--border); color: var(--text-dim); border-radius: 999px;
+    padding: 4px 11px; font-size: 12.5px; cursor: pointer; font-family: inherit; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chip.late:not(.on) { border-color: var(--red); color: var(--red); }
+
+  .fu-status { display: flex; align-items: center; gap: 10px; color: var(--text-dim); font-size: 13px; margin-bottom: 10px; flex-wrap: wrap; }
+  .fu-status #fuStatus { flex: 1; min-width: 200px; }
+  .fu-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+  .fu-chips:empty { display: none; }
+  .fu-duecount { color: var(--red); font-size: 12.5px; font-weight: 600; margin-left: 4px; }
+  .fu-err { background: color-mix(in srgb, var(--red) 12%, var(--panel)); border: 1px solid var(--red); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 14px; }
+  .grp { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 6px 14px 8px; margin-bottom: 12px; }
+  .grp.unsorted { border-style: dashed; }
+  .grp h3 { font-size: 15px; margin: 6px 0 4px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .grp h3 span { color: var(--text-dim); font-weight: 400; font-size: 12.5px; }
+  .fu-red { color: var(--red); }
+  .fu-row { display: flex; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); align-items: flex-start; }
+  .grp h3 + .fu-row { border-top: 0; }
+  .fu-main { flex: 1; min-width: 0; }
+  .fu-l1 { display: flex; gap: 8px; align-items: baseline; }
+  .fu-subj { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .fu-row.unread .fu-subj::after { content: " ●"; color: var(--accent); }
+  .fu-meta { color: var(--text-dim); font-size: 12.5px; margin-top: 1px; }
+  .fu-meta span[title] { border-bottom: 1px dotted var(--text-dim); cursor: help; }
+  .fu-prev { color: var(--text-dim); font-size: 12.5px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .85; }
+  .fu-badge { flex: none; font-size: 12px; font-weight: 600; border-radius: 6px; padding: 1px 7px; background: var(--panel-2); color: var(--text-dim); white-space: nowrap; }
+  .fu-badge.wait { color: var(--yellow); }
+  .fu-badge.reply { color: var(--accent); }
+  .fu-badge.red { background: var(--red); color: #fff; }
+  .fu-acts { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; max-width: 330px; }
+  .fu-btn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 7px;
+    padding: 4px 8px; font-size: 12.5px; cursor: pointer; text-decoration: none; font-family: inherit; white-space: nowrap; }
+  .fu-btn.ok { border-color: var(--green); color: var(--green); }
+  select.fu-btn { padding: 4px 4px; max-width: 140px; }
+  .fu-more { background: none; border: 0; color: var(--text-dim); font-size: 13px; padding: 8px 0 4px; cursor: pointer; font-family: inherit; }
+  .fu-empty { color: var(--text-dim); padding: 14px 2px; font-size: 14px; }
+  .fu-box { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; }
+  .fu-box > summary { cursor: pointer; font-size: 14px; color: var(--text-dim); }
+  .fu-box[open] > summary { margin-bottom: 8px; }
+  .fu-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .fu-form.col { flex-direction: column; align-items: stretch; font-size: 14px; }
+  .fu-form input, .fu-form select, .fu-form textarea { background: var(--bg); border: 1px solid var(--border); border-radius: 7px;
+    color: var(--text); padding: 7px 9px; font: inherit; font-size: 14px; }
+  .fu-form #fuWhat { flex: 1; min-width: 200px; }
+  .fu-form textarea { width: 100%; margin-top: 4px; }
+  .fu-kw { display: flex; gap: 8px; align-items: center; }
+  .fu-kw span { width: 130px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fu-kw input[data-kw] { flex: 1; min-width: 0; }
+  .fu-dim { color: var(--text-dim); font-size: 13px; }
+  .fu-toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--text); color: var(--bg);
+    padding: 9px 16px; border-radius: 9px; font-size: 14px; z-index: 20; max-width: calc(100% - 32px); box-shadow: 0 4px 18px rgba(0,0,0,.3); }
+
+  .gate { max-width: 340px; margin: 12vh auto 0; padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
+  .gate h2 { margin: 0; }
+  .gate p { margin: 0 0 6px; color: var(--text-dim); font-size: 14px; }
+  .gate input, #setup input { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 11px 12px;
+    font-size: 15px; color: var(--text); font-family: inherit; }
+  .gate .go { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 11px; font-size: 15px; cursor: pointer; }
+  .err { color: var(--red); font-size: 13px; min-height: 18px; }
+  .note { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin: 16px; }
+  #setup .row { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-size: 14px; }
+
+  @media (max-width: 640px) {
+    .fu-row { flex-direction: column; gap: 6px; }
+    .fu-main { width: 100%; }
+    .fu-acts { justify-content: flex-start; max-width: none; }
+    .fu-btn { padding: 6px 9px; font-size: 13px; }
+    .fu-subj { white-space: normal; }
+    .fu-kw { flex-wrap: wrap; }
+    .fu-kw span { width: auto; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app" hidden>
+  <header>
+    <div class="bar">
+      <h1>📬 Follow-up</h1>
+      <span class="grow"></span>
+      <a class="btn" href="/" title="Project overview">Hub</a>
+      <button class="btn" type="button" id="theme" title="Day / night">☀️</button>
+      <button class="btn" type="button" id="out" title="Sign out of the hub"><span id="me"></span> · Sign out</button>
+    </div>
+  </header>
+  <main>
+    <!-- Step 1, once: the Microsoft app id (Azure → App registrations) -->
+    <div class="card" id="setup" hidden>
+      <h2>Connect Outlook — one time</h2>
+      <p class="fu-dim" style="margin:0 0 8px">This page reads your mailbox <b>read-only</b>, in this browser. No email is saved anywhere — only what you mark Done / Snooze, your to-dos and these settings, which only you can see.</p>
+      <ol>
+        <li>Open <a href="https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">Microsoft Entra → App registrations</a> (sign in with your company email) → <b>New registration</b>.</li>
+        <li>Name <code>AF Follow-up</code> · Accounts: <b>this organizational directory only</b> · Redirect URI: platform <b>Single-page application (SPA)</b>, URL <code id="redir"></code> → <b>Register</b>.</li>
+        <li>Copy <b>Application (client) ID</b> and <b>Directory (tenant) ID</b> from the overview page into the boxes below.</li>
+      </ol>
+      <p class="fu-dim" style="margin:0 0 6px">If Microsoft says you don't have permission to register apps, send the same three steps to whoever manages the company's Microsoft 365.</p>
+      <div class="row">Application (client) ID <input id="cid" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" spellcheck="false"></div>
+      <div class="row">Directory (tenant) ID <input id="tid" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" spellcheck="false"></div>
+      <div class="err" id="setupErr"></div>
+      <button class="btn go" type="button" id="saveMs">Save and connect</button>
+    </div>
+
+    <!-- Step 2: sign in to Microsoft -->
+    <div class="card" id="connect" hidden>
+      <h2>Connect Outlook</h2>
+      <p class="fu-dim" style="margin:0 0 10px">Sign in with your company Microsoft account. The first time, Microsoft asks you to allow <b>Read your mail</b> and <b>Sign you in</b>.</p>
+      <div class="err" id="connErr"></div>
+      <button class="btn go" type="button" id="msLogin">Sign in to Outlook</button>
+      <button class="btn" type="button" id="msReset" style="margin-left:6px">Change app id</button>
+    </div>
+
+    <div id="fu" hidden></div>
+  </main>
+</div>
+
+<div class="note" id="note" hidden></div>
+
+<form class="gate" id="gate" hidden>
+  <h2>📬 Follow-up</h2>
+  <p>Who you're waiting on and who's waiting on you, per project — from your Outlook. Sign in with your hub account.</p>
+  <input type="email" id="email" placeholder="you@advfacade.com" autocomplete="email" required>
+  <input type="password" id="pw" placeholder="Password" autocomplete="current-password" required>
+  <button class="go" type="submit" id="go">Sign in</button>
+  <div class="err" id="err"></div>
+  <a href="/" style="font-size:13px">Forgot password or first time here? Use the hub →</a>
+</form>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="msal-browser-4.30.0.min.js"></script>
+<script src="../af-hub-config.js"></script>
+<script src="../core/followup.js?v=20261020a"></script>
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  try { if (localStorage.getItem('af_hub_theme') === 'day') document.body.classList.add('day-mode'); } catch (e) {}
+  $('theme').onclick = () => {
+    const day = document.body.classList.toggle('day-mode');
+    try { localStorage.setItem('af_hub_theme', day ? 'day' : 'night'); } catch (e) {}
+  };
+  const REDIRECT = location.origin + '/followup/';
+  $('redir').textContent = REDIRECT;
+  const SCOPES = ['User.Read', 'Mail.Read'];
+  const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const note = html => { $('note').hidden = !html; $('note').innerHTML = html || ''; };
+
+  const cfg = window.AF_HUB_FIREBASE;
+  if (!cfg || typeof firebase === 'undefined') { note('Could not load. Check the connection and reload.'); return; }
+  firebase.initializeApp(cfg);
+  const auth = firebase.auth();
+  const db = firebase.database();
+
+  let started = false, ref = null, view = null, msKey = null;
+  const listeners = [];
+  const store = {
+    data: {},
+    setMark: (k, v) => ref.child('marks/' + k).set(v || null),
+    addTodo: v => ref.child('todos').push().set(v),
+    setTodo: (id, v) => ref.child('todos/' + id).set(v || null),
+    setCfg: (f, v) => ref.child('cfg/' + f).set(v == null ? null : v),
+    onChange: fn => listeners.push(fn),
+  };
+
+  auth.onAuthStateChanged(u => {
+    if (!u || u.isAnonymous) { $('app').hidden = true; note(''); $('gate').hidden = false; return; }
+    $('gate').hidden = true;
+    $('me').textContent = (u.email || '').split('@')[0];
+    if (!u.emailVerified) { note('Confirm your email first: open the <a href="/">hub</a>, tap “Send the link” and open it. Then reload this page.'); return; }
+    note('');
+    $('app').hidden = false;
+    if (started) return;
+    started = true;
+    ref = db.ref('followup/' + u.uid);
+    ref.on('value', s => {
+      store.data = s.val() || {};
+      const ms = (store.data.cfg && store.data.cfg.ms) || null;
+      const k = ms ? ms.clientId + '|' + (ms.tenant || '') : '';
+      if (k !== msKey) { msKey = k; start(ms, u.email); }
+      else listeners.forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
+    }, err => note('Could not open your follow-up list (' + (err && err.code || err) + '). The hub database rules may need updating: Actions → Project database → mode <b>rules</b>, project <b>hub</b>.'));
+  });
+  $('gate').addEventListener('submit', async e => {
+    e.preventDefault();
+    $('err').textContent = '';
+    try { await auth.signInWithEmailAndPassword($('email').value.trim(), $('pw').value); }
+    catch (er) { $('err').textContent = /wrong-password|invalid-credential|user-not-found|invalid-login/.test(er.code || '') ? 'Wrong email or password.' : (er.message || er.code); }
+  });
+  $('out').onclick = () => auth.signOut().then(() => location.reload());
+
+  // ---- step 1: the Microsoft app id
+  $('saveMs').onclick = () => {
+    const cid = $('cid').value.trim(), tid = $('tid').value.trim();
+    $('setupErr').textContent = '';
+    if (!GUID.test(cid)) { $('setupErr').textContent = 'The Application (client) ID looks like xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.'; return; }
+    if (tid && !GUID.test(tid)) { $('setupErr').textContent = 'The Directory (tenant) ID looks like xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.'; return; }
+    store.setCfg('ms', tid ? { clientId: cid, tenant: tid } : { clientId: cid }).catch(er => { $('setupErr').textContent = 'Not saved: ' + (er.message || er); });
+  };
+  $('msReset').onclick = () => store.setCfg('ms', null);
+
+  // ---- step 2: Microsoft sign-in (MSAL, redirect flow — works on phones too)
+  let pca = null, account = null;
+  async function start(ms, email) {
+    $('setup').hidden = true; $('connect').hidden = true; $('fu').hidden = true;
+    if (view) { view.stop(); view = null; $('fu').innerHTML = ''; }
+    if (!ms || !ms.clientId) { $('setup').hidden = false; return; }
+    if (typeof msal === 'undefined') { note('Could not load the Microsoft sign-in library. Check the connection and reload.'); return; }
+    try {
+      pca = new msal.PublicClientApplication({
+        auth: { clientId: ms.clientId, authority: 'https://login.microsoftonline.com/' + (ms.tenant || 'organizations'), redirectUri: REDIRECT, navigateToLoginRequestUrl: false },
+        cache: { cacheLocation: 'localStorage' },
+      });
+      await pca.initialize();
+      const res = await pca.handleRedirectPromise();
+      account = (res && res.account) || pca.getActiveAccount() || pca.getAllAccounts()[0] || null;
+    } catch (e) {
+      $('connect').hidden = false;
+      $('connErr').textContent = msError(e);
+      return;
+    }
+    if (!account) { $('connect').hidden = false; $('msLogin').onclick = () => pca.loginRedirect({ scopes: SCOPES, loginHint: email, prompt: 'select_account' }); return; }
+    pca.setActiveAccount(account);
+    $('fu').hidden = false;
+    const getToken = async () => {
+      try { return (await pca.acquireTokenSilent({ scopes: SCOPES, account })).accessToken; }
+      catch (e) {
+        if (e instanceof msal.InteractionRequiredAuthError || /interaction_required|login_required|consent_required|no_tokens_found/.test(e.errorCode || '')) {
+          await pca.acquireTokenRedirect({ scopes: SCOPES, account, loginHint: email });
+          return new Promise(() => {});
+        }
+        throw e;
+      }
+    };
+    const g = AF_FOLLOWUP.graph(getToken);
+    view = AF_FOLLOWUP.view($('fu'), {
+      store,
+      now: () => Date.now(),
+      mail: {
+        load: progress => AF_FOLLOWUP.load(g, store.data.cfg || {}, Date.now(), progress),
+        disconnect: () => pca.logoutRedirect({ account, postLogoutRedirectUri: REDIRECT }),
+      },
+    });
+  }
+  function msError(e) {
+    const m = (e && (e.errorMessage || e.message)) || String(e);
+    if (/AADSTS50011|redirect/i.test(m)) return 'Microsoft: the redirect URI is not registered. In the app registration → Authentication → Single-page application, add ' + REDIRECT;
+    if (/AADSTS65001|AADSTS90094|consent|admin/i.test(m)) return 'Microsoft: your company needs an administrator to approve this app (Enterprise applications → AF Follow-up → Permissions → Grant admin consent).';
+    if (/AADSTS700016|not found in the directory/i.test(m)) return 'Microsoft: no app with this Application (client) ID in this tenant — check both IDs.';
+    return 'Microsoft sign-in failed: ' + m;
+  }
+})();
+</script>
+</body>
+</html>
