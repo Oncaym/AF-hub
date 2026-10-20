@@ -51,7 +51,8 @@
      the page only works out which board to show:
        editor — on /allowlist                                  → full edit
        gc     — on /gcList                                     → the GC's narrowed view, read-only
-       viewer — on /viewers, or a verified @advfacade.com      → the FULL internal board, read-only
+       viewer — on /viewers, or a boss / shop claim            → the FULL internal board, read-only
+                (since 10-20 a company email alone opens no project: the rules refuse /meta)
      Each person can read only their OWN entry in those lists. The old fail-open
      rule ("no /gcList yet → every non-editor is the GC") is gone: a missing entry
      simply means "not that". */

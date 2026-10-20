@@ -12,7 +12,11 @@
   //    editor      = on /allowlist                   -> can change this project
   //    gc          = on /gcList                      -> reads; can post to /gcItems
   //    viewer      = on /viewers                     -> reads only
-  //    staff       = verified @advfacade.com address -> reads EVERY project
+  //    boss        = custom claim boss = true          -> reads EVERY project (Leo 10-20; changes nothing)
+  //    shop        = custom claim shop = true          -> reads every project (fab drawings, warehouse) and
+  //                                                       marks 🚚 To send "Sent"
+  //    staff       = verified @advfacade.com address   -> 🚚 To send only (read and add, Shop page). Since
+  //                  10-20 a company address alone no longer opens a project: people are on its lists.
   //    anyone else -> nothing, not even the project's name.
   //
   //  Why /state checks _project: a tracker page stamps its own project id on
@@ -29,13 +33,13 @@
 
     // Which project this database is. Written by the Admin SDK only.
     "meta": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.boss == true || auth.token.shop == true || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
       ".write": false
     },
 
     // The whole tracker state, saved in one piece by the page (last write wins).
     "state": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.boss == true || auth.token.shop == true || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
       // newData.exists(): no page can wipe the project. Clearing it is a console job.
       ".write": "auth != null && auth.token.email_verified == true && newData.exists() && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
       ".validate": "newData.hasChildren(['_clientId', '_ts', '_by', '_project']) && root.child('meta/project').isString() && newData.child('_project').val() == root.child('meta/project').val() && newData.child('_by').val() == auth.token.email"
@@ -43,7 +47,7 @@
 
     // Edit history - append only, each row signed by its author.
     "history": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.boss == true || auth.token.shop == true || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
       "$pushId": {
         ".write": "auth != null && auth.token.email_verified == true && !data.exists() && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
         ".validate": "newData.hasChildren(['ts', 'user', 'desc']) && newData.child('user').val() == auth.token.email"
@@ -52,7 +56,7 @@
 
     // Who's online - editors write only their own row.
     "presence": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.boss == true || auth.token.shop == true || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
       "$uid": {
         ".write": "auth != null && auth.token.email_verified == true && auth.uid == $uid && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
         ".validate": "newData.hasChildren(['email', 'since']) && newData.child('email').val() == auth.token.email"
@@ -63,17 +67,17 @@
     "access": {
       ".read": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
       "$id": {
-        ".write": "auth != null && auth.token.email_verified == true && !data.exists() && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+        ".write": "auth != null && auth.token.email_verified == true && !data.exists() && (auth.token.boss == true || auth.token.shop == true || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
         ".validate": "newData.hasChildren(['email', 'ts']) && newData.child('email').val() == auth.token.email"
       }
     },
 
     // GC inbox (F-037): anyone with access posts their own item; editors triage.
     "gcItems": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.boss == true || auth.token.shop == true || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
       ".indexOn": ["ts"],
       "$id": {
-        ".write": "auth != null && auth.token.email_verified == true && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || (!data.exists() && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())))",
+        ".write": "auth != null && auth.token.email_verified == true && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || (!data.exists() && (root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())))",
         ".validate": "newData.hasChildren(['by', 'ts', 'text']) && (data.exists() || newData.child('by').val() == auth.token.email)"
       }
     },
@@ -82,7 +86,7 @@
     // and the tracker's own DXF import. Key = the unit id with '.' turned into ','. Every row is
     // stamped with this project's id and its author, like /state.
     "elevGeo": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.boss == true || auth.token.shop == true || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
       "$mark": {
         ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
         ".validate": "newData.hasChildren(['_project', '_by', '_ts']) && root.child('meta/project').isString() && newData.child('_project').val() == root.child('meta/project').val() && newData.child('_by').val() == auth.token.email"
@@ -93,7 +97,7 @@
     // p/<project>/fab/. Editors upload; editors, viewers and staff read. NOT the GC
     // (Leo, 2026-10-16): these are our shop's sheets, not a submittal.
     "fab": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.boss == true || auth.token.shop == true || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
       ".indexOn": ["uploadedAt"],
       "$id": {
         ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
@@ -136,7 +140,7 @@
 
     // Warehouse (receive).
     "warehouse": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.boss == true || auth.token.shop == true || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
       "items": {
         ".indexOn": ["receivedAt"],
         "$itemId": {

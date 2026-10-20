@@ -51,11 +51,14 @@ ok(!REG.projects.some(p => p.databaseURL === D.databaseURL), 'no tracker shares 
 const rules = JSON.parse(read('platform/' + D.rules).split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n'));
 const key = e => e.replace(/\./g, ',');
 const NOW = 1790000000000;
-const person = (email, verified = true) => ({ uid: 'u_' + email.replace(/\W/g, '_'), email, verified });
+const person = (email, verified = true, claims) => ({ uid: 'u_' + email.replace(/\W/g, '_'), email, verified, claims });
 const P = {
   DRAFTER: person('henry.kim@advfacade.com'),  // design team, editor
   LEAD:    person('spark@advfacade.com'),      // design team, editor
-  STAFF:   person('pm@advfacade.com'),         // staff, reads only
+  STAFF:   person('pm@advfacade.com'),         // staff on no list: sees the board list, opens none (10-20)
+  PM:      person('cdu@advfacade.com'),        // members/ac3 = editor: edits AC3 only
+  PMV:     person('owner.pm@advfacade.com'),   // members/ac3 = viewer: reads AC3 only
+  BOSS:    person('nan@advfacade.com', true, { boss: true }),   // reads every board, changes nothing
   VIEWER:  person('arch@dattner.com'),         // on viewers
   FOREMAN: person('joe.foreman@gmail.com'),    // a tracker editor, nothing here
   FAKE:    person('fake@advfacade.com', false),
@@ -65,7 +68,7 @@ function authOf(name) {
   const p = P[name];
   if (!p) return null;
   if (p.anonymous) return { uid: p.uid, provider: 'anonymous', token: { firebase: { sign_in_provider: 'anonymous' } } };
-  return { uid: p.uid, provider: 'password', token: { email: p.email, email_verified: p.verified, firebase: { sign_in_provider: 'password' } } };
+  return { uid: p.uid, provider: 'password', token: Object.assign({ email: p.email, email_verified: p.verified, firebase: { sign_in_provider: 'password' } }, p.claims || {}) };
 }
 const stamp = (who, o) => Object.assign({ _by: P[who].email, _ts: NOW }, o);
 const issue = (who, o) => stamp(who, Object.assign({ n: 1, text: 'Change TOB to T.O.HSS', status: 'open', created: NOW }, o));
@@ -73,7 +76,8 @@ const SEED = {
   meta: { project: 'design', name: 'AF Design Boards' },
   allowlist: { [key(P.DRAFTER.email)]: true, [key(P.LEAD.email)]: true },
   viewers: { [key(P.VIEWER.email)]: true },
-  boardInfo: { ac3: stamp('LEAD', { name: 'Atlantic-Chestnut Building 3' }) },
+  members: { ac3: { [key(P.PM.email)]: 'editor', [key(P.PMV.email)]: 'viewer' } },
+  boardInfo: { ac3: stamp('LEAD', { name: 'Atlantic-Chestnut Building 3' }), hillview: stamp('LEAD', { name: 'Hillview' }) },
   images: { ac3: { m1: stamp('LEAD', { data: 'data:image/jpeg;base64,AAAA' }) } },
   boards: {
     ac3: {
@@ -92,8 +96,24 @@ const cases = [];
 const c = (name, as, op, p, value, want) => cases.push({ name, as, op, path: p, value, want });
 
 // reading
-c('drafter reads boards', 'DRAFTER', 'read', '/boards', null, true);
-c('staff reads boards', 'STAFF', 'read', '/boards/ac3/issues', null, true);
+c('drafter (design team) reads every board', 'DRAFTER', 'read', '/boards/ac3', null, true);
+c('nobody lists all boards at once', 'DRAFTER', 'read', '/boards', null, false);
+c('staff on no list cannot open a board (10-20)', 'STAFF', 'read', '/boards/ac3/issues', null, false);
+c('staff on no list still sees the list of boards', 'STAFF', 'read', '/boardInfo', null, true);
+c('a board editor (PM) reads that board', 'PM', 'read', '/boards/ac3', null, true);
+c('… but not another board', 'PM', 'read', '/boards/hillview', null, false);
+c('a board viewer reads that board', 'PMV', 'read', '/boards/ac3/issues', null, true);
+c('a boss reads every board', 'BOSS', 'read', '/boards/hillview', null, true);
+c('a boss reads schedules too', 'BOSS', 'read', '/schedules/ac3', null, true);
+c('a board editor adds a review comment there', 'PM', 'set', '/boards/ac3/issues/i9', issue('PM', { n: 9 }), true);
+c('… not on another board', 'PM', 'set', '/boards/hillview/issues/i9', issue('PM', { n: 9 }), false);
+c('a board viewer cannot comment', 'PMV', 'set', '/boards/ac3/issues/i9', issue('PMV', { n: 9 }), false);
+c('a boss cannot comment', 'BOSS', 'set', '/boards/ac3/issues/i9', issue('BOSS', { n: 9 }), false);
+c('a board editor saves where the Discord pull stopped', 'PM', 'update', '/boardInfo/ac3', { discordLast: '123', _by: P.PM.email, _ts: NOW }, true);
+c('a board editor cannot create a board', 'PM', 'set', '/boardInfo/newone', stamp('PM', { name: 'New' }), false);
+c('people read only their own board membership', 'PM', 'read', '/members/ac3/' + key(P.PM.email), null, true);
+c('… not the list', 'PM', 'read', '/members/ac3', null, false);
+c('nobody writes memberships from a page', 'DRAFTER', 'set', '/members/ac3/' + key(P.STAFF.email), 'editor', false);
 c('viewer reads boards', 'VIEWER', 'read', '/boards/ac3', null, true);
 c('tracker foreman reads nothing', 'FOREMAN', 'read', '/boards', null, false);
 c('unverified staff reads nothing', 'FAKE', 'read', '/boards', null, false);
@@ -139,7 +159,8 @@ c('history signed by someone else refused', 'DRAFTER', 'set', '/boards/ac3/histo
 
 // Excel schedules (design/schedules.html)
 const sig = who => ({ _by: P[who].email, _ts: NOW });
-c('staff reads schedules', 'STAFF', 'read', '/schedules/ac3', null, true);
+c('staff on no list cannot read schedules (10-20)', 'STAFF', 'read', '/schedules/ac3', null, false);
+c('a board editor edits that board\'s schedules', 'PM', 'set', '/schedules/ac3/chunks/b', JSON.stringify({ v: 3 }), true);
 c('viewer reads schedules', 'VIEWER', 'read', '/schedules/ac3', null, true);
 c('tracker foreman cannot read schedules', 'FOREMAN', 'read', '/schedules/ac3', null, false);
 c('editor saves changed pieces, signed', 'DRAFTER', 'update', '/schedules/ac3', { 'chunks/i_1': '{"id":1}', meta: sig('DRAFTER') }, true);

@@ -87,8 +87,12 @@
   function listenBoards() {
     S.refs.forEach(r => r.off()); S.refs = [];
     const r = DC.db.ref('boardInfo');
-    r.on('value', s => {
-      S.boards = s.val() || {};
+    let seq = 0;
+    r.on('value', async s => {
+      const all = s.val() || {}, mine = ++seq;
+      const roles = await DC.loadRoles(Object.keys(all));   // only the boards this person can open (10-20)
+      if (mine !== seq) return;
+      S.boards = {}; Object.keys(all).forEach(b => { if (roles[b]) S.boards[b] = all[b]; });
       Object.keys(S.boards).forEach(b => {
         if (S.refs.some(x => x.__b === b)) return;
         const ir = DC.db.ref('boards/' + b + '/issues'); ir.__b = b;
@@ -145,7 +149,7 @@
     if (person) { dl = dl.filter(d => hit(person, d.owner || '')); il = il.filter(i => hit(person, [i.owner, i.reviewer, i.fixedBy].join(' '))); }
     if (search) { dl = dl.filter(d => hit(search, [d.no, d.title, d.note].join(' '))); il = il.filter(i => hit(search, [dno(i.dwg), i.where, i.text, i.orig].join(' '))); }
     const out = {
-      board, name: S.boards[board].name, your_role: DC.role,
+      board, name: S.boards[board].name, your_role: DC.roleFor(board),
       counts: { drawings_total: D.length, drawings_by_status: tally(D, d => d.status), comments_total: I.length, comments_by_status: tally(I, i => i.status), matching_drawings: dl.length, matching_comments: il.length },
     };
     if (part !== 'comments') out.drawings = dl.sort((a, b) => nat(a.no, b.no)).slice(0, 150).map(d => ({ no: d.no, title: d.title, rev: d.rev || '', with: d.owner || '', status: d.status, note: d.note || undefined }));
@@ -222,7 +226,7 @@
       <span class="pill i-${esc(c.status || 'open')}">${ISTAT[c.status || 'open']}</span><br>${esc(c.text)}${c.orig ? `<div class="orig">${esc(c.orig)}</div>` : ''}
       <div class="dim" style="font-size:12px">${c.reviewer ? 'from ' + esc(c.reviewer) : ''}${c.owner ? ' · for ' + esc(c.owner) : ''}</div>
       ${c.att.length ? `<div class="thumbs">${c.att.map(n => `<img src="${S.atts[n - 1].img}" alt="attachment ${n}">`).join('')}</div>` : ''}</div>`).join('');
-    const id = card(`${S.boards[board].name}: add ${rows.length} review comment${rows.length > 1 ? 's' : ''}`, html, DC.isEditor(), async () => {
+    const id = card(`${S.boards[board].name}: add ${rows.length} review comment${rows.length > 1 ? 's' : ''}`, html, DC.isEditor(board), async () => {
       const is = await issuesOf(board);
       let n = 1 + Object.values(is).reduce((m, i) => Math.max(m, +i.n || 0), 0);
       const saved = {};
@@ -241,7 +245,7 @@
       histDesign(board, `Added ${rows.length} comments with AF Helper${summary ? ': ' + summary : ''}`);
       return `${rows.length} comment${rows.length > 1 ? 's' : ''} added (#${n - rows.length}–#${n - 1})`;
     });
-    return { shown_to_person: id, comments: rows.length, saved: false, note: DC.isEditor() ? 'Waiting for the person to press Confirm.' : 'The person is not an editor of the design board; it cannot be saved.' };
+    return { shown_to_person: id, comments: rows.length, saved: false, note: DC.isEditor(board) ? 'Waiting for the person to press Confirm.' : 'The person is not an editor of the design board; it cannot be saved.' };
   }
 
   async function propose_design_changes({ board, changes, summary }) {
@@ -271,7 +275,7 @@
     }
     if (!plan.length) return { saved: false, nothing_to_change: true, problems: bad };
     const html = plan.map(p => `<div class="pr"><b>${esc(p.label)}</b><br>${p.diff.join(' · ')}</div>`).join('') + bad.map(b => `<div class="pr warn">⚠ ${esc(b)}</div>`).join('');
-    const id = card(`${S.boards[board].name}: ${summary || 'update'}`, html, DC.isEditor(), async () => {
+    const id = card(`${S.boards[board].name}: ${summary || 'update'}`, html, DC.isEditor(board), async () => {
       for (const p of plan) {
         if (p.kind === 'comment') {
           const st = p.c.status, upd = stamp({});
@@ -418,7 +422,7 @@
     }
     rows += `<div class="pr">${n ? `<span class="new">${n} new issue${n > 1 ? 's' : ''}</span> from colored cells` : 'No new issues from colors'}${sug ? ` · <span class="warn">${sug} issue${sug > 1 ? 's' : ''} may be closed (color removed)</span>` : ''}</div>`;
     const title = `${S.boards[board].name} · Schedules: ${target ? 'new version of ' + target.name : 'add ' + a.name}`;
-    const id = card(title, rows, DC.isEditor(), async () => {
+    const id = card(title, rows, DC.isEditor(board), async () => {
       const s = await STORE.session(board); const B2 = s.board();
       const t2 = target ? B2.files.find(x => x.id === target.id) : null;
       if (target && !t2) throw new Error(target.name + ' was removed from the board meanwhile');
@@ -431,7 +435,7 @@
       return `${t2 ? 'Version ' + t2.versions.length + ' of ' + t2.name : a.name + ' added'}${made.n ? ' · ' + made.n + ' new issues' : ''} — open Schedules to see it`;
     }, target ? 'Upload new version' : 'Add to board');
     return { shown_to_person: id, saved: false, action: target ? 'new_version' : 'add', target: target ? target.name : null, new_issues_from_colors: n, close_suggestions: sug, page: SCHED_URL(board),
-      note: DC.isEditor() ? 'Waiting for the person to press the button on the card.' : 'The person is not an editor of the design board; it cannot be saved.' };
+      note: DC.isEditor(board) ? 'Waiting for the person to press the button on the card.' : 'The person is not an editor of the design board; it cannot be saved.' };
   }
 
   async function propose_schedule_issue_changes({ board, changes, summary }) {
@@ -450,7 +454,7 @@
     }
     if (!plan.length) return { saved: false, nothing_to_change: true, problems: bad };
     const html = plan.map(p => `<div class="pr"><b>${esc(p.label)}</b><br>${p.diff.join(' · ')}</div>`).join('') + bad.map(b => `<div class="pr warn">⚠ ${esc(b)}</div>`).join('');
-    const id = card(`${S.boards[board].name} · Schedules: ${summary || 'update issues'}`, html, DC.isEditor(), async () => {
+    const id = card(`${S.boards[board].name} · Schedules: ${summary || 'update issues'}`, html, DC.isEditor(board), async () => {
       const s = await STORE.session(board); const B2 = s.board();
       let k = 0; plan.forEach(p => { if (SOPS.changeIssue(B2, p.c.id, p.c, meShort())) k++; });
       if (!k) throw new Error('nothing to change any more');
@@ -530,7 +534,7 @@
   function context() {
     return {
       today: today(), lang: navigator.language,
-      boards: Object.entries(S.boards).map(([id, b]) => ({ id, name: b.name, role: DC.role })),
+      boards: Object.entries(S.boards).map(([id, b]) => ({ id, name: b.name, role: DC.roleFor(id) })),
       projects: Object.values(S.projects).map(p => ({ id: p.id, name: p.name, role: p.role })),
     };
   }

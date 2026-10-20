@@ -7,7 +7,7 @@
   //    /plan = { rev, building, project, windows: [...] }       which panes are in scope
   //  Who is who is the same as every project database (see
   //  project-database.rules.json): editor = /allowlist, gc = /gcList,
-  //  viewer = /viewers, staff = verified @advfacade.com (reads).
+  //  viewer = /viewers; boss / shop claims read (as every project); staff only 🚚 To send.
   //  Tests: platform/tests/mn-rules.local.test.cjs.
   // ======================================================================
   "rules": {
@@ -16,7 +16,7 @@
 
     // Which project this database is. Written by the Admin SDK only.
     "meta": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.boss == true || auth.token.shop == true || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
       ".write": false
     },
 
@@ -25,7 +25,7 @@
     // One row per glass pane, written by the page with update() (the key is the pane id
     // with '#' encoded as ~35~). A pane back to plain 'original' is removed (null).
     "units": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.boss == true || auth.token.shop == true || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
       "$pane": {
         ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
         ".validate": "newData.hasChildren(['status'])",
@@ -40,7 +40,7 @@
     // The replacement plan (windows, pane grids, which panes are in scope). The page
     // publishes it whole; only editors can, and it can never be emptied from a page.
     "plan": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.boss == true || auth.token.shop == true || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
       ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() && newData.exists()",
       ".validate": "newData.hasChildren(['windows'])"
     },

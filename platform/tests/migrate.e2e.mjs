@@ -132,6 +132,31 @@ function run(env) {
   ok(r.code !== 0 && (await read(design, 'viewers/ok,person@advfacade,com')) === null, 'one bad address in the list: nothing is changed');
   r = run({ MODE: 'member', PROJECT: 'design', EMAIL: 'pm@turner.com', ROLE: 'gc' });
   ok(r.code !== 0 && /no GC list/.test(r.out), 'design has no GC role');
+
+  console.log('\n6. one board for a PM, bosses, who is on a list (Leo 10-20)');
+  await getDatabase(design).ref('boardInfo/ac3').set({ name: 'AC3', _by: 'leo.sun@advfacade.com', _ts: 1 });
+  r = run({ MODE: 'member', PROJECT: 'design/ac3', EMAIL: 'C.Du@advfacade.com, jchang@advfacade.com', ROLE: 'editor' });
+  ok(r.code === 0 && (await read(design, 'members/ac3/c,du@advfacade,com')) === 'editor' && (await read(design, 'members/ac3/jchang@advfacade,com')) === 'editor',
+    'design/ac3: PMs become editors of that board', r.out.slice(-400));
+  ok((await read(design, 'allowlist/jchang@advfacade,com')) === null && !/jchang@|c\.du@/.test(r.out), '… not of every board, and the log masks them');
+  r = run({ MODE: 'member', PROJECT: 'design/hillview', EMAIL: 'jchang@advfacade.com', ROLE: 'viewer' });
+  ok(r.code !== 0 && /no board "hillview"/.test(r.out) && (await read(design, 'members/hillview')) === null, 'a board that does not exist is refused');
+  r = run({ MODE: 'member', PROJECT: 'design/ac3', EMAIL: 'jchang@advfacade.com', ROLE: 'gc' });
+  ok(r.code !== 0 && (await read(design, 'members/ac3/jchang@advfacade,com')) === 'editor', 'a board has no GC role (nothing changed)');
+  r = run({ MODE: 'member', PROJECT: 'design/ac3', EMAIL: 'jchang@advfacade.com', ROLE: 'viewer' });
+  ok(r.code === 0 && (await read(design, 'members/ac3/jchang@advfacade,com')) === 'viewer', 'editor → viewer on the board');
+  r = run({ MODE: 'member', PROJECT: 'design/ac3', EMAIL: 'jchang@advfacade.com', ROLE: 'remove' });
+  ok(r.code === 0 && (await read(design, 'members/ac3/jchang@advfacade,com')) === null, 'remove takes a PM off the board');
+  r = run({ MODE: 'member', PROJECT: 'hub', EMAIL: 'nan@advfacade.com', ROLE: 'boss' });
+  let nan = await getAuth(ac3).getUserByEmail('nan@advfacade.com').catch(() => null);
+  ok(r.code === 0 && nan && nan.customClaims && nan.customClaims.boss === true && nan.emailVerified, 'role boss: a confirmed login with the boss claim', r.out.slice(-400));
+  r = run({ MODE: 'member', PROJECT: 'boss', EMAIL: 'nan@advfacade.com', ROLE: 'remove' });
+  nan = await getAuth(ac3).getUserByEmail('nan@advfacade.com');
+  ok(r.code === 0 && !(nan.customClaims || {}).boss, 'project boss + remove takes the claim away');
+  r = run({ MODE: 'member', PROJECT: 'design', ROLE: 'list' });
+  ok(r.code === 0 && /editors \(\d+\)/.test(r.out) && /board ac3: c\*\*\*@advfacade\.com editor/.test(r.out) && !/c\.du@|henry\.kim@|leo\.sun@/.test(r.out),
+    'role list: who is on each list, masked', r.out.slice(-500));
+
   r = run({ MODE: 'rules', PROJECT: 'all' });
   ok(r.code === 0 && /rules put on design/.test(r.out) && /boardInfo/.test(await rulesOf('af-hub-8f188-design')) && /gcItems/.test(await rulesOf('af-hub-8f188-ac3')),
     'rules = all puts each database its own rules', r.out.slice(-400));

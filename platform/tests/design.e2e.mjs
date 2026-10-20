@@ -9,7 +9,8 @@
 
    Walks the AC3 pilot: create the board, import "AC3 drawing list.pdf",
    add a review comment with a pasted screenshot, the drafter marks it fixed,
-   the reviewer closes it; staff see it read-only; a tracker foreman gets nothing.
+   the reviewer closes it; a boss sees it read-only; the project's PM edits that
+   board only; other staff and a tracker foreman see no board (Leo 10-20).
    ───────────────────────────────────────────────────────────────────────── */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -35,7 +36,8 @@ const NDWG = REAL ? 78 : 7;
 const D1 = REAL ? 'AC3-103' : 'SMP-100A';   // the drawing the review comments are on
 const D2 = REAL ? 'AC3-500' : 'SMP-500';
 const PW = 'pw-1';
-const LEAD = 'spark@advfacade.com', DRAFTER = 'henry.kim@advfacade.com', STAFF = 'pm@advfacade.com', FOREMAN = 'joe.foreman@gmail.com';
+const LEAD = 'spark@advfacade.com', DRAFTER = 'henry.kim@advfacade.com', STAFF = 'haodong@advfacade.com', FOREMAN = 'joe.foreman@gmail.com';
+const BOSS = 'nan@advfacade.com', PM = 'cdu@advfacade.com';
 const key = e => e.replace(/\./g, ',');
 
 let pass = 0, fail = 0;
@@ -55,14 +57,14 @@ function dset(root, p, v) {
 function prune(o) { if (o && typeof o === 'object') { for (const k of Object.keys(o)) { o[k] = prune(o[k]); if (o[k] == null || (typeof o[k] === 'object' && !Object.keys(o[k]).length)) delete o[k]; } } return o; }
 const sv = (v, now) => (v && typeof v === 'object' ? (v['.sv'] === 'timestamp' ? now : Object.fromEntries(Object.entries(v).map(([k, x]) => [k, sv(x, now)]))) : v);
 const users = {};
-const mkUser = (email, verified = true) => { users[email] = { uid: 'u_' + email.replace(/\W/g, '_'), email, emailVerified: verified, password: PW }; };
+const mkUser = (email, verified = true, claims) => { users[email] = { uid: 'u_' + email.replace(/\W/g, '_'), email, emailVerified: verified, password: PW, claims }; };
 let DB = {};
 let denied = 0;
 const fbLog = [];
 function handle(op, a) {
   const now = Date.now();
   fbLog.push(op + ' ' + (a.op || '') + ' ' + (a.path || a.email || ''));
-  if (op === 'signIn') { const u = users[a.email]; return u && u.password === a.password ? { uid: u.uid, email: u.email, emailVerified: u.emailVerified } : null; }
+  if (op === 'signIn') { const u = users[a.email]; return u && u.password === a.password ? { uid: u.uid, email: u.email, emailVerified: u.emailVerified, claims: u.claims } : null; }
   if (op === 'user') { const u = Object.values(users).find(x => x.uid === a.uid); return u ? { emailVerified: u.emailVerified } : null; }
   if (op === 'sendVerification' || op === 'reset' || op === 'upload') return null;
   if (a.url !== URL_DB) throw new Error('page talked to another database: ' + a.url);
@@ -150,7 +152,7 @@ async function until(fn, ms = 5000) {
 const watch = page => { page.on('pageerror', e => errors.push(e.message)); };
 
 // ─────────────────────────────────────────────────────────────── seed ──
-mkUser(LEAD); mkUser(DRAFTER); mkUser(STAFF); mkUser(FOREMAN);
+mkUser(LEAD); mkUser(DRAFTER); mkUser(STAFF); mkUser(FOREMAN); mkUser(BOSS, true, { boss: true }); mkUser(PM);
 DB = { meta: { project: 'design', name: 'AF Design Boards' }, allowlist: { [key(LEAD)]: true, [key(DRAFTER)]: true } };
 
 try {
@@ -347,18 +349,23 @@ try {
   await p1.click('#ifGo');
   ok(await until(() => Object.keys(DB.boards.ac3.issues).length === 5 + extra), 'another comment added from the board page');
 
-  // 5. Staff: read only.
-  console.log('staff');
+  // A second project's board, and AC3's PM on the AC3 board only (Leo 10-20).
+  DB.boardInfo.hillview = { name: 'Hillview', _by: LEAD, _ts: 1 };
+  DB.members = { ac3: { [key(PM)]: 'editor' } };
+
+  // 5. A boss: every board, read only.
+  console.log('boss');
   const c3 = await ctx(); const p3 = await c3.newPage(); watch(p3);
-  await signIn(p3, STAFF);
+  await signIn(p3, BOSS, BASE + '#b=ac3');
   await p3.waitForSelector('.tile');
-  ok(await p3.isVisible('text=view only'), 'staff: view only');
-  ok(!(await p3.$('#addIssue')), 'staff: no "+ Add comment"');
+  ok(await p3.isVisible('text=view only'), 'boss: view only');
+  ok(await p3.$$eval('#boardPick option', o => o.map(x => x.value).sort().join()) === 'ac3,hillview', 'boss: sees every board, cannot make one');
+  ok(!(await p3.$('#addIssue')), 'boss: no "+ Add comment"');
   await p3.click('.chip[data-if=all]');
-  ok(await p3.$$eval('.card', e => e.length) === 6 && !(await p3.$('.card [data-act]')), 'staff sees all 6 comments, no buttons');
-  ok(!(await p3.$('#askForm')) && !(await p3.$('#splitBtn')), 'staff: no Claude buttons (editors only)');
+  ok(await p3.$$eval('.card', e => e.length) === 6 && !(await p3.$('.card [data-act]')), 'boss sees all 6 comments, no buttons');
+  ok(!(await p3.$('#askForm')) && !(await p3.$('#splitBtn')), 'boss: no Claude buttons (editors only)');
   await p3.click('#tabs button[data-tab=drawings]');
-  ok(!(await p3.$('#importPdf')) && !!(await p3.$('#checkDxf')), 'staff: no import, but 🔍 Check DXF is there for everyone');
+  ok(!(await p3.$('#importPdf')) && !!(await p3.$('#checkDxf')), 'boss: no import, but 🔍 Check DXF is there for everyone');
   await p3.click('#checkDxf');
   await p3.waitForSelector('#rvDrop');
   await p3.setInputFiles('#rvFiles', { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('x') });
@@ -371,12 +378,30 @@ try {
   ok(await p3.isVisible('#rvDl'), 'review.txt can be downloaded');
   await p3.click('#modalBox [data-x]');
 
-  // 6. A tracker foreman: nothing.
-  console.log('foreman');
+  // 5b. AC3's PM: edits the AC3 board, does not see Hillview.
+  console.log('PM');
+  const c7 = await ctx(); const p7 = await c7.newPage(); watch(p7);
+  await signIn(p7, PM, BASE + '#b=hillview');
+  await p7.waitForSelector('.tile');
+  ok(await p7.$$eval('#boardPick option', o => o.map(x => x.value).join()) === 'ac3', 'PM: only the AC3 board in the list (no Hillview, no "+ New board")');
+  ok(/No access to the Hillview board/.test(await p7.textContent('#toast')), 'PM: a link to another board says no access');
+  ok(await p7.isVisible('#who >> text=editor'), 'PM: editor of AC3');
+  await p7.click('#addIssue');
+  await p7.selectOption('#ifDwg', D2);
+  await p7.fill('#ifText', 'PM: GC asks for the canopy drain location');
+  await p7.click('#ifGo');
+  ok(await until(() => Object.values(DB.boards.ac3.issues).some(i => i._by === PM)), 'PM adds a comment to AC3 (the rules let a board editor write)');
+
+  // 6. Other staff and a tracker foreman: no board at all.
+  console.log('staff / foreman');
+  const c8 = await ctx(); const p8 = await c8.newPage(); watch(p8);
+  await signIn(p8, STAFF, BASE + '#b=ac3');
+  await p8.waitForSelector('text=No project board is open');
+  ok(!(await p8.$('.tile')) && await p8.isHidden('#boardPick'), 'staff on no list: no board, no list of boards to pick');
   const c4 = await ctx(); const p4 = await c4.newPage(); watch(p4);
   await signIn(p4, FOREMAN);
-  await p4.waitForSelector('text=No access yet');
-  ok(true, 'foreman: "No access yet"');
+  await p4.waitForSelector('text=No project board is open');
+  ok(true, 'foreman: no board');
 
   // 7. A database that is not the design database: stop.
   console.log('wrong database');

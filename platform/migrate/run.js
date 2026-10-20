@@ -28,8 +28,14 @@
                   ROLE=remove to take them off every list. ROLE=staff (any
                   PROJECT, e.g. hub): a confirmed company login on no list.
                   ROLE=shop (any PROJECT): may mark 🚚 To send "Sent" on
-                  every project; PROJECT=shop ROLE=remove takes that away. Creates the login if
-                  it does not exist, so they only need "First time here".
+                  every project; PROJECT=shop ROLE=remove takes that away.
+                  ROLE=boss (any PROJECT): reads every project and board,
+                  changes nothing; PROJECT=boss ROLE=remove takes that away.
+                  PROJECT=design/<board> (e.g. design/ac3) with ROLE editor,
+                  viewer or remove: one board of the Design Board (a PM).
+                  ROLE=list: who is on the project's lists (emails masked).
+                  Creates the login if it does not exist, so they only need
+                  "First time here".
 
    Env: MODE, PROJECT, EMAIL, ROLE, FORCE, COPY_PHOTOS (default 1),
         HUB_SERVICE_ACCOUNT and the legacy secret named in projects.json.
@@ -405,14 +411,22 @@ async function staffMode() {
   if (outside.length) die(`role "staff" is only for @advfacade.com addresses (${outside.map(C.maskEmail).join(', ')}): add them to a project as editor, viewer or gc instead. Nothing was changed.`);
   const auth = getAuth(appFor(HUB.id, HUB.databaseURL, 'HUB_SERVICE_ACCOUNT'));
   for (const e of EMAILS) log(`✓ ${C.maskEmail(e)}: company login ${await ensureUser(auth, e)} (email confirmed; no list changed).`);
-  log('They read the hub overview and every project. First time: open the hub, enter their email and tap "Forgot password" to set one.');
+  log('They read the hub overview and use the 🚚 Shop page. A project or design board opens only once they are on its list (10-20). First time: open the hub, enter their email and tap "Forgot password" to set one.');
 }
 
 /* ROLE=shop: the people who mark 🚚 To send requests "Sent ✓" (Leo 10-19: only them, on every
    project). A custom claim on the login (shop = true) that every database's rules check, so it
    is one list for all projects, company email or not. PROJECT=shop with ROLE=remove takes it
    away. It reaches a signed-in page within an hour, or at the next sign-in. */
-async function shopMode(on) {
+/* ROLE=boss (Leo 10-20: chul, nan): reads every project and every design board, changes
+   nothing. Same mechanism as shop: a claim (boss = true) the rules check. */
+const CLAIMS = {
+  shop: { on: 'is on the shop list (marks 🚚 Sent ✓ on every project)', off: 'is off the shop list (can no longer mark Sent)',
+          after: 'Shop page: https://af-hub-two.vercel.app/send/' },
+  boss: { on: 'is a boss (reads every project and design board, changes nothing)', off: 'is no longer a boss (sees only the projects whose lists they are on)',
+          after: 'Hub: https://af-hub-two.vercel.app/' },
+};
+async function claimMode(name, on) {
   if (!EMAILS.length) die('EMAIL is missing');
   const bad = EMAILS.filter(e => !isEmail(e));
   if (bad.length) die(`not an email address: ${bad.map(C.maskEmail).join(', ')} (nothing was changed)`);
@@ -423,15 +437,75 @@ async function shopMode(on) {
     let u;
     try { u = await auth.getUserByEmail(e); } catch (er) { log(`  ${C.maskEmail(e)}: no login, nothing to remove`); continue; }
     const claims = Object.assign({}, u.customClaims || {});
-    if (on) claims.shop = true; else delete claims.shop;
+    if (on) claims[name] = true; else delete claims[name];
     await auth.setCustomUserClaims(u.uid, claims);
-    log(on ? `✓ ${C.maskEmail(e)} is on the shop list (marks 🚚 Sent ✓ on every project); login ${how}.`
-           : `✓ ${C.maskEmail(e)} is off the shop list (can no longer mark Sent).`);
+    log(`✓ ${C.maskEmail(e)} ${on ? CLAIMS[name].on + '; login ' + how : CLAIMS[name].off}.`);
   }
-  log(on ? 'It works at their next sign-in, or within an hour. Shop page: https://af-hub-two.vercel.app/send/' : '');
+  log(on ? 'It works at their next sign-in, or within an hour. ' + CLAIMS[name].after : 'It takes effect at their next sign-in, or within an hour.');
+}
+const shopMode = on => claimMode('shop', on);
+
+/* PROJECT=design/<board>: one Design Board only (a PM). members/<board>/<key> = editor | viewer.
+   The design team (/allowlist) already edits every board; this is for everyone else. */
+async function boardMemberMode(board) {
+  const d = entry('design');
+  if (!/^[a-z0-9][a-z0-9-]{1,23}$/.test(board)) die(`"${board}" is not a board id (e.g. design/ac3)`);
+  if (!EMAILS.length) die('EMAIL is missing');
+  const bad = EMAILS.filter(e => !isEmail(e));
+  if (bad.length) die(`not an email address: ${bad.map(C.maskEmail).join(', ')} (nothing was changed)`);
+  if (!['editor', 'viewer', 'remove'].includes(ROLE)) die('a board takes ROLE editor, viewer or remove');
+  const app = appFor(d.id, d.databaseURL, 'HUB_SERVICE_ACCOUNT');
+  const db = getDatabase(app);
+  if ((await db.ref('meta/project').once('value')).val() !== 'design') die(`${d.databaseURL} is not the design database`);
+  const boards = (await db.ref('boardInfo').once('value')).val() || {};
+  if (!boards[board]) die(`no board "${board}". Boards: ${Object.keys(boards).join(', ') || 'none'} (nothing was changed)`);
+  const upd = {};
+  EMAILS.forEach(e => { upd['members/' + board + '/' + C.emailKey(e)] = ROLE === 'remove' ? null : ROLE; });
+  await db.ref().update(upd);
+  for (const e of EMAILS) {
+    if (ROLE === 'remove') log(`✓ ${C.maskEmail(e)} is off the ${board} board (the design team list and bosses are not changed here).`);
+    else log(`✓ ${C.maskEmail(e)} is now ${ROLE} of the ${board} board only; login ${await ensureUser(getAuth(app), e)}.`);
+  }
+  if (ROLE !== 'remove') log(`They open https://af-hub-two.vercel.app/design/#b=${board} and sign in with their hub account.`);
+}
+
+/* ROLE=list: who is on this project's lists, emails masked (the log is public), and the
+   company logins that will see nothing of it. */
+async function listMode() {
+  const p = entry(PID);
+  if (p === HUB) die('list: pick a project (ac3, cp2, lex, mn, design)');
+  const app = appFor(p.id, p.databaseURL, 'HUB_SERVICE_ACCOUNT');
+  const db = getDatabase(app);
+  const keys = async n => Object.keys((await db.ref(n).once('value')).val() || {}).map(C.keyEmail);
+  const seen = new Set();
+  for (const [n, label] of [['allowlist', 'editors'], ['gcList', 'GC'], ['viewers', 'viewers']]) {
+    const l = await keys(n); l.forEach(e => seen.add(e.toLowerCase()));
+    if (l.length || n !== 'gcList') log(`${label} (${l.length}): ${l.map(C.maskEmail).join(', ') || '—'}`);
+  }
+  if (p.id === 'design') {
+    const m = (await db.ref('members').once('value')).val() || {};
+    Object.entries(m).forEach(([b, v]) => log(`board ${b}: ` + Object.entries(v).map(([k, r]) => `${C.maskEmail(C.keyEmail(k))} ${r}`).join(', ')));
+  }
+  const special = [], none = [];
+  let page;
+  do {
+    page = await getAuth(app).listUsers(1000, page && page.pageToken);
+    page.users.forEach(u => {
+      const e = String(u.email || '').toLowerCase(), c = u.customClaims || {};
+      if (c.boss || c.shop) special.push(`${C.maskEmail(e)} ${[c.boss && 'boss', c.shop && 'shop'].filter(Boolean).join('+')}`);
+      else if (C.isStaff(e) && !seen.has(e)) none.push(C.maskEmail(e));
+    });
+  } while (page.pageToken);
+  log(`read everything by claim (${special.length}): ${special.join(', ') || '—'}`);
+  log(`company logins that see nothing of ${p.id} (${none.length}): ${none.join(', ') || '—'}`);
 }
 
 async function memberMode() {
+  if (ROLE === 'list') return listMode();
+  if (PID.startsWith('design/')) return boardMemberMode(PID.slice(7));
+  if (ROLE === 'boss') return claimMode('boss', true);
+  if (ROLE === 'remove' && PID === 'boss') return claimMode('boss', false);
+
   if (ROLE === 'staff') return staffMode();
   if (ROLE === 'shop') return shopMode(true);
   if (ROLE === 'remove' && PID === 'shop') return shopMode(false);
@@ -440,7 +514,7 @@ async function memberMode() {
   const bad = EMAILS.filter(e => !isEmail(e));
   if (bad.length) die(`not an email address: ${bad.map(C.maskEmail).join(', ')} (nothing was changed)`);
   const node = { editor: 'allowlist', gc: 'gcList', viewer: 'viewers' }[ROLE];
-  if (!node && ROLE !== 'remove') die('ROLE must be editor, gc, viewer, staff, shop or remove');
+  if (!node && ROLE !== 'remove') die('ROLE must be editor, gc, viewer, staff, shop, boss, list or remove');
   if (p.rules && ROLE === 'gc') die(`"${p.id}" has no GC list: use editor or viewer`);
   const app = appFor(p.id, p.databaseURL, 'HUB_SERVICE_ACCOUNT');
   const meta = (await getDatabase(app).ref('meta/project').once('value')).val();

@@ -361,7 +361,8 @@
   function renderAll() { renderHeader(); renderFiles(); renderCards(); renderTabs(); renderGrid(); renderSide(); }
 
   function renderHeader() {
-    $('#boardSel').innerHTML = META.boards.map((b) => `<option value="${esc(b.id)}" ${B && b.id === B.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('') + '<option value="__new">+ New board…</option>';
+    $('#boardSel').innerHTML = META.boards.map((b) => `<option value="${esc(b.id)}" ${B && b.id === B.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('') + (window.DC.canCreate() ? '<option value="__new">+ New board…</option>' : '');
+    $('#who').textContent = me + (canEdit() ? '' : ' · view only');   // the role is per board (a PM edits only their own)
     $('#btnExport').disabled = !FILE;
   }
   function renderFiles() {
@@ -1262,7 +1263,8 @@
     try {
       META = await IDB.get('meta');
       if (!META || !META.boards || !META.boards.length) {
-        $('#grid').innerHTML = '<div class="empty-sheet">No project boards yet. Create one on the <a href="./">Design Board</a> first.</div>';
+        $('#grid').innerHTML = window.DC.canCreate() ? '<div class="empty-sheet">No project boards yet. Create one on the <a href="./">Design Board</a> first.</div>'
+          : '<div class="empty-sheet">No project board is open to this account. A board is seen only by that project\'s PMs, the design team and the bosses. Ask Leo to add you.</div>';
         return;
       }
       if (!(await loadBoard(META.current || META.boards[0].id)) && !(await loadBoard(META.boards[0].id))) throw new Error('Could not open this board.');

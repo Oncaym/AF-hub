@@ -71,6 +71,7 @@ const DB = {
   [AC3]: {
     meta: { project: 'ac3' },
     allowlist: { [key(LEO)]: true },
+    viewers: { [key(HENRY)]: true },     // since 10-20 a company email alone opens no project
     state: { _clientId: 'x', _ts: 1, _by: LEO, _project: 'ac3', updatedAt: '2026-10-14',
       units: [{ key: 'SF11A__1', id: 'SF11A', zone: 'L1', status: 'pending' }, { key: 'SF12__1', id: 'SF12', zone: 'L1', status: 'installed', date: '2026-10-10' }],
       log: [{ date: '2026-10-10', category: 'glass', content: 'SF12 glass in' }],

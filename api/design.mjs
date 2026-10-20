@@ -26,9 +26,10 @@
    person presses a button for each change; the database rules then apply
    to that person as usual.
 
-   Only editors of the design database may call it: the token is checked by
-   asking the design database itself for the caller's own allowlist entry
-   (Firebase verifies the token; the rules return true only for that person).
+   Only editors of the board may call it: the design team (/allowlist) or a
+   PM who is an editor of THIS board (/members/<board>, Leo 10-20). The token
+   is checked by asking the design database itself for the caller's own entry
+   (Firebase verifies the token; the rules return it only to that person).
    Requires ANTHROPIC_API_KEY in the Vercel project (same key as Tracker Chat).
    ============================================================ */
 
@@ -196,13 +197,13 @@ async function pullDiscord(board, after) {
 function decodeJwt(t) {
   try { return JSON.parse(Buffer.from(String(t).split('.')[1], 'base64url').toString('utf8')); } catch (e) { return null; }
 }
-async function isEditor(token) {
+async function isEditor(token, board) {
   const p = decodeJwt(token);
   if (!p || !p.email) return null;
   const key = encodeURIComponent(String(p.email).replace(/\./g, ','));
-  const r = await fetch(`${DESIGN_DB}/allowlist/${key}.json?auth=${encodeURIComponent(token)}`);
-  if (!r.ok) return null;
-  return (await r.json()) === true ? p.email : null;
+  const ask = async path => { const r = await fetch(`${DESIGN_DB}/${path}.json?auth=${encodeURIComponent(token)}`); return r.ok ? r.json() : null; };
+  if ((await ask(`allowlist/${key}`)) === true) return p.email;
+  return (await ask(`members/${board}/${key}`)) === 'editor' ? p.email : null;
 }
 
 function imageBlock(d) {
@@ -225,7 +226,7 @@ export default async function handler(req, res) {
   if (!/^[a-z0-9][a-z0-9-]{1,23}$/.test(String(board || ''))) return res.status(400).json({ error: 'board?' });
 
   let who;
-  try { who = await isEditor(token); } catch (e) { who = null; }
+  try { who = await isEditor(token, board); } catch (e) { who = null; }
   if (!who) return res.status(403).json({ error: 'Only design-board editors can use Claude here. Sign in again, or ask Leo to add you.' });
 
   let pulled = null, srcImages = images, srcText = text;

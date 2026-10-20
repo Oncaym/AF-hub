@@ -5,6 +5,10 @@
 #   member   add / change / remove one person (email + role). role staff = a company login only,
 #            already confirmed (no email needed), for people who just need to read
 #            role shop = the people who mark 🚚 To send "Sent" (every project); project = shop
+#            role boss = reads every project and design board, changes nothing; project = boss
+#            project design/<board> (e.g. design/ac3) = one Design Board only (a PM): editor / viewer / remove
+#            role list = who is on the project's lists (emails masked)
+#            Since 10-20 a company email alone opens no project: people are on its lists.
 #   (mn = Morgan North, Benji's page hosted as-is: migrate copies units + plan from his open
 #    database, email = the editors to add; run it again with force to refresh before the switch)
 #   rules    put platform/project-database.rules.json on the project ("all" = every project);
@@ -27,7 +31,7 @@ on:
         options: [dry-run, migrate, member, rules, init]
         default: dry-run
       project:
-        description: 'Project id: ac3, lex … design (Design Boards), mn (Morgan North), hub (overview database, rules only). rules: "all" for every database'
+        description: 'Project id: ac3, lex … design (Design Boards), design/ac3 (one board, for a PM), mn (Morgan North), hub (overview database, rules only). rules: "all" for every database'
         type: string
         required: true
       email:
@@ -35,9 +39,9 @@ on:
         type: string
         required: false
       role:
-        description: 'member: editor, gc, viewer, remove · staff = @advfacade.com login only (project: hub) · shop = may mark To send Sent on every project (project: shop; remove + project shop takes it away)'
+        description: 'member: editor, gc, viewer, remove · staff = @advfacade.com login only (project: hub) · shop = marks To send Sent (project: shop) · boss = reads everything (project: boss) · list = who is on it'
         type: choice
-        options: [editor, gc, viewer, staff, shop, remove]
+        options: [editor, gc, viewer, staff, shop, boss, list, remove]
         default: editor
       force:
         description: 'migrate / init: replace data already in the new database'

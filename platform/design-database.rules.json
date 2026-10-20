@@ -8,9 +8,11 @@
   //
   //  Who is who (the email key is the email with every '.' turned into ','):
   //    signed in = a real account with a VERIFIED email (anonymous: nothing)
-  //    editor    = on /allowlist                   -> changes every board
-  //    viewer    = on /viewers                     -> reads only
-  //    staff     = verified @advfacade.com address -> reads only
+  //    editor    = on /allowlist                   -> changes every board (the design team)
+  //    viewer    = on /viewers                     -> reads every board
+  //    member    = on /members/<board>             -> "editor" or "viewer" of THAT board only (PMs)
+  //    boss      = custom claim boss = true        -> reads every board (Leo 10-20)
+  //    staff     = verified @advfacade.com address -> sees the list of boards, opens none (10-20)
   //    anyone else -> nothing.
   //
   //  Review comments close twice: the drafter marks "fixed", the reviewer
@@ -26,26 +28,27 @@
     ".write": false,
 
     "meta": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".read": "auth != null && auth.token.email_verified == true",
       ".write": false
     },
 
     // The list of boards (one row per project); a board is created by writing
     // its row here. Its id is a short slug (ac3, hillview).
     "boardInfo": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists() || auth.token.boss == true)",
       "$board": {
-        ".write": "auth != null && auth.token.email_verified == true && newData.exists() && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+        ".read": "auth != null && auth.token.email_verified == true && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists() || auth.token.boss == true || root.child('members').child($board).child(auth.token.email.replace('.', ',')).exists())",
+        ".write": "auth != null && auth.token.email_verified == true && newData.exists() && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || (data.exists() && root.child('members').child($board).child(auth.token.email.replace('.', ',')).val() == 'editor'))",
         ".validate": "$board.matches(/^[a-z0-9][a-z0-9-]{1,23}$/) && root.child('meta/project').val() == 'design' && newData.hasChildren(['name', '_by', '_ts']) && newData.child('name').isString() && newData.child('name').val().length <= 80 && newData.child('_by').val() == auth.token.email"
       }
     },
 
     "boards": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
       "$board": {
+        ".read": "auth != null && auth.token.email_verified == true && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists() || auth.token.boss == true || root.child('members').child($board).child(auth.token.email.replace('.', ',')).exists())",
         "drawings": {
           "$dwg": {
-            ".write": "auth != null && auth.token.email_verified == true && newData.exists() && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+            ".write": "auth != null && auth.token.email_verified == true && newData.exists() && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('members').child($board).child(auth.token.email.replace('.', ',')).val() == 'editor')",
             ".validate": "newData.hasChildren(['no', 'status', '_by', '_ts']) && newData.child('no').isString() && newData.child('status').val().matches(/^(drafting|review|revise|submitted|returned|approved)$/) && newData.child('_by').val() == auth.token.email"
           }
         },
@@ -53,7 +56,7 @@
         "issues": {
           ".indexOn": ["created"],
           "$id": {
-            ".write": "auth != null && auth.token.email_verified == true && newData.exists() && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+            ".write": "auth != null && auth.token.email_verified == true && newData.exists() && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('members').child($board).child(auth.token.email.replace('.', ',')).val() == 'editor')",
             ".validate": "newData.hasChildren(['n', 'text', 'status', '_by', '_ts']) && newData.child('text').isString() && newData.child('status').val().matches(/^(open|ask|fixed|closed)$/) && newData.child('_by').val() == auth.token.email && (newData.child('status').val() != 'closed' || data.child('status').val() == 'fixed' || data.child('status').val() == 'closed') && (newData.child('status').val() != 'fixed' || newData.hasChildren(['fixedBy', 'fixedAt']))"
           }
         },
@@ -62,7 +65,7 @@
         "history": {
           ".indexOn": ["ts"],
           "$pushId": {
-            ".write": "auth != null && auth.token.email_verified == true && !data.exists() && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+            ".write": "auth != null && auth.token.email_verified == true && !data.exists() && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('members').child($board).child(auth.token.email.replace('.', ',')).val() == 'editor')",
             ".validate": "newData.hasChildren(['ts', 'user', 'desc']) && newData.child('user').val() == auth.token.email"
           }
         }
@@ -73,15 +76,15 @@
     // kept as JSON text pieces so a save only sends what changed.
     // Pieces can be removed (a file taken off the board); only editors write.
     "schedules": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
       "$board": {
+        ".read": "auth != null && auth.token.email_verified == true && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists() || auth.token.boss == true || root.child('members').child($board).child(auth.token.email.replace('.', ',')).exists())",
         "meta": {
-          ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() && newData.exists()",
+          ".write": "auth != null && auth.token.email_verified == true && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('members').child($board).child(auth.token.email.replace('.', ',')).val() == 'editor') && newData.exists()",
           ".validate": "root.child('boardInfo').child($board).exists() && newData.hasChildren(['_by', '_ts']) && newData.child('_by').val() == auth.token.email"
         },
         "chunks": {
           "$key": {
-            ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+            ".write": "auth != null && auth.token.email_verified == true && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('members').child($board).child(auth.token.email.replace('.', ',')).val() == 'editor')",
             ".validate": "root.child('boardInfo').child($board).exists() && $key.matches(/^[A-Za-z0-9_-]{1,80}$/) && newData.isString() && newData.val().length <= 3600000"
           }
         }
@@ -89,10 +92,10 @@
     },
     // The original .xlsx of each schedule (base64), used to export in its own layout.
     "scheduleFiles": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
       "$board": {
+        ".read": "auth != null && auth.token.email_verified == true && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists() || auth.token.boss == true || root.child('members').child($board).child(auth.token.email.replace('.', ',')).exists())",
         "$file": {
-          ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+          ".write": "auth != null && auth.token.email_verified == true && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('members').child($board).child(auth.token.email.replace('.', ',')).val() == 'editor')",
           ".validate": "root.child('boardInfo').child($board).exists() && $file.matches(/^[A-Za-z0-9]{1,40}$/) && newData.hasChildren(['data', '_by', '_ts']) && newData.child('data').isString() && newData.child('data').val().length < 9500000 && newData.child('_by').val() == auth.token.email"
         }
       }
@@ -100,10 +103,10 @@
 
     // Screenshots, kept apart from /boards so listing a board never downloads them.
     "images": {
-      ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.matches(/@advfacade\\.com$/i) || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
       "$board": {
+        ".read": "auth != null && auth.token.email_verified == true && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists() || auth.token.boss == true || root.child('members').child($board).child(auth.token.email.replace('.', ',')).exists())",
         "$img": {
-          ".write": "auth != null && auth.token.email_verified == true && !data.exists() && newData.exists() && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+          ".write": "auth != null && auth.token.email_verified == true && !data.exists() && newData.exists() && (root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('members').child($board).child(auth.token.email.replace('.', ',')).val() == 'editor')",
           ".validate": "newData.hasChildren(['data', '_by', '_ts']) && newData.child('data').isString() && newData.child('data').val().beginsWith('data:image/') && newData.child('data').val().length < 1500000 && newData.child('_by').val() == auth.token.email"
         }
       }
@@ -114,6 +117,12 @@
     "allowlist": {
       ".read": false, ".write": false,
       "$emailKey": { ".read": "auth != null && auth.token.email_verified == true && auth.token.email.replace('.', ',') == $emailKey" }
+    },
+    // Per-board people (Leo 10-20): members/<board>/<email key> = "editor" | "viewer". The design
+    // team (/allowlist) edits every board, /viewers read every board, bosses (claim) read all.
+    "members": {
+      ".read": false, ".write": false,
+      "$board": { "$emailKey": { ".read": "auth != null && auth.token.email_verified == true && auth.token.email.replace('.', ',') == $emailKey" } }
     },
     "viewers": {
       ".read": false, ".write": false,

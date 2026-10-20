@@ -9,7 +9,8 @@
    The lead adds an Excel schedule (a red cell becomes issue #1), edits a cell;
    a drafter on another computer sees the same board, changes the issue while
    the lead keeps editing, and neither overwrites the other; the lead uploads
-   a new version and exports; staff can look but not change anything.
+   a new version and exports; a PM who is a viewer of the board can look but not
+   change anything; staff on no list see no board (Leo 10-20).
    ───────────────────────────────────────────────────────────────────────── */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -28,7 +29,7 @@ const targaryen = require('targaryen');
 const ExcelJS = require('exceljs');
 const { chromium } = require('playwright');
 const PW = 'pw-1';
-const LEAD = 'spark@advfacade.com', DRAFTER = 'henry.kim@advfacade.com', STAFF = 'pm@advfacade.com';
+const LEAD = 'spark@advfacade.com', DRAFTER = 'henry.kim@advfacade.com', STAFF = 'cdu@advfacade.com', NOBODY = 'haodong@advfacade.com';
 const key = e => e.replace(/\./g, ',');
 
 let pass = 0, fail = 0;
@@ -127,11 +128,12 @@ const fileIds = () => Object.keys(chunks()).map(k => (/^f_([A-Za-z0-9]+)_m$/.exe
 const hist = () => Object.values((DB.boards && DB.boards.ac3 && DB.boards.ac3.history) || {}).map(h => h.desc);
 
 // ─────────────────────────────────────────────────────────────── seed ──
-[LEAD, DRAFTER, STAFF].forEach(mkUser);
+[LEAD, DRAFTER, STAFF, NOBODY].forEach(mkUser);
 DB = {
   meta: { project: 'design', name: 'AF Design Boards' },
   allowlist: { [key(LEAD)]: true, [key(DRAFTER)]: true },
   boardInfo: { ac3: { name: 'Atlantic-Chestnut Building 3', _by: LEAD, _ts: 1 }, hillview: { name: 'Hillview', _by: LEAD, _ts: 1 } },
+  members: { ac3: { [key(STAFF)]: 'viewer' } },     // a PM who only looks at AC3
 };
 
 try {
@@ -199,7 +201,7 @@ try {
   const wb = new ExcelJS.Workbook(); await wb.xlsx.load(out);
   ok(wb.worksheets.some(w => w.name === 'Board issues') && wb.getWorksheet('WALL TYPES').getCell('E6').value === 3, 'exported file has the board issues tab and v2 values');
 
-  console.log('Schedules — staff can look, not change');
+  console.log('Schedules — a viewer of AC3 can look, not change');
   const before = JSON.stringify(DB.schedules);
   const deniedBefore = denied;
   const st = await open(STAFF);
@@ -214,6 +216,12 @@ try {
   await new Promise(r => setTimeout(r, 400));
   ok(JSON.stringify(DB.schedules) === before, 'staff changed nothing in the database');
   ok(denied === deniedBefore, 'the page did not even try to write for staff');
+  ok(await st.$$eval('#boardSel option', o => o.map(x => x.value).join()) === 'ac3', 'the AC3 viewer has only AC3 in the list (no Hillview, no "+ New board")');
+
+  console.log('Schedules — staff on no list');
+  const nb = await open(NOBODY);
+  await nb.waitForSelector('text=No project board is open to this account', { timeout: 15000 });
+  ok(true, 'staff on no list: no board');
 
   console.log('Schedules — Design Board links here');
   await lead.goto(BASE + '#b=ac3');

@@ -15,6 +15,7 @@ const ok = (c, m) => { if (c) pass++; else { fail++; console.log('FAIL  ' + m); 
 
 const jwt = payload => ['x', Buffer.from(JSON.stringify(payload)).toString('base64url'), 'sig'].join('.');
 const EDITOR = jwt({ email: 'henry.kim@advfacade.com' }), OTHER = jwt({ email: 'joe.foreman@gmail.com' });
+const PM = jwt({ email: 'c.du@advfacade.com' });   // editor of the ac3 board only (members/ac3), 10-20
 const PNG = 'data:image/png;base64,iVBORw0KGgo=';
 
 let sent = null;
@@ -44,6 +45,10 @@ globalThis.fetch = async (url, opts) => {
     const isHenry = decodeURIComponent(url).includes('henry,kim@advfacade,com') && auth === EDITOR;
     return { ok: true, json: async () => (isHenry ? true : null) };
   }
+  if (url.startsWith('https://af-hub-8f188-design.firebaseio.com/members/')) {
+    const auth = new URL(url).searchParams.get('auth'), u = decodeURIComponent(url);
+    return { ok: true, json: async () => (u.includes('/members/ac3/c,du@advfacade,com.json') && auth === PM ? 'editor' : null) };
+  }
   if (url === 'https://api.anthropic.com/v1/messages') {
     sent = JSON.parse(opts.body);
     const tool = sent.tool_choice.name;
@@ -68,6 +73,10 @@ let r = await call({ token: OTHER, board: 'ac3', mode: 'split', text: 'hi' });
 ok(r.code === 403, 'someone who is not a design editor is refused');
 r = await call({ board: 'ac3', mode: 'split', text: 'hi' });
 ok(r.code === 403, 'no token is refused');
+r = await call({ token: PM, board: 'hillview', mode: 'split', text: 'hi' });
+ok(r.code === 403, 'a PM is refused on another project\'s board');
+r = await call({ token: PM, board: 'ac3', mode: 'ask', text: 'what is open?', context: CTX });
+ok(r.code === 200, 'a PM who edits the AC3 board may use it there');
 r = await call({ token: EDITOR, board: 'ac3', mode: 'delete', text: 'hi' });
 ok(r.code === 400, 'unknown mode refused');
 r = await call({ token: EDITOR, board: '../x', mode: 'ask', text: 'hi' });

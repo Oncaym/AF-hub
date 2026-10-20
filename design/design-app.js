@@ -188,15 +188,20 @@
     const sel = $('#boardPick');
     const ids = Object.keys(S.boards).sort((a, b) => nat(S.boards[a].name || a, S.boards[b].name || b));
     sel.innerHTML = ids.map(id => `<option value="${esc(id)}">${esc(S.boards[id].name || id)}</option>`).join('') +
-      (ed() ? '<option value="__new">+ New project board…</option>' : '');
-    sel.hidden = !ids.length && !ed();
+      (DC.canCreate() ? '<option value="__new">+ New project board…</option>' : '');
+    sel.hidden = !ids.length && !DC.canCreate();
     if (S.board) sel.value = S.board;
   }
+  // Role on the board on screen (a PM edits their own project's board only).
+  function showWho() {
+    const r = S.board ? (ed() ? 'editor' : 'view only') : DC.global === 'editor' ? 'editor' : DC.global ? 'view only' : '';
+    $('#who').innerHTML = `${esc(DC.email)}${r ? ` <span class="role">${r}</span>` : ''}`;
+  }
   function selectBoard(id) {
-    if (!id || !S.boards[id]) { S.board = null; detach(); render(); return; }
-    if (S.board === id && S.listeners.length) return;
+    if (!id || !S.boards[id]) { S.board = null; DC.useBoard(null); detach(); showWho(); render(); return; }
+    if (S.board === id && S.listeners.length) { DC.useBoard(id); showWho(); return; }
     detach();
-    S.board = id; S.drawings = {}; S.issues = {}; S.imgs = {}; S.issuesLoaded = false; seenMine = null;
+    S.board = id; DC.useBoard(id); showWho(); S.drawings = {}; S.issues = {}; S.imgs = {}; S.issuesLoaded = false; seenMine = null;
     try { localStorage.setItem('afdesign_board', id); } catch (e) {}
     if (location.hash !== '#b=' + id) history.replaceState(null, '', location.pathname + location.search + '#b=' + id);
     document.querySelectorAll('[data-board-link]').forEach(a => { a.href = a.dataset.boardLink + '#b=' + id; });
@@ -234,7 +239,9 @@
     const view = $('#view');
     if (!S.board) {
       view.innerHTML = `<div class="empty">${Object.keys(S.boards).length ? 'Pick a project above.' :
-        (ed() ? 'No project boards yet. <button class="btn primary" id="firstBoard">+ New project board</button>' : 'No project boards yet.')}</div>`;
+        DC.canCreate() ? 'No project boards yet. <button class="btn primary" id="firstBoard">+ New project board</button>' :
+        S.closed ? `No project board is open to ${esc(DC.email)}.<br><span class="dim">A board is seen only by that project's PMs, the design team and the bosses. Ask Leo to add you to your project.</span>` :
+        'No project boards yet.'}</div>`;
       const fb = $('#firstBoard'); if (fb) fb.onclick = newBoard;
       $('#nReview').textContent = ''; $('#nDrawings').textContent = '';
       return;
@@ -925,25 +932,32 @@
   // ----------------------------------------------------------------- start --
   let boardsRef = null;
   DC.onReady(() => {
-    $('#who').innerHTML = `${esc(DC.email)} <span class="role">${ed() ? 'editor' : 'view only'}</span>`;
+    showWho();
     $('#outBtn').hidden = false; $('#histBtn').hidden = false;
     if (boardsRef) boardsRef.off();
     boardsRef = db.ref('boardInfo');
-    boardsRef.on('value', s => {
-      S.boards = s.val() || {};
+    let seq = 0, warned = false;
+    boardsRef.on('value', async s => {
+      const all = s.val() || {}, mySeq = ++seq;
+      const roles = await DC.loadRoles(Object.keys(all));
+      if (mySeq !== seq) return;
+      // Only the boards this person can open (Leo 10-20: a board is for its PMs, the design team, the bosses).
+      S.boards = {}; Object.keys(all).forEach(id => { if (roles[id]) S.boards[id] = all[id]; });
+      S.closed = Object.keys(all).length - Object.keys(S.boards).length;
       renderBoardPick();
       if (!S.board || !S.boards[S.board]) {
         let want = (location.hash.match(/b=([a-z0-9-]+)/) || [])[1];
+        if (want && all[want] && !S.boards[want] && !warned) { warned = true; toast(`No access to the ${all[want].name || want} board. Ask Leo to add you.`, true); }
         if (!want) { try { want = localStorage.getItem('afdesign_board'); } catch (e) {} }
         const ids = Object.keys(S.boards).sort();
         selectBoard(S.boards[want] ? want : ids[0]);
-      }
+      } else selectBoard(S.board);
       render();
-    }, e => toast('Cannot read the board list: ' + (e.code || e.message), true));
+    }, e => { S.boards = {}; S.closed = 1; renderBoardPick(); selectBoard(null); console.error(e); });
   });
   DC.onSignedOut(() => {
     detach(); if (boardsRef) { boardsRef.off(); boardsRef = null; }
-    S.board = null; S.boards = {}; S.drawings = {}; S.issues = {}; S.imgs = {};
+    S.board = null; S.boards = {}; S.closed = 0; S.drawings = {}; S.issues = {}; S.imgs = {};
     $('#who').textContent = ''; $('#outBtn').hidden = true; $('#histBtn').hidden = true; $('#boardPick').hidden = true;
   });
 })();

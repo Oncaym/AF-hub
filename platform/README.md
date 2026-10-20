@@ -21,9 +21,11 @@
    | editor | 数据库里 `allowlist` | 改这个项目 |
    | gc | 数据库里 `gcList` | 只看 GC 视图，只能提问 |
    | viewer | 数据库里 `viewers` | 只看完整看板 |
-   | 公司员工 | **已验证**的 @advfacade.com 邮箱 | 自动能看所有项目（只读） |
+   | boss | 账号上的 claim `boss`（chul、nan） | 看所有项目和所有 design board，什么都不能改 |
+   | shop | 账号上的 claim `shop` | 看所有项目；只有他们能点 🚚 Sent ✓ |
+   | 公司员工 | **已验证**的 @advfacade.com 邮箱 | 只有总览页和 🚚 Shop 页。**10-20 起**不在名单上就打不开任何项目 |
 
-   其他人什么都看不到，连项目名都看不到。工头（个人邮箱）和 GC 只能进被加进去的项目。总览页（hub 首页）只给已验证的公司邮箱看。
+   其他人什么都看不到，连项目名都看不到。每个项目只给它名单上的人看（Leo 10-20 定的：项目 PM、design team、老板）。总览页（hub 首页）只给已验证的公司邮箱看。
 4. **自动检查**：每次推送 GitHub 都会自动跑 Actions → *Platform tests*，测试真实页面、规则和迁移工具：
    - 编辑保存只落在自己项目；
    - 页面配错数据库会被拦下；
@@ -174,7 +176,9 @@ Benji 自己做、自己改的页面，原样放进 hub，地址是 `/mn/`。hub
   - 加人：`mode = member`、`project = shop`、`role = shop`、`email = …`（可以一次填好几个）。
   - 拿掉：`project = shop`、`role = remove`。
   - 加完以后，对方重新登录一次就生效（最晚一小时）。
-- 公司同事只需要看（总览 + 所有项目只读）：`mode = member`、`project = hub`、`role = staff`、`email = 他的 @advfacade.com 邮箱`。console 里建过、卡在确认邮箱那一步的账号，也这样跑一次就好了。
+- **老板**（看所有项目和 design board，不能改）：`mode = member`、`project = hub`、`role = boss`、`email = …`。拿掉：`project = boss`、`role = remove`。对方重新登录一次就生效（最晚一小时）。
+- 公司同事只需要总览页和 Shop 页：`mode = member`、`project = hub`、`role = staff`、`email = 他的 @advfacade.com 邮箱`。要看某个项目，还得把他加进那个项目（下面）。console 里建过、卡在确认邮箱那一步的账号，也这样跑一次就好了。
+- **谁在名单上**：`mode = member`、`project = ac3`（或 design 等）、`role = list`。日志是公开的，所以邮箱只显示第一个字母。最后一行列出看不到这个项目的公司账号。
 
 **加人 / 改权限 / 删人**：Actions → Project database → Run workflow
 - `mode = member`
@@ -196,7 +200,10 @@ Benji 自己做、自己改的页面，原样放进 hub，地址是 `/mn/`。hub
 design team 的图纸和审图意见，**跟安装 tracker 分开**：
 
 - 单独一个数据库 `af-hub-8f188-design`。所有项目的 board 都在里面（`/boardInfo`、`/boards/<项目>`、`/images/<项目>`），所以还没有 tracker 的项目（Hillview 等）也能用。
-- 规则文件是 `design-database.rules.json`。身份只有 editor（`allowlist`）和 viewer（`viewers`），没有 GC；公司员工能看，不能改。
+- 规则文件是 `design-database.rules.json`。没有 GC。**10-20 起每个 board 只给这个项目的人看**：
+  - design team（`allowlist`）：改所有 board；`viewers`：看所有 board；老板（claim `boss`）：看所有 board。
+  - 项目 PM：只进自己项目的 board，`/members/<board>/<邮箱>` = editor 或 viewer。加人：`mode = member`、`project = design/ac3`、`role = editor`（或 viewer、remove）。
+  - 其他公司员工：看不到任何 board（board 列表里只有自己能进的）。
 - design team 只在 design 库的名单上，**不在任何 tracker 名单上**。
 - 一条意见要关两次：drafter 标"已改"（fixed）→ 审图的人确认后"关闭"（closed）。规则保证只有 fixed 才能变成 closed。
 - Claude（拆 Discord 截图、回答问题）走 `api/design.mjs`，用的是 Vercel 上同一个 `ANTHROPIC_API_KEY`。只有 design 库的 editor 能调用。Claude 只提建议，人点按钮才保存。

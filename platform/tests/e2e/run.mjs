@@ -32,7 +32,8 @@ const { chromium } = require('playwright');
 const PW = 'test-password-1';
 const LEO = 'leo.sun@advfacade.com';       // staff, editor on ac3 AND lex
 const JOE = 'joe.foreman@gmail.com';       // editor on ac3 only, personal email
-const BOSS = 'boss@advfacade.com';         // staff, on no list; on the shop list (custom claim shop)
+const BOSS = 'boss@advfacade.com';         // on no list; claims boss (reads every project) + shop (marks 🚚 Sent)
+const STAFF = 'haodong@advfacade.com';     // company email, on no list, no claim: sees no project (10-20)
 const GC = 'pm@turner.com';                // GC on ac3
 const NEWBIE = 'new.hire@advfacade.com';   // email not verified yet
 const key = e => e.replace(/\./g, ',');
@@ -295,7 +296,8 @@ async function edit(page, status) {
     plan: { rev: 1, building: 'Morgan North', windows: [{ id: '10-1', face: 'E', floor: 10, rows: 2, cols: 2, mode: 'pane', type: 'H', replace: [1, 2, 4] }] },
   }, MN_RULES);
   for (const e of [LEO, JOE, GC]) await B.createUser(e, true);
-  await B.createUser(BOSS, true, { shop: true });   // the shop list (custom claim): marks 🚚 Sent
+  await B.createUser(BOSS, true, { shop: true, boss: true });   // custom claims: the shop list (marks 🚚 Sent), boss (reads all)
+  await B.createUser(STAFF, true);
   await B.createUser(NEWBIE, false);
   const lexBefore = JSON.stringify(await B.read(LEX, 'state'));
   // PW_EXEC: a Chromium already on the machine (same switch as the design e2e tests).
@@ -372,7 +374,7 @@ async function edit(page, status) {
     ok(await gateVisible(page), 'nothing of Lexington is shown');
     await ctx.close();
 
-    console.log('\n5. Staff (@advfacade.com, on no list) can view, cannot change');
+    console.log('\n5. A boss (claim, on no list) can view, cannot change');
     const lexNow = JSON.stringify(await B.read(LEX, 'state'));
     ctx = await newContext(browser);
     page = await open(ctx, 'lex');
@@ -383,6 +385,14 @@ async function edit(page, status) {
     await edit(page, 'pending');
     await sleep(1500);
     ok(JSON.stringify(await B.read(LEX, 'state')) === lexNow, 'their edit is not saved');
+    await ctx.close();
+
+    console.log('\n5b. Other staff (company email, on no list): no project opens (Leo 10-20)');
+    ctx = await newContext(browser);
+    page = await open(ctx, 'ac3');
+    await signIn(page, STAFF);
+    ok(await until(async () => /No access/.test(await gateText(page))), '"No access" on AC3', await gateText(page));
+    ok(await gateVisible(page), 'nothing of AC3 is shown');
     await ctx.close();
 
     console.log('\n6. The GC sees the GC view of AC3, read-only');
@@ -401,8 +411,7 @@ async function edit(page, status) {
     await shot(page, '5-confirm-email');
     await B.verify(NEWBIE);
     await page.click('#cs-auth-msg button:has-text("I opened the link")');
-    ok(await until(async () => !(await gateVisible(page))), 'after confirming, staff can view AC3');
-    ok(await until(() => page.evaluate(() => window.CloudSync.isReadOnly())), '…read-only');
+    ok(await until(async () => /No access/.test(await gateText(page))), 'after confirming: "No access" until they are added to AC3', await gateText(page));
     await ctx.close();
 
     console.log('\n8. Cooper Park 2 in the hub: its saves land in CP2 only, its bay elevations work');

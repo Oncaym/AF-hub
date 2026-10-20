@@ -46,6 +46,7 @@ const key = e => e.replace(/\./g, ',');
 const who = (email, verified = true) => ({ uid: 'u_' + email.replace(/\W/g, '_'), provider: 'password', token: { email, email_verified: verified, firebase: { sign_in_provider: 'password' } } });
 const EDITOR = who('benji.lee@gmail.com'), LEO = who('leosun@advfacade.com'), STAFF = who('boss@advfacade.com'), VIEWER = who('owner@client.com'),
   GC = who('pm@gc.com'), STRANGER = who('x@gmail.com'), FAKE = who('fake@advfacade.com', false);
+const BOSS = who('nan@advfacade.com'); BOSS.token.boss = true;   // 10-20: boss claim reads every project
 const ANON = { uid: 'anon', provider: 'anonymous', token: { firebase: { sign_in_provider: 'anonymous' } } };
 const DATA = {
   meta: { project: 'mn', name: 'Morgan North' },
@@ -56,12 +57,13 @@ const DATA = {
 };
 const as = a => targaryen.database(rules, DATA, 1790000000000).as(a);
 const pane = { status: 'sealant', date: '2026-10-19', crew: 'B', notes: 'east' };
-for (const [n, a, want] of [['editor', EDITOR, true], ['staff', STAFF, true], ['viewer', VIEWER, true], ['GC', GC, true], ['stranger', STRANGER, false], ['unverified', FAKE, false], ['anonymous', ANON, false]]) {
+for (const [n, a, want] of [['editor', EDITOR, true], ['staff (not on a list)', STAFF, false], ['boss', BOSS, true], ['viewer', VIEWER, true], ['GC', GC, true], ['stranger', STRANGER, false], ['unverified', FAKE, false], ['anonymous', ANON, false]]) {
   ok(as(a).read('/units').allowed === want && as(a).read('/plan').allowed === want, `${n} ${want ? 'reads' : 'cannot read'} units and plan`);
 }
 ok(as(EDITOR).update('/units', { '10-1~35~2': pane }).allowed, 'an editor logs a pane (update, as the page does)');
 ok(as(EDITOR).update('/units', { '10-1~35~1': null }).allowed, 'an editor resets a pane to original (removed)');
 ok(!as(STAFF).update('/units', { '10-1~35~2': pane }).allowed, 'staff (not on the list) cannot change it');
+ok(!as(BOSS).update('/units', { '10-1~35~2': pane }).allowed && !as(BOSS).write('/plan', { rev: 4, windows: [] }).allowed, 'a boss reads but cannot change it');
 ok(!as(VIEWER).update('/units', { '10-1~35~2': pane }).allowed, 'a viewer cannot change it');
 ok(!as(GC).update('/units', { '10-1~35~2': pane }).allowed, 'the GC cannot change it');
 ok(!as(EDITOR).update('/units', { '10-1~35~2': Object.assign({ photo: 'data:...' }, pane) }).allowed, 'an unknown field is refused (photos are not in the database)');

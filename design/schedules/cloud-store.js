@@ -128,7 +128,7 @@
     Object.keys(next).forEach((k) => { if (next[k] !== this.base[k]) { upd['chunks/' + k] = next[k]; prev[k] = this.base[k]; } });
     Object.keys(this.base).forEach((k) => { if (!(k in next) && this.base[k] !== undefined) { upd['chunks/' + k] = null; prev[k] = this.base[k]; } });
     if (!Object.keys(upd).length) return false;
-    if (!DC().isEditor()) {
+    if (!DC().isEditor(this.id)) {
       if (loud) { const e = new Error('Your account can look at this board but not change it.'); e.code = 'PERMISSION_DENIED'; throw e; }
       if (!warnedView) { warnedView = true; fail(new Error('VIEW_ONLY')); }
       return false;
@@ -170,8 +170,15 @@
   }
 
   /* ---------- boards list ---------- */
+  // Only the boards this person can open (a PM: their own project's; see design-cloud.js).
   async function loadBoards() {
-    if (!boardsInfo) boardsInfo = (await db().ref('boardInfo').once('value')).val() || {};
+    if (!boardsInfo) {
+      let all = {};
+      try { all = (await db().ref('boardInfo').once('value')).val() || {}; } catch (e) { all = {}; }
+      const roles = await DC().loadRoles(Object.keys(all));
+      boardsInfo = {};
+      Object.keys(all).forEach((id) => { if (roles[id]) boardsInfo[id] = all[id]; });
+    }
     return boardsInfo;
   }
   function wanted() {
@@ -194,6 +201,7 @@
     const row = { name: String(name).slice(0, 80), _by: DC().email, _ts: DC().TS };
     await db().ref('boardInfo/' + id).set(row);
     boardsInfo[id] = { name: row.name };
+    DC().boardRoles[id] = 'editor';     // only the design team creates boards
     return id;
   }
 
@@ -206,7 +214,7 @@
   function b64ToBuf(b64) { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
   async function putTpl(board, fid, buf, name, opts) {
     fileBoard[fid] = board;
-    if (!DC().isEditor()) return;
+    if (!DC().isEditor(board)) return;
     try { await db().ref('scheduleFiles/' + board + '/' + fid).set({ data: bufToB64(buf), name: String(name || '').slice(0, 200), _by: DC().email, _ts: DC().TS }); }
     catch (e) { if (opts && opts.throws) throw e; fail(e); }
   }
@@ -246,7 +254,7 @@
         await loadBoards();
         if (!boardsInfo[id]) return undefined;
         const s = await session(id, true);
-        setCurrent(id);
+        setCurrent(id); DC().useBoard(id);
         return s.board();
       }
       if (k.indexOf('tpl:') === 0) {
@@ -265,13 +273,13 @@
       if (k.indexOf('board:') === 0) { const s = await session(k.slice(6), false); await s.write(v); return; }
       if (k.indexOf('tpl:') === 0) { const fid = k.slice(4); await putTpl(fileBoard[fid] || current, fid, v); return; }
       if (k.indexOf('img:') === 0) {
-        if (!DC().isEditor()) return;
+        if (!DC().isEditor(current)) return;
         try { await db().ref('images/' + current + '/' + k.slice(4)).set({ data: await smaller(v), _by: DC().email, _ts: DC().TS }); }
         catch (e) { fail(e); }
       }
     },
     async del(k) {
-      if (k.indexOf('tpl:') === 0 && DC().isEditor()) {
+      if (k.indexOf('tpl:') === 0 && DC().isEditor(fileBoard[k.slice(4)] || current)) {
         const fid = k.slice(4);
         try { await db().ref('scheduleFiles/' + (fileBoard[fid] || current) + '/' + fid).remove(); } catch (e) { fail(e); }
       }

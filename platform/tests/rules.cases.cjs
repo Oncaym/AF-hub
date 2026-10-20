@@ -15,6 +15,7 @@ const P = {
   VIEWER:   person('owner.rep@client.com'),    // on viewers
   STRANGER: person('someone@gmail.com'),       // signed in, no access here
   SHOP:     person('shop.lead@gmail.com', true, { shop: true }),  // on the shop list (custom claim), on no project list
+  BOSS:     person('nan@advfacade.com', true, { boss: true }),    // boss (custom claim): reads every project, changes nothing
   FAKE:     person('fake@advfacade.com', false), // self-signup, unverified
   ANON:     { uid: 'anon1', anonymous: true },
   NOBODY:   null,
@@ -40,8 +41,9 @@ const cases = [];
 const c = (name, as, op, path, value, want, data) => cases.push({ name, as, op, path, value, want, data: data || AC3 });
 
 // reads
-const readers = [['EDITOR', true], ['FOREMAN', true], ['STAFF', true], ['STAFF_UP', true], ['GC', true], ['VIEWER', true],
-  ['STRANGER', false], ['FAKE', false], ['ANON', false], ['NOBODY', false]];
+// 10-20: a company address alone no longer opens a project (STAFF); bosses and the shop list read all
+const readers = [['EDITOR', true], ['FOREMAN', true], ['STAFF', false], ['STAFF_UP', false], ['GC', true], ['VIEWER', true],
+  ['BOSS', true], ['SHOP', true], ['STRANGER', false], ['FAKE', false], ['ANON', false], ['NOBODY', false]];
 for (const [who, want] of readers)
   for (const p of ['/state', '/meta', '/history', '/gcItems', '/warehouse', '/presence', '/elevGeo'])
     c(`read ${p} as ${who}`, who, 'read', p, undefined, want);
@@ -90,7 +92,10 @@ c('staff cannot append history', 'STAFF', 'set', '/history/h3', { ts: NOW, user:
 c('editor writes own presence', 'EDITOR', 'set', '/presence/' + P.EDITOR.uid, { email: P.EDITOR.email, since: NOW }, true);
 c("editor cannot write another uid's presence", 'EDITOR', 'set', '/presence/other', { email: P.EDITOR.email, since: NOW }, false);
 c('staff cannot write presence (the read-only signal)', 'STAFF', 'set', '/presence/' + P.STAFF.uid, { email: P.STAFF.email, since: NOW }, false);
-c('staff logs own access', 'STAFF', 'set', '/access/a1', { email: P.STAFF.email, ts: NOW }, true);
+c('staff on no list cannot log access (10-20)', 'STAFF', 'set', '/access/a1', { email: P.STAFF.email, ts: NOW }, false);
+c('a boss logs own access', 'BOSS', 'set', '/access/a1', { email: P.BOSS.email, ts: NOW }, true);
+c('a boss changes nothing', 'BOSS', 'set', '/state', st(P.BOSS, 'ac3'), false);
+c('a boss cannot post to the GC inbox', 'BOSS', 'set', '/gcItems/g9', item(P.BOSS), false);
 c('stranger cannot log access', 'STRANGER', 'set', '/access/a1', { email: P.STRANGER.email, ts: NOW }, false);
 c('access row signed as someone else refused', 'STAFF', 'set', '/access/a1', { email: 'x@y.com', ts: NOW }, false);
 
@@ -121,7 +126,7 @@ c('editor cannot overwrite the whole elevGeo node', 'EDITOR', 'set', '/elevGeo',
 
 // fab drawings: editors upload, our people read, the GC does not
 const fab = (who, project, extra) => Object.assign({ name: '40.pdf', pdf: 'https://firebasestorage.googleapis.com/v0/b/x/o/p%2Fac3%2Ffab%2Ff1%2F40.pdf', pages: [{ img: 'https://firebasestorage.googleapis.com/i', tags: ['SF40'] }], uploadedAt: NOW, _by: who.email, _project: project }, extra || {});
-for (const [who, want] of [['EDITOR', true], ['FOREMAN', true], ['STAFF', true], ['VIEWER', true], ['GC', false], ['STRANGER', false], ['ANON', false]])
+for (const [who, want] of [['EDITOR', true], ['FOREMAN', true], ['STAFF', false], ['VIEWER', true], ['SHOP', true], ['BOSS', true], ['GC', false], ['STRANGER', false], ['ANON', false]])
   c(`read /fab as ${who}`, who, 'read', '/fab', undefined, want);
 c('editor uploads a fab drawing', 'EDITOR', 'set', '/fab/f1', fab(P.EDITOR, 'ac3'), true);
 c('foreman on the allowlist uploads a fab drawing', 'FOREMAN', 'set', '/fab/f1', fab(P.FOREMAN, 'ac3'), true);
