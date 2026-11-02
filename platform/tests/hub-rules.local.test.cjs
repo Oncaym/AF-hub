@@ -114,6 +114,11 @@ c('other staff cannot add to it', db4(STAFF).write(td + 'i4', item()).allowed, f
 c('Jaesik checks a task Leo finished', db4(JAESIK).write(td + 'i1', item({ done: 9, doneBy: 'leo', checked: 12 })).allowed, true);
 c('a task cannot be checked before it is done', db4(JAESIK).write(td + 'i1/checked', 12).allowed, false);
 c('checked must be a time', db4(JAESIK).write(td + 'i1', item({ done: 9, doneBy: 'leo', checked: 'yes' })).allowed, false);
+c('Leo saves a handwritten page', db4(LEO).write('/todo/leo-jaesik/notes/-NabcdEFGhij123', { img: 'data:image/jpeg;base64,/9j/4AAQ', at: 1, by: 'leo', text: 'CP2 calc 给 KWK 周三前' }).allowed, true);
+c('a task points at its page', db4(LEO).write(td + 'i5', item({ ink: '-NabcdEFGhij123' })).allowed, true);
+c('a page must be a picture', db4(LEO).write('/todo/leo-jaesik/notes/-NabcdEFGhij123', { img: 'javascript:alert(1)', at: 1, by: 'leo' }).allowed, false);
+c('other staff cannot read the pages', db4(STAFF).read('/todo/leo-jaesik/notes').allowed, false);
+c('a bad page id on a task is refused', db4(LEO).write(td + 'i5', item({ ink: '../x' })).allowed, false);
 c('no other shared lists exist yet', db4(LEO).read('/todo/leo-boss').allowed, false);
 console.log(`hub rules (local simulator): ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

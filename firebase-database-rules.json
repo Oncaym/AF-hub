@@ -186,6 +186,18 @@
             "done": { ".validate": "newData.isNumber()" },
             "doneBy": { ".validate": "newData.val() == 'leo' || newData.val() == 'jaesik'" },
             "checked": { ".validate": "newData.isNumber() && newData.parent().child('done').exists()" },
+            "ink": { ".validate": "newData.isString() && newData.val().matches(/^[-A-Za-z0-9_]{10,40}$/)" },
+            "$other": { ".validate": false }
+          }
+        },
+        // ✍️ the handwritten page a task came from (a JPEG/PNG picture, kept so a misread can be checked)
+        "notes": {
+          "$id": {
+            ".validate": "newData.hasChildren(['img', 'at', 'by'])",
+            "img": { ".validate": "newData.isString() && (newData.val().beginsWith('data:image/jpeg;base64,') || newData.val().beginsWith('data:image/png;base64,')) && newData.val().length <= 1500000" },
+            "at": { ".validate": "newData.isNumber()" },
+            "by": { ".validate": "newData.val() == 'leo' || newData.val() == 'jaesik'" },
+            "text": { ".validate": "newData.isString() && newData.val().length <= 4000" },
             "$other": { ".validate": false }
           }
         },

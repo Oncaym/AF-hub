@@ -64,6 +64,7 @@
   .body { flex: 1; min-width: 0; }
   .what { font-weight: 600; word-wrap: break-word; }
   .row.isdone .what { text-decoration: line-through; color: var(--text-dim); font-weight: 400; }
+  .tocheck { color: var(--yellow); }
   .meta { color: var(--text-dim); font-size: 12.5px; display: flex; gap: 4px 10px; flex-wrap: wrap; margin-top: 2px; }
   .meta .p { color: var(--text); background: var(--panel-2); border-radius: 999px; padding: 0 8px; }
   .meta .due-late { color: var(--red); font-weight: 600; }
@@ -88,7 +89,35 @@
   .toast { position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--panel-2);
     border: 1px solid var(--border); color: var(--text); padding: 8px 14px; border-radius: 8px; font-size: 14px; z-index: 20; }
 
+  /* ✍️ handwriting pad (Leo 11-01): write with the pencil, AI splits it into tasks, the page keeps the original */
+  .ink { position: fixed; inset: 0; z-index: 30; background: var(--bg); display: flex; flex-direction: column;
+    padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
+  .ink .tools { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding-bottom: 8px; }
+  .ink .tools .on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .ink .paperwrap { flex: 1; overflow-y: auto; border-radius: 10px; border: 1px solid var(--border); -webkit-overflow-scrolling: touch; }
+  .ink canvas { display: block; width: 100%; touch-action: none; background: #fffef8;
+    background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 47px, #dfe6ee 47px, #dfe6ee 48px); }
+  .ink .status { color: var(--text-dim); font-size: 13px; }
+  .review { position: fixed; inset: 0; z-index: 31; background: var(--bg); overflow-y: auto;
+    padding: max(12px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); }
+  .review .wrap { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+  .review h2 { margin: 4px 0 0; font-size: 18px; }
+  .review .heard { color: var(--text-dim); font-size: 13px; white-space: pre-wrap; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+  .review .thumb { max-height: 160px; max-width: 100%; border-radius: 8px; border: 1px solid var(--border); background: #fff; align-self: flex-start; }
+  #revRows { display: flex; flex-direction: column; gap: 8px; }
+  .rt { display: grid; grid-template-columns: 1fr auto auto auto auto; gap: 6px; align-items: center; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px; }
+  .rt input, .rt select { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 7px 8px; font: inherit; font-size: 14px; min-width: 0; }
+  .rt .unsure { grid-column: 1 / -1; color: var(--yellow); font-size: 12.5px; }
+  .notebtn { background: none; border: 0; color: var(--accent); padding: 0; font: inherit; font-size: 12.5px; cursor: pointer; }
+  .notebox { position: fixed; inset: 0; z-index: 32; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .notebox .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px; max-width: 900px; width: 100%; max-height: 92vh; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+  .notebox img { width: 100%; height: auto; background: #fff; border-radius: 8px; }
+  .notebox .heard { color: var(--text-dim); font-size: 13px; white-space: pre-wrap; }
+
   @media (max-width: 760px) {
+    .rt { grid-template-columns: 1fr 1fr; }
+    .rt input[data-f="what"] { grid-column: 1 / -1; }
+
     .cols { grid-template-columns: 1fr; }
     .add #what, .add #note { flex-basis: 100%; }
   }
@@ -116,6 +145,7 @@
           <button type="button" data-to="" id="forOther">For other</button>
         </span>
         <button class="btn go" type="submit">Add</button>
+        <button class="btn" type="button" id="inkOpen" title="Write by hand (Apple Pencil); AI turns the page into tasks">✍️ Write</button>
       </div>
       <div class="line">
         <select id="proj" aria-label="Project">
@@ -134,6 +164,44 @@
       <section class="col" id="col-jaesik"></section>
     </div>
   </main>
+</div>
+
+<div class="ink" id="ink" hidden>
+  <div class="tools">
+    <button class="btn on" type="button" id="inkPen">✏️ Pen</button>
+    <button class="btn" type="button" id="inkEraser">🧽 Eraser</button>
+    <button class="btn" type="button" id="inkUndo">↶ Undo</button>
+    <button class="btn" type="button" id="inkClear">Clear</button>
+    <button class="btn" type="button" id="inkMore" title="More room below">＋ Space</button>
+    <span class="grow"></span>
+    <span class="status" id="inkStatus"></span>
+    <button class="btn" type="button" id="inkCancel">Cancel</button>
+    <button class="btn go" type="button" id="inkRead">Read it →</button>
+  </div>
+  <div class="paperwrap" id="paperwrap"><canvas id="paper"></canvas></div>
+</div>
+
+<div class="review" id="review" hidden>
+  <div class="wrap">
+    <h2>Check the tasks, then add them</h2>
+    <img class="thumb" id="revImg" alt="Your handwritten note">
+    <div class="heard" id="revHeard"></div>
+    <div id="revRows"></div>
+    <div><button class="btn" type="button" id="revAddRow">＋ Add a line</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn go" type="button" id="revSave">Add to the list</button>
+      <button class="btn" type="button" id="revBack">← Back to writing</button>
+      <button class="btn" type="button" id="revDiscard">Discard</button>
+    </div>
+  </div>
+</div>
+
+<div class="notebox" id="notebox" hidden>
+  <div class="card">
+    <div style="display:flex;gap:8px;align-items:center"><b>✍️ Original note</b><span class="grow"></span><button class="btn" type="button" id="noteClose">Close</button></div>
+    <img id="noteImg" alt="Handwritten note">
+    <div class="heard" id="noteHeard"></div>
+  </div>
 </div>
 
 <div class="msg" id="msg" hidden></div>
@@ -187,6 +255,7 @@
   const db = firebase.database();
 
   let me = null, other = null, ref = null, items = {}, forWho = null, editing = null, started = false;
+  const doneOpen = {};   // column -> open/closed, once the person has toggled it
   const name = k => PEOPLE[k] ? PEOPLE[k].name : k;
 
   auth.onAuthStateChanged(u => {
@@ -253,12 +322,18 @@
     meta.push('<span>' + esc(name(it.by)) + ' asked · ' + ago(it.at) + '</span>');
     if (!it.done) meta.push(it.seen ? '<span class="seen">' + esc(name(it.to)) + ' got it ' + when(it.seen) + '</span>'
       : '<span class="unseen">' + (it.to === me ? 'New: tap Got it' : esc(name(it.to)) + ' hasn\u2019t tapped Got it yet') + '</span>');
-    else meta.push('<span>Done ' + when(it.done) + (it.doneBy ? ' by ' + esc(name(it.doneBy)) : '') + '</span>');
+    else {
+      meta.push('<span>Done ' + when(it.done) + (it.doneBy ? ' by ' + esc(name(it.doneBy)) : '') + '</span>');
+      meta.push(it.checked ? '<span class="seen">Checked by ' + esc(name(it.by)) + ' ' + when(it.checked) + '</span>'
+        : '<span class="unseen">' + (it.by === me ? 'Not checked yet' : esc(name(it.by)) + ' hasn\u2019t checked') + '</span>');
+    }
     return '<div class="row' + (it.done ? ' isdone' : '') + '" data-id="' + esc(it.id) + '">' +
       '<button class="tick' + (it.done ? ' done' : '') + '" type="button" data-act="' + (it.done ? 'reopen' : 'done') + '" title="' + (it.done ? 'Not done after all' : 'Done') + '" aria-label="' + (it.done ? 'Reopen' : 'Mark done') + '"></button>' +
       '<div class="body"><div class="what">' + esc(it.what) + '</div><div class="meta">' + meta.join('') + '</div>' +
-      (it.note ? '<div class="note">' + esc(it.note) + '</div>' : '') + '</div>' +
+      (it.note ? '<div class="note">' + esc(it.note) + '</div>' : '') +
+      (it.ink ? '<button class="notebtn" type="button" data-note="' + esc(it.ink) + '">✍️ Original note</button>' : '') + '</div>' +
       '<div class="acts">' + (!it.done && it.to === me && !it.seen ? '<button class="btn go small" type="button" data-act="ack" title="Tell ' + esc(name(it.by)) + ' you saw this">Got it</button>' : '') +
+      (it.done && it.by === me && !it.checked ? '<button class="btn go small" type="button" data-act="check" title="You looked at it and it is done right">Checked</button>' : '') +
       (it.done ? '' : '<button class="btn small" type="button" data-act="edit">Edit</button>') +
       '<button class="btn small" type="button" data-act="del" title="Delete">✕</button></div></div>';
   }
@@ -279,7 +354,13 @@
       '<p class="sub">Asked by ' + esc(name(k === 'leo' ? 'jaesik' : 'leo')) + '</p>';
     if (k !== me && open.length) h += '<div class="tools"><button class="btn small" type="button" data-copy="' + k + '" title="Copy the open list to paste into a message">📋 Copy as message</button></div>';
     h += open.length ? open.map(rowHtml).join('') : '<div class="empty">Nothing open.</div>';
-    if (done.length) h += '<details class="donebox"><summary>Done in the last 30 days (' + done.length + ')</summary>' + done.map(rowHtml).join('') + '</details>';
+    if (done.length) {
+      const toCheck = done.filter(it => !it.checked).length, asker = k === me ? other : me;
+      const open = doneOpen[k] != null ? doneOpen[k] : (asker === me && toCheck > 0);
+      h += '<details class="donebox" data-col="' + k + '"' + (open ? ' open' : '') + '><summary>Done in the last 30 days (' + done.length + ')' +
+        (toCheck ? ' · <span class="tocheck">' + toCheck + ' for ' + esc(asker === me ? 'you' : name(asker)) + ' to check</span>' : '') + '</summary>' +
+        done.map(rowHtml).join('') + '</details>';
+    }
     return h;
   }
   function render() {
@@ -290,8 +371,12 @@
     document.title = (mine ? '(' + mine + (fresh ? ', ' + fresh + ' new' : '') + ') ' : '') + '✅ To-do — Advanced Facade';
   }
 
+  document.querySelector('.cols').addEventListener('toggle', e => { const d = e.target; if (d.classList && d.classList.contains('donebox')) doneOpen[d.dataset.col] = d.open; }, true);
+
   // ---- row actions
   document.querySelector('.cols').addEventListener('click', e => {
+    const nb = e.target.closest('[data-note]');
+    if (nb) { openNote(nb.dataset.note); return; }
     const copy = e.target.closest('[data-copy]');
     if (copy) { copyList(copy.dataset.copy); return; }
     const b = e.target.closest('[data-act]'); if (!b) return;
@@ -299,7 +384,8 @@
     const act = b.dataset.act;
     if (act === 'ack') ref.child(id + '/seen').set(Date.now());
     else if (act === 'done') ref.child(id).update({ done: Date.now(), doneBy: me });
-    else if (act === 'reopen') ref.child(id).update({ done: null, doneBy: null });
+    else if (act === 'reopen') ref.child(id).update({ done: null, doneBy: null, checked: null });
+    else if (act === 'check') ref.child(id + '/checked').set(Date.now());
     else if (act === 'del') { if (confirm('Delete “' + it.what + '”?')) ref.child(id).remove(); }
     else if (act === 'edit') { editing = id; render(); const w = document.querySelector('.row[data-id="' + id + '"] [data-f="what"]'); if (w) w.focus(); }
     else if (act === 'cancel') { editing = null; render(); }
@@ -321,6 +407,150 @@
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => window.prompt('Copy this:', text));
     else window.prompt('Copy this:', text);
   }
+
+  // ---- ✍️ handwriting: write → AI splits it into tasks → you check → added, each keeping the original
+  const NOTES = 'todo/leo-jaesik/notes';
+  const PROJECTS = ['', 'AC3', 'CP2', 'LEX', 'P7', 'FH', 'BAB', 'NPC', 'Other'];
+  const paper = $('paper'), ctx = paper.getContext('2d');
+  let strokes = [], cur = null, tool = 'pen', penSeen = false, paperH = 0, inkImg = '', inkText = '';
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  function sizePaper(h) {
+    const w = $('paperwrap').clientWidth || 800;
+    paperH = Math.max(h || 0, paperH, Math.round(window.innerHeight * 0.8));
+    paper.width = Math.round(w * DPR); paper.height = Math.round(paperH * DPR);
+    paper.style.height = paperH + 'px';
+    redraw();
+  }
+  function drawStroke(c, st, scale) {
+    c.strokeStyle = '#1b2a3a'; c.lineCap = 'round'; c.lineJoin = 'round';
+    for (let i = 1; i < st.length; i++) {
+      const a = st[i - 1], b = st[i];
+      c.lineWidth = (1.2 + 2.4 * (b.p || 0.5)) * scale;
+      c.beginPath(); c.moveTo(a.x * scale, a.y * scale); c.lineTo(b.x * scale, b.y * scale); c.stroke();
+    }
+    if (st.length === 1) { c.fillStyle = '#1b2a3a'; c.beginPath(); c.arc(st[0].x * scale, st[0].y * scale, 1.6 * scale, 0, 7); c.fill(); }
+  }
+  function redraw() { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, paper.width, paper.height); strokes.forEach(st => drawStroke(ctx, st, DPR)); }
+  const pos = e => { const r = paper.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, p: e.pressure && e.pointerType === 'pen' ? e.pressure : 0.5 }; };
+  function eraseAt(pt) {
+    const before = strokes.length;
+    strokes = strokes.filter(st => !st.some(q => Math.hypot(q.x - pt.x, q.y - pt.y) < 14));
+    if (strokes.length !== before) redraw();
+  }
+  paper.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'pen') penSeen = true;
+    if (penSeen && e.pointerType === 'touch') return;      // palm on the glass while writing with the pencil
+    e.preventDefault(); paper.setPointerCapture(e.pointerId);
+    const pt = pos(e);
+    if (tool === 'eraser') { eraseAt(pt); cur = 'erasing'; return; }
+    cur = [pt]; strokes.push(cur); drawStroke(ctx, cur, DPR);
+  });
+  paper.addEventListener('pointermove', e => {
+    if (!cur || (penSeen && e.pointerType === 'touch')) return;
+    e.preventDefault();
+    const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    evs.forEach(ev => {
+      const pt = pos(ev);
+      if (cur === 'erasing') { eraseAt(pt); return; }
+      const last = cur[cur.length - 1]; cur.push(pt);
+      ctx.setTransform(1, 0, 0, 1, 0, 0); drawStroke(ctx, [last, pt], DPR);
+    });
+  });
+  const endStroke = () => { cur = null; };
+  paper.addEventListener('pointerup', endStroke); paper.addEventListener('pointercancel', endStroke);
+  const setTool = t => { tool = t; $('inkPen').classList.toggle('on', t === 'pen'); $('inkEraser').classList.toggle('on', t === 'eraser'); };
+  $('inkPen').onclick = () => setTool('pen');
+  $('inkEraser').onclick = () => setTool('eraser');
+  $('inkUndo').onclick = () => { strokes.pop(); redraw(); };
+  $('inkClear').onclick = () => { if (!strokes.length || confirm('Clear the page?')) { strokes = []; redraw(); } };
+  $('inkMore').onclick = () => { sizePaper(paperH + 400); $('paperwrap').scrollTop = $('paperwrap').scrollHeight; };
+  $('inkOpen').onclick = () => { $('ink').hidden = false; $('inkStatus').textContent = 'Write with the pencil. One task per line is easiest to read.'; setTool('pen'); sizePaper(); };
+  $('inkCancel').onclick = () => { if (!strokes.length || confirm('Throw this page away?')) { strokes = []; paperH = 0; $('ink').hidden = true; } };
+  window.addEventListener('resize', () => { if (!$('ink').hidden) sizePaper(); });
+
+  // The page as a picture: white paper, cropped to the writing, at most 1400 px wide.
+  function snapshot() {
+    let maxY = 0; strokes.forEach(st => st.forEach(q => { if (q.y > maxY) maxY = q.y; }));
+    const w = paper.width / DPR, h = Math.min(paperH, Math.max(240, maxY + 40));
+    const scale = Math.min(1400 / w, 1.5);
+    const c = document.createElement('canvas'); c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+    const x = c.getContext('2d'); x.fillStyle = '#ffffff'; x.fillRect(0, 0, c.width, c.height);
+    strokes.forEach(st => drawStroke(x, st, scale));
+    let q = 0.85, url = c.toDataURL('image/jpeg', q);
+    while (url.length > 1400000 && q > 0.4) { q -= 0.15; url = c.toDataURL('image/jpeg', q); }
+    return url;
+  }
+
+  $('inkRead').onclick = async () => {
+    if (!strokes.length) { toast('Write something first'); return; }
+    inkImg = snapshot(); inkText = '';
+    $('inkRead').disabled = true; $('inkStatus').textContent = 'Reading your handwriting…';
+    let tasks = null, err = '';
+    try {
+      const token = await auth.currentUser.getIdToken();
+      const r = await fetch('../api/todo-ink', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, image: inkImg, today: today(), me, other }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) err = j.error || ('error ' + r.status); else { tasks = Array.isArray(j.tasks) ? j.tasks : []; inkText = j.text || ''; }
+    } catch (e) { err = e.message || String(e); }
+    $('inkRead').disabled = false; $('inkStatus').textContent = '';
+    if (!tasks) { toast('Could not read it (' + err + '). You can type the tasks yourself.'); tasks = []; }
+    if (!tasks.length) tasks = [{ what: '', to: me }];
+    openReview(tasks);
+  };
+
+  function revRow(t) {
+    const d = document.createElement('div'); d.className = 'rt';
+    const projOpts = PROJECTS.map(p => '<option value="' + p + '"' + ((t.p || '') === p ? ' selected' : '') + '>' + (p || 'No project') + '</option>').join('');
+    d.innerHTML = '<input data-f="what" maxlength="300" placeholder="What needs doing" value="' + esc(t.what || '') + '">' +
+      '<select data-f="to"><option value="' + me + '"' + (t.to !== other ? ' selected' : '') + '>For me</option><option value="' + other + '"' + (t.to === other ? ' selected' : '') + '>For ' + esc(name(other)) + '</option></select>' +
+      '<select data-f="p">' + projOpts + '</select>' +
+      '<input type="date" data-f="due" value="' + esc(/^\d{4}-\d\d-\d\d$/.test(t.due || '') ? t.due : '') + '">' +
+      '<button class="btn small" type="button" data-rm title="Remove this line">✕</button>' +
+      (t.unsure ? '<div class="unsure">Not sure about: ' + esc(t.unsure) + '</div>' : '');
+    d.querySelector('[data-rm]').onclick = () => d.remove();
+    return d;
+  }
+  function openReview(tasks) {
+    $('revImg').src = inkImg; $('revHeard').textContent = inkText ? 'Read as: ' + inkText : ''; $('revHeard').hidden = !inkText;
+    const box = $('revRows'); box.innerHTML = ''; tasks.forEach(t => box.appendChild(revRow(t)));
+    $('review').hidden = false;
+  }
+  $('revAddRow').onclick = () => $('revRows').appendChild(revRow({ what: '', to: me }));
+  $('revBack').onclick = () => { $('review').hidden = true; };
+  $('revDiscard').onclick = () => { if (confirm('Discard this note and its tasks?')) { $('review').hidden = true; $('ink').hidden = true; strokes = []; paperH = 0; } };
+  $('revSave').onclick = async () => {
+    const rows = [...$('revRows').querySelectorAll('.rt')].map(d => ({
+      what: d.querySelector('[data-f="what"]').value.trim(), to: d.querySelector('[data-f="to"]').value,
+      p: d.querySelector('[data-f="p"]').value, due: d.querySelector('[data-f="due"]').value })).filter(t => t.what);
+    if (!rows.length) { toast('Write at least one task'); return; }
+    $('revSave').disabled = true;
+    try {
+      const nref = db.ref(NOTES).push();
+      const note = { img: inkImg, at: Date.now(), by: me };
+      if (inkText) note.text = inkText.slice(0, 4000);
+      await nref.set(note);
+      const now = Date.now();
+      await Promise.all(rows.map((t, i) => {
+        const v = { what: t.what, to: t.to, by: t.to === 'leo' ? 'jaesik' : 'leo', at: now + i, ink: nref.key };
+        if (t.p) v.p = t.p; if (t.due) v.due = t.due; if (t.to === me) v.seen = now;
+        return ref.push().set(v);
+      }));
+      toast('Added ' + rows.length + ' task' + (rows.length === 1 ? '' : 's'));
+      $('review').hidden = true; $('ink').hidden = true; strokes = []; paperH = 0;
+    } catch (er) { toast('Not saved: ' + (er.message || er)); }
+    $('revSave').disabled = false;
+  };
+
+  function openNote(id) {
+    $('noteImg').removeAttribute('src'); $('noteHeard').textContent = 'Loading…'; $('notebox').hidden = false;
+    db.ref(NOTES + '/' + id).once('value').then(s => { const n = s.val();
+      if (!n) { $('noteHeard').textContent = 'This note is gone.'; return; }
+      $('noteImg').src = n.img; $('noteHeard').textContent = n.text ? 'Read as: ' + n.text : ''; },
+      er => { $('noteHeard').textContent = 'Could not open it: ' + (er.message || er); });
+  }
+  $('noteClose').onclick = () => { $('notebox').hidden = true; };
+  $('notebox').addEventListener('click', e => { if (e.target === $('notebox')) $('notebox').hidden = true; });
 
   // ---- reminders: a desktop notice at 8:30 and 1:00 on weekdays while the page is open
   const remindOn = () => { try { return localStorage.getItem('todo_remind') === 'on'; } catch (e) { return false; } };

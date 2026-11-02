@@ -10,7 +10,7 @@
       ]
     },
     {
-      "source": "/(design|assistant|send|mn|followup)/(.*)",
+      "source": "/(design|assistant|send|mn|followup|todo)/(.*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -49,6 +49,9 @@
       "maxDuration": 60
     },
     "api/agent.mjs": {
+      "maxDuration": 60
+    },
+    "api/todo-ink.mjs": {
       "maxDuration": 60
     }
   }
