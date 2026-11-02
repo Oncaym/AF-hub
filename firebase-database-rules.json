@@ -166,6 +166,33 @@
       }
     },
 
+    // ✅ To-do (/todo/, Leo 11-01): one list shared by Leo and Jaesik — what each asked the other to do.
+    // Only those two verified emails read or write it. A person's key is 'leo' or 'jaesik'.
+    "todo": {
+      "leo-jaesik": {
+        ".read": "auth != null && auth.token.email_verified == true && (auth.token.email.toLowerCase() == 'leosun@advfacade.com' || auth.token.email.toLowerCase() == 'jchang@advfacade.com')",
+        ".write": "auth != null && auth.token.email_verified == true && (auth.token.email.toLowerCase() == 'leosun@advfacade.com' || auth.token.email.toLowerCase() == 'jchang@advfacade.com')",
+        "items": {
+          "$id": {
+            ".validate": "newData.hasChildren(['what', 'to', 'by', 'at'])",
+            "what": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 300" },
+            "to": { ".validate": "newData.val() == 'leo' || newData.val() == 'jaesik'" },
+            "by": { ".validate": "newData.val() == 'leo' || newData.val() == 'jaesik'" },
+            "at": { ".validate": "newData.isNumber()" },
+            "due": { ".validate": "newData.isString() && newData.val().matches(/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/)" },
+            "p": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+            "note": { ".validate": "newData.isString() && newData.val().length <= 500" },
+            "seen": { ".validate": "newData.isNumber()" },
+            "done": { ".validate": "newData.isNumber()" },
+            "doneBy": { ".validate": "newData.val() == 'leo' || newData.val() == 'jaesik'" },
+            "$other": { ".validate": false }
+          }
+        },
+        "$other": { ".validate": false }
+      },
+      "$other": { ".read": false, ".write": false }
+    },
+
     "admins": {
       ".read": "auth != null && auth.token.email_verified == true && auth.token.email.matches(/@advfacade\\.com$/i)",
       ".write": false

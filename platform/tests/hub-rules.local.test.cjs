@@ -91,5 +91,26 @@ c('a bad app id is refused', db3(LEO).write(fu + '/cfg/ms', { clientId: 'javascr
 c('settings: nudge after 3 days, read 45', db3(LEO).write(fu + '/cfg/days', 3).allowed && db3(LEO).write(fu + '/cfg/win', 45).allowed, true);
 c('settings: 0 days refused', db3(LEO).write(fu + '/cfg/days', 0).allowed, false);
 c('nothing else can be stored there', db3(LEO).write(fu + '/mail', { a: 1 }).allowed, false);
+// ✅ To-do (2026-11-01): one list for Leo and Jaesik; nobody else reads it
+const JAESIK = who('jchang@advfacade.com'), JAESIK_CAPS = who('JChang@AdvFacade.com');
+const td = '/todo/leo-jaesik/items/';
+const item = (extra) => Object.assign({ what: 'Send CP2 calc to KWK', to: 'leo', by: 'jaesik', at: 1 }, extra || {});
+const db4 = a => targaryen.database(rules, Object.assign({}, data, { todo: { 'leo-jaesik': { items: { i1: item() } } } }), 1790000000000).as(a);
+c('Leo reads the shared to-do list', db4(LEO).read('/todo/leo-jaesik').allowed, true);
+c('Jaesik reads it', db4(JAESIK).read('/todo/leo-jaesik').allowed, true);
+c('Jaesik reads it with a capitalised email', db4(JAESIK_CAPS).read('/todo/leo-jaesik').allowed, true);
+c('other staff cannot read it', db4(STAFF).read('/todo/leo-jaesik').allowed, false);
+c('an admin cannot read it', db4(ADMIN_GMAIL).read('/todo/leo-jaesik').allowed, false);
+c('anonymous cannot read it', db4(ANON).read('/todo/leo-jaesik').allowed, false);
+c('Jaesik gives Leo a task', db4(JAESIK).write(td + 'i2', item({ due: '2026-11-03', p: 'CP2', note: 'he said in person' })).allowed, true);
+c('Leo asks Jaesik to review', db4(LEO).write(td + 'i3', item({ to: 'jaesik', by: 'leo', note: 'email 11/01: AC3 canopy calc' })).allowed, true);
+c('Jaesik marks it seen', db4(JAESIK).write(td + 'i1/seen', 5).allowed, true);
+c('Leo marks it done', db4(LEO).write(td + 'i1', item({ done: 9, doneBy: 'leo' })).allowed, true);
+c('a task for someone else is refused', db4(LEO).write(td + 'i4', item({ to: 'boss' })).allowed, false);
+c('a task needs words', db4(LEO).write(td + 'i4', item({ what: '' })).allowed, false);
+c('a bad due date is refused', db4(LEO).write(td + 'i4', item({ due: 'Friday' })).allowed, false);
+c('an unknown field is refused', db4(LEO).write(td + 'i4', item({ cost: 5 })).allowed, false);
+c('other staff cannot add to it', db4(STAFF).write(td + 'i4', item()).allowed, false);
+c('no other shared lists exist yet', db4(LEO).read('/todo/leo-boss').allowed, false);
 console.log(`hub rules (local simulator): ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

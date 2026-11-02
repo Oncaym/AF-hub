@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>✅ To-do — Advanced Facade</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1419'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle'%3E✅%3C/text%3E%3C/svg%3E">
+<style>
+  /* ✅ To-do: one list shared by Leo and Jaesik (Leo 11-01). Palette = the hub's. */
+  :root {
+    --bg: #0f1419; --panel: #1a2028; --panel-2: #232b36; --border: #2d3744;
+    --text: #e6edf3; --text-dim: #8b949e; --accent: #4493f8;
+    --green: #2ea043; --yellow: #d29922; --red: #f85149;
+  }
+  body.day-mode {
+    --bg: #f2f4f7; --panel: #ffffff; --panel-2: #e9edf2; --border: #d0d7de;
+    --text: #1f2328; --text-dim: #59636e; --accent: #0969da;
+    --green: #1a7f37; --yellow: #9a6700; --red: #cf222e;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  a { color: var(--accent); }
+  header { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--border);
+    padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); }
+  .bar { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; }
+  .grow { flex: 1; }
+  .btn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 11px; font-size: 13px; cursor: pointer; text-decoration: none; display: inline-block; font-family: inherit; }
+  .btn:hover { border-color: var(--accent); }
+  .btn.go { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.small { padding: 3px 8px; font-size: 12px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 12px 16px 60px; }
+
+  .add { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+  .add .line { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .add .line + .line { margin-top: 8px; }
+  .add input, .add select { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; font: inherit; font-size: 14px; min-width: 0; }
+  .add #what { flex: 1 1 320px; font-size: 15px; }
+  .add #note { flex: 1 1 260px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg button { background: var(--bg); color: var(--text-dim); border: 0; padding: 8px 12px; font: inherit; font-size: 14px; cursor: pointer; }
+  .seg button.on { background: var(--accent); color: #fff; }
+  .hint { color: var(--text-dim); font-size: 12.5px; margin-top: 6px; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+  .col { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px 10px; min-width: 0; }
+  .col h2 { font-size: 16px; margin: 6px 0 2px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .col h2 .n { color: var(--text-dim); font-weight: 400; font-size: 13px; }
+  .col h2 .late { color: var(--red); font-weight: 600; font-size: 13px; }
+  .col .sub { color: var(--text-dim); font-size: 12.5px; margin: 0 0 6px; }
+  .col .tools { display: flex; gap: 6px; justify-content: flex-end; margin: -2px 0 4px; }
+  .empty { color: var(--text-dim); font-size: 13.5px; padding: 14px 0; }
+
+  .row { display: flex; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); align-items: flex-start; }
+  .tick { flex: 0 0 auto; width: 22px; height: 22px; margin-top: 1px; border-radius: 50%; border: 2px solid var(--text-dim);
+    background: transparent; cursor: pointer; padding: 0; }
+  .tick:hover { border-color: var(--green); }
+  .tick.done { background: var(--green); border-color: var(--green); }
+  .body { flex: 1; min-width: 0; }
+  .what { font-weight: 600; word-wrap: break-word; }
+  .row.isdone .what { text-decoration: line-through; color: var(--text-dim); font-weight: 400; }
+  .meta { color: var(--text-dim); font-size: 12.5px; display: flex; gap: 4px 10px; flex-wrap: wrap; margin-top: 2px; }
+  .meta .p { color: var(--text); background: var(--panel-2); border-radius: 999px; padding: 0 8px; }
+  .meta .due-late { color: var(--red); font-weight: 600; }
+  .meta .due-today { color: var(--yellow); font-weight: 600; }
+  .meta .unseen { color: var(--yellow); }
+  .meta .seen { color: var(--green); }
+  .note { color: var(--text-dim); font-size: 13px; margin-top: 3px; word-wrap: break-word; }
+  .acts { display: flex; gap: 4px; flex: 0 0 auto; }
+  .edit { display: flex; flex-direction: column; gap: 6px; }
+  .edit input, .edit select { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 14px; }
+  .edit .line { display: flex; gap: 6px; flex-wrap: wrap; }
+  details.donebox { margin-top: 8px; }
+  details.donebox summary { cursor: pointer; color: var(--text-dim); font-size: 13px; padding: 6px 0; }
+
+  .gate { max-width: 360px; margin: 12vh auto 0; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+  .gate h2 { margin: 0; font-size: 20px; }
+  .gate p { margin: 0; color: var(--text-dim); font-size: 14px; }
+  .gate input { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; font: inherit; }
+  .gate button { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 9px; font: inherit; font-weight: 600; cursor: pointer; }
+  .err { color: var(--red); font-size: 13px; min-height: 1em; }
+  .msg { max-width: 760px; margin: 14px auto; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; }
+  .toast { position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--panel-2);
+    border: 1px solid var(--border); color: var(--text); padding: 8px 14px; border-radius: 8px; font-size: 14px; z-index: 20; }
+
+  @media (max-width: 760px) {
+    .cols { grid-template-columns: 1fr; }
+    .add #what, .add #note { flex-basis: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app" hidden>
+  <header>
+    <div class="bar">
+      <h1>✅ Leo ↔ Jaesik</h1>
+      <span class="grow"></span>
+      <button class="btn" type="button" id="remind" title="A desktop notice at 8:30 and 1:00 on weekdays, while this page is open in a tab">🔔 Remind me</button>
+      <a class="btn" href="/" title="Project overview">Hub</a>
+      <button class="btn" type="button" id="theme" title="Day / night">☀️</button>
+      <button class="btn" type="button" id="out" title="Sign out of the hub"><span id="me"></span> · Sign out</button>
+    </div>
+  </header>
+  <main>
+    <form class="add" id="addForm" autocomplete="off">
+      <div class="line">
+        <input id="what" maxlength="300" placeholder="What needs doing? e.g. Send the CP2 calc to KWK" required>
+        <span class="seg" id="forSeg" role="group" aria-label="Who does it">
+          <button type="button" data-to="" id="forMe">For me</button>
+          <button type="button" data-to="" id="forOther">For other</button>
+        </span>
+        <button class="btn go" type="submit">Add</button>
+      </div>
+      <div class="line">
+        <select id="proj" aria-label="Project">
+          <option value="">No project</option>
+          <option>AC3</option><option>CP2</option><option>LEX</option><option>P7</option>
+          <option>FH</option><option>BAB</option><option>NPC</option><option>Other</option>
+        </select>
+        <input type="date" id="due" aria-label="Due date" title="Due date (optional)">
+        <input id="note" maxlength="500" placeholder="Where to find it (optional): email subject, folder, sheet…">
+      </div>
+      <div class="hint" id="addHint"></div>
+    </form>
+
+    <div class="cols">
+      <section class="col" id="col-leo"></section>
+      <section class="col" id="col-jaesik"></section>
+    </div>
+  </main>
+</div>
+
+<div class="msg" id="msg" hidden></div>
+
+<form class="gate" id="gate" hidden>
+  <h2>✅ To-do</h2>
+  <p>What Jaesik asked Leo to do, and what Leo is waiting on Jaesik for. Sign in with your hub account.</p>
+  <input type="email" id="email" placeholder="you@advfacade.com" autocomplete="email" required>
+  <input type="password" id="pw" placeholder="Password" autocomplete="current-password" required>
+  <button type="submit">Sign in</button>
+  <div class="err" id="err"></div>
+  <a href="/" style="font-size:13px">Forgot password or first time here? Use the hub →</a>
+</form>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="../af-hub-config.js"></script>
+<script>
+(function () {
+  'use strict';
+  // The two people on this list. A key is what the database stores ('leo' / 'jaesik').
+  const PEOPLE = {
+    leo: { name: 'Leo', email: 'leosun@advfacade.com' },
+    jaesik: { name: 'Jaesik', email: 'jchang@advfacade.com' },
+  };
+  const LIST = 'todo/leo-jaesik/items';
+  const REMIND_AT = [[8, 30], [13, 0]];   // weekdays, while the page is open
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const pad = n => String(n).padStart(2, '0');
+  const isoDay = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  const today = () => isoDay(new Date());
+  const dayWord = iso => { const [y, m, d] = iso.split('-').map(Number); return MON[m - 1] + ' ' + d; };
+  const when = ms => { const d = new Date(ms); return MON[d.getMonth()] + ' ' + d.getDate() + ' ' + d.getHours() + ':' + pad(d.getMinutes()); };
+  const ago = ms => { const days = Math.floor((Date.now() - ms) / 864e5); return days <= 0 ? 'today' : days === 1 ? '1 day ago' : days + ' days ago'; };
+  let toastT = 0;
+  const toast = t => { let el = document.querySelector('.toast'); if (!el) { el = document.createElement('div'); el.className = 'toast'; document.body.appendChild(el); }
+    el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, 2200); };
+  const msg = html => { $('msg').hidden = !html; $('msg').innerHTML = html || ''; };
+
+  try { if (localStorage.getItem('af_hub_theme') === 'day') document.body.classList.add('day-mode'); } catch (e) {}
+  $('theme').onclick = () => { const day = document.body.classList.toggle('day-mode'); try { localStorage.setItem('af_hub_theme', day ? 'day' : 'night'); } catch (e) {} };
+
+  const cfg = window.AF_HUB_FIREBASE;
+  if (!cfg || typeof firebase === 'undefined') { msg('Could not load. Check the connection and reload.'); return; }
+  firebase.initializeApp(cfg);
+  const auth = firebase.auth();
+  const db = firebase.database();
+
+  let me = null, other = null, ref = null, items = {}, forWho = null, editing = null, started = false;
+  const name = k => PEOPLE[k] ? PEOPLE[k].name : k;
+
+  auth.onAuthStateChanged(u => {
+    if (!u || u.isAnonymous) { $('app').hidden = true; msg(''); $('gate').hidden = false; return; }
+    $('gate').hidden = true;
+    const email = String(u.email || '').toLowerCase();
+    me = Object.keys(PEOPLE).find(k => PEOPLE[k].email === email) || null;
+    $('me').textContent = email.split('@')[0];
+    if (!me) { msg('This list is only for Leo and Jaesik. <a href="/">Back to the hub</a>'); return; }
+    if (!u.emailVerified) { msg('Confirm your email first: open the <a href="/">hub</a>, tap “Send the link” and open it. Then reload this page.'); return; }
+    other = Object.keys(PEOPLE).find(k => k !== me);
+    msg(''); $('app').hidden = false;
+    if (started) return;
+    started = true;
+    setupForm();
+    ref = db.ref(LIST);
+    ref.on('value', s => { items = s.val() || {}; markSeen(); render(); },
+      err => msg('Could not open the list (' + esc(err && err.code || err) + '). The hub database rules may need updating: Actions → Project database → mode <b>rules</b>, project <b>hub</b>.'));
+  });
+  $('gate').addEventListener('submit', async e => {
+    e.preventDefault(); $('err').textContent = '';
+    try { await auth.signInWithEmailAndPassword($('email').value.trim(), $('pw').value); }
+    catch (er) { $('err').textContent = /wrong-password|invalid-credential|user-not-found|invalid-login/.test(er.code || '') ? 'Wrong email or password.' : (er.message || er.code); }
+  });
+  $('out').onclick = () => auth.signOut().then(() => location.reload());
+
+  // ---- add
+  function setupForm() {
+    $('forMe').dataset.to = me; $('forOther').dataset.to = other;
+    $('forOther').textContent = 'For ' + name(other);
+    const pick = k => { forWho = k; $('forMe').classList.toggle('on', k === me); $('forOther').classList.toggle('on', k === other);
+      $('addHint').textContent = k === me ? name(other) + ' asked you. Write it down the moment it is said.' : 'You need ' + name(other) + ' to look, decide or reply. Put the email subject in the note.'; };
+    $('forMe').onclick = () => pick(me); $('forOther').onclick = () => pick(other);
+    pick(me);
+    $('addForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const what = $('what').value.trim();
+      if (!what) return;
+      const v = { what, to: forWho, by: forWho === 'leo' ? 'jaesik' : 'leo', at: Date.now() };
+      if ($('proj').value) v.p = $('proj').value;
+      if ($('due').value) v.due = $('due').value;
+      if ($('note').value.trim()) v.note = $('note').value.trim();
+      ref.push().set(v).then(() => { $('what').value = ''; $('note').value = ''; $('due').value = ''; $('what').focus(); toast('Added for ' + name(v.to)); },
+        er => toast('Not added: ' + (er.message || er)));
+    });
+  }
+
+  // The person it is for has opened the page: mark it seen, so the asker knows.
+  function markSeen() {
+    Object.keys(items).forEach(id => { const it = items[id]; if (it && it.to === me && !it.seen && !it.done) ref.child(id + '/seen').set(Date.now()); });
+  }
+
+  const openOf = k => Object.keys(items).map(id => Object.assign({ id }, items[id])).filter(it => it.to === k && !it.done);
+  const doneOf = k => Object.keys(items).map(id => Object.assign({ id }, items[id]))
+    .filter(it => it.to === k && it.done && Date.now() - it.done < 30 * 864e5).sort((a, b) => b.done - a.done);
+  const sortOpen = list => { const t = today();
+    return list.sort((a, b) => { const la = a.due && a.due < t ? 0 : 1, lb = b.due && b.due < t ? 0 : 1; if (la !== lb) return la - lb;
+      if (a.due && b.due && a.due !== b.due) return a.due < b.due ? -1 : 1; if (!!a.due !== !!b.due) return a.due ? -1 : 1; return a.at - b.at; }); };
+
+  function rowHtml(it) {
+    if (editing === it.id) return editHtml(it);
+    const t = today();
+    const meta = [];
+    if (it.p) meta.push('<span class="p">' + esc(it.p) + '</span>');
+    if (it.due) meta.push('<span class="' + (it.due < t ? 'due-late' : it.due === t ? 'due-today' : '') + '">' + (it.due < t ? 'Overdue · ' : it.due === t ? 'Due today · ' : 'Due ') + dayWord(it.due) + '</span>');
+    meta.push('<span>' + esc(name(it.by)) + ' asked · ' + ago(it.at) + '</span>');
+    if (!it.done) meta.push(it.seen ? '<span class="seen">Seen by ' + esc(name(it.to)) + ' ' + when(it.seen) + '</span>' : '<span class="unseen">Not seen by ' + esc(name(it.to)) + ' yet</span>');
+    else meta.push('<span>Done ' + when(it.done) + (it.doneBy ? ' by ' + esc(name(it.doneBy)) : '') + '</span>');
+    return '<div class="row' + (it.done ? ' isdone' : '') + '" data-id="' + esc(it.id) + '">' +
+      '<button class="tick' + (it.done ? ' done' : '') + '" type="button" data-act="' + (it.done ? 'reopen' : 'done') + '" title="' + (it.done ? 'Not done after all' : 'Done') + '" aria-label="' + (it.done ? 'Reopen' : 'Mark done') + '"></button>' +
+      '<div class="body"><div class="what">' + esc(it.what) + '</div><div class="meta">' + meta.join('') + '</div>' +
+      (it.note ? '<div class="note">' + esc(it.note) + '</div>' : '') + '</div>' +
+      '<div class="acts">' + (it.done ? '' : '<button class="btn small" type="button" data-act="edit">Edit</button>') +
+      '<button class="btn small" type="button" data-act="del" title="Delete">✕</button></div></div>';
+  }
+  function editHtml(it) {
+    const opts = ['', 'AC3', 'CP2', 'LEX', 'P7', 'FH', 'BAB', 'NPC', 'Other'].map(p => '<option value="' + p + '"' + ((it.p || '') === p ? ' selected' : '') + '>' + (p || 'No project') + '</option>').join('');
+    return '<div class="row" data-id="' + esc(it.id) + '"><div class="body edit">' +
+      '<input data-f="what" maxlength="300" value="' + esc(it.what) + '">' +
+      '<div class="line"><select data-f="p">' + opts + '</select><input type="date" data-f="due" value="' + esc(it.due || '') + '"></div>' +
+      '<input data-f="note" maxlength="500" placeholder="Note" value="' + esc(it.note || '') + '">' +
+      '<div class="line"><button class="btn go small" type="button" data-act="save">Save</button><button class="btn small" type="button" data-act="cancel">Cancel</button></div>' +
+      '</div></div>';
+  }
+  function colHtml(k) {
+    const open = sortOpen(openOf(k)), done = doneOf(k), t = today();
+    const late = open.filter(it => it.due && it.due < t).length;
+    const head = k === me ? 'Me (' + name(k) + ')' : name(k);
+    let h = '<h2>' + esc(head) + ' to do <span class="n">' + open.length + ' open</span>' + (late ? '<span class="late">' + late + ' overdue</span>' : '') + '</h2>' +
+      '<p class="sub">Asked by ' + esc(name(k === 'leo' ? 'jaesik' : 'leo')) + '</p>';
+    if (k !== me && open.length) h += '<div class="tools"><button class="btn small" type="button" data-copy="' + k + '" title="Copy the open list to paste into a message">📋 Copy as message</button></div>';
+    h += open.length ? open.map(rowHtml).join('') : '<div class="empty">Nothing open.</div>';
+    if (done.length) h += '<details class="donebox"><summary>Done in the last 30 days (' + done.length + ')</summary>' + done.map(rowHtml).join('') + '</details>';
+    return h;
+  }
+  function render() {
+    $('col-' + me).innerHTML = colHtml(me);
+    $('col-' + other).innerHTML = colHtml(other);
+    $('col-' + me).parentNode.insertBefore($('col-' + me), $('col-' + me).parentNode.firstChild);   // my list first
+    const mine = openOf(me).length;
+    document.title = (mine ? '(' + mine + ') ' : '') + '✅ To-do — Advanced Facade';
+  }
+
+  // ---- row actions
+  document.querySelector('.cols').addEventListener('click', e => {
+    const copy = e.target.closest('[data-copy]');
+    if (copy) { copyList(copy.dataset.copy); return; }
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const row = b.closest('.row'); const id = row && row.dataset.id; const it = id && items[id]; if (!it) return;
+    const act = b.dataset.act;
+    if (act === 'done') ref.child(id).update({ done: Date.now(), doneBy: me });
+    else if (act === 'reopen') ref.child(id).update({ done: null, doneBy: null });
+    else if (act === 'del') { if (confirm('Delete “' + it.what + '”?')) ref.child(id).remove(); }
+    else if (act === 'edit') { editing = id; render(); const w = document.querySelector('.row[data-id="' + id + '"] [data-f="what"]'); if (w) w.focus(); }
+    else if (act === 'cancel') { editing = null; render(); }
+    else if (act === 'save') {
+      const f = n => row.querySelector('[data-f="' + n + '"]').value.trim();
+      if (!f('what')) { toast('Write what needs doing'); return; }
+      const v = Object.assign({}, it, { what: f('what') });
+      ['p', 'due', 'note'].forEach(n => { if (f(n)) v[n] = f(n); else delete v[n]; });
+      ref.child(id).set(v).then(() => { editing = null; render(); }, er => toast('Not saved: ' + (er.message || er)));
+    }
+  });
+
+  function copyList(k) {
+    const open = sortOpen(openOf(k));
+    const lines = open.map((it, i) => (i + 1) + '. ' + (it.p ? '[' + it.p + '] ' : '') + it.what +
+      (it.due ? ' (due ' + dayWord(it.due) + ')' : '') + (it.note ? ' — ' + it.note : ''));
+    const text = name(k) + ', waiting on you:\n' + lines.join('\n') + '\n\nFull list: ' + location.origin + '/todo/';
+    const done = () => toast('Copied ' + open.length + ' item' + (open.length === 1 ? '' : 's'));
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => window.prompt('Copy this:', text));
+    else window.prompt('Copy this:', text);
+  }
+
+  // ---- reminders: a desktop notice at 8:30 and 1:00 on weekdays while the page is open
+  const remindOn = () => { try { return localStorage.getItem('todo_remind') === 'on'; } catch (e) { return false; } };
+  const paintRemind = () => { $('remind').textContent = remindOn() && window.Notification && Notification.permission === 'granted' ? '🔔 Reminders on' : '🔔 Remind me'; };
+  $('remind').onclick = async () => {
+    if (!window.Notification) { toast('This browser cannot show notices'); return; }
+    if (remindOn()) { try { localStorage.setItem('todo_remind', 'off'); } catch (e) {} paintRemind(); toast('Reminders off'); return; }
+    const p = await Notification.requestPermission();
+    if (p !== 'granted') { toast('Notices are blocked for this site in the browser settings'); return; }
+    try { localStorage.setItem('todo_remind', 'on'); } catch (e) {}
+    paintRemind(); toast('On: 8:30 and 1:00 on weekdays, while this tab stays open');
+  };
+  paintRemind();
+  setInterval(() => {
+    if (!me || !remindOn() || !window.Notification || Notification.permission !== 'granted') return;
+    const now = new Date(), wd = now.getDay(); if (wd === 0 || wd === 6) return;
+    REMIND_AT.forEach(([h, m]) => {
+      const slot = today() + ' ' + h + ':' + m;
+      const due = now.getHours() > h || (now.getHours() === h && now.getMinutes() >= m);
+      let last = ''; try { last = localStorage.getItem('todo_last_' + h) || ''; } catch (e) {}
+      if (!due || last >= slot) return;
+      try { localStorage.setItem('todo_last_' + h, slot); } catch (e) {}
+      if (now.getHours() > h + 2) return;   // opened much later: don't fire a stale notice
+      const mine = sortOpen(openOf(me)), theirs = openOf(other);
+      const body = (mine.length ? mine.slice(0, 3).map(it => '• ' + it.what).join('\n') : 'Nothing open for you.') +
+        (theirs.length ? '\nWaiting on ' + name(other) + ': ' + theirs.length : '');
+      const n = new Notification('To-do: ' + mine.length + ' for you', { body, tag: 'todo-' + h });
+      n.onclick = () => { window.focus(); n.close(); };
+    });
+  }, 30000);
+})();
+</script>
+</body>
+</html>
