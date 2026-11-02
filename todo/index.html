@@ -95,6 +95,7 @@
   .ink .tools { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding-bottom: 8px; }
   .ink .tools .on { background: var(--accent); border-color: var(--accent); color: #fff; }
   .ink .paperwrap { flex: 1; overflow-y: auto; border-radius: 10px; border: 1px solid var(--border); -webkit-overflow-scrolling: touch; }
+  .ink, .ink canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   .ink canvas { display: block; width: 100%; touch-action: none; background: #fffef8;
     background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 47px, #dfe6ee 47px, #dfe6ee 48px); }
   .ink .status { color: var(--text-dim); font-size: 13px; }
@@ -411,7 +412,7 @@
   // ---- ✍️ handwriting: write → AI splits it into tasks → you check → added, each keeping the original
   const NOTES = 'todo/leo-jaesik/notes';
   const PROJECTS = ['', 'AC3', 'CP2', 'LEX', 'P7', 'FH', 'BAB', 'NPC', 'Other'];
-  const paper = $('paper'), ctx = paper.getContext('2d');
+  const paper = $('paper'), ctx = paper.getContext('2d', { desynchronized: true });
   let strokes = [], cur = null, tool = 'pen', penSeen = false, paperH = 0, inkImg = '', inkText = '';
   const DPR = Math.min(window.devicePixelRatio || 1, 2);
   function sizePaper(h) {
@@ -440,15 +441,22 @@
   paper.addEventListener('pointerdown', e => {
     if (e.pointerType === 'pen') penSeen = true;
     if (penSeen && e.pointerType === 'touch') return;      // palm on the glass while writing with the pencil
-    e.preventDefault(); paper.setPointerCapture(e.pointerId);
+    e.preventDefault();
+    try { paper.setPointerCapture(e.pointerId); } catch (er) {}   // can throw on a quick tap; never lose the stroke over it
     const pt = pos(e);
     if (tool === 'eraser') { eraseAt(pt); cur = 'erasing'; return; }
     cur = [pt]; strokes.push(cur); drawStroke(ctx, cur, DPR);
   });
   paper.addEventListener('pointermove', e => {
-    if (!cur || (penSeen && e.pointerType === 'touch')) return;
+    if (penSeen && e.pointerType === 'touch') return;
+    if (!cur) {   // the system ate the pointerdown (fast writing): start the stroke here instead of losing it
+      if (!(e.buttons & 1) || tool !== 'pen') return;
+      if (e.pointerType === 'pen') penSeen = true;
+      cur = [pos(e)]; strokes.push(cur);
+    }
     e.preventDefault();
-    const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+    if (!evs.length) evs = [e];   // some browsers hand back an empty list; never drop the move itself
     evs.forEach(ev => {
       const pt = pos(ev);
       if (cur === 'erasing') { eraseAt(pt); return; }
@@ -457,6 +465,10 @@
     });
   });
   const endStroke = () => { cur = null; };
+  // iPadOS Scribble and Safari's own gestures (scroll, magnifier, double-tap zoom) wait on pencil touches and
+  // can swallow quick strokes. Cancelling the touch events keeps every stroke for the page; pointer events still come.
+  ['touchstart', 'touchmove', 'touchend'].forEach(t => paper.addEventListener(t, e => { if (e.cancelable) e.preventDefault(); }, { passive: false }));
+  ['gesturestart', 'gesturechange'].forEach(t => $('ink').addEventListener(t, e => e.preventDefault()));
   paper.addEventListener('pointerup', endStroke); paper.addEventListener('pointercancel', endStroke);
   const setTool = t => { tool = t; $('inkPen').classList.toggle('on', t === 'pen'); $('inkEraser').classList.toggle('on', t === 'eraser'); };
   $('inkPen').onclick = () => setTool('pen');
