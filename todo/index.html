@@ -494,9 +494,9 @@
       if (!r.ok) err = j.error || ('error ' + r.status); else { tasks = Array.isArray(j.tasks) ? j.tasks : []; inkText = j.text || ''; }
     } catch (e) { err = e.message || String(e); }
     $('inkRead').disabled = false; $('inkStatus').textContent = '';
-    if (!tasks) { toast('Could not read it (' + err + '). You can type the tasks yourself.'); tasks = []; }
+    if (!tasks) { tasks = []; inkText = ''; }
     if (!tasks.length) tasks = [{ what: '', to: me }];
-    openReview(tasks);
+    openReview(tasks, err ? 'Could not read the page: ' + err + ' Type the tasks below; the page is still saved with them.' : '');
   };
 
   function revRow(t) {
@@ -511,8 +511,10 @@
     d.querySelector('[data-rm]').onclick = () => d.remove();
     return d;
   }
-  function openReview(tasks) {
-    $('revImg').src = inkImg; $('revHeard').textContent = inkText ? 'Read as: ' + inkText : ''; $('revHeard').hidden = !inkText;
+  function openReview(tasks, problem) {
+    $('revImg').src = inkImg;
+    $('revHeard').textContent = problem || (inkText ? 'Read as: ' + inkText : ''); $('revHeard').hidden = !(problem || inkText);
+    $('revHeard').style.color = problem ? 'var(--yellow)' : '';
     const box = $('revRows'); box.innerHTML = ''; tasks.forEach(t => box.appendChild(revRow(t)));
     $('review').hidden = false;
   }

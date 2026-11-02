@@ -102,7 +102,10 @@ Rules:
     if (!r.ok) {
       const t = await r.text();
       console.error('Anthropic API error:', r.status, t);
-      return res.status(502).json({ error: `Claude API ${r.status}` });
+      const credit = /credit balance/i.test(t);
+      return res.status(502).json({ error: credit
+        ? "The hub's Claude API credit has run out. Add credits at console.anthropic.com → Plans & Billing, then try again."
+        : `Claude API ${r.status}` });
     }
     const data = await r.json();
     const use = (data.content || []).find(b => b.type === 'tool_use' && b.name === 'tasks');
