@@ -53,6 +53,9 @@
     },
     "api/todo-ink.mjs": {
       "maxDuration": 60
+    },
+    "api/todo-push.mjs": {
+      "maxDuration": 30
     }
   }
 }

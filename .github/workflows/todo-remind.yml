@@ -1,0 +1,51 @@
+# AF Hub — ⏰ To-do: ring again until Got it (Leo 11-02).
+#   Every hour on weekdays. If a task has been Leo's turn for about 2 hours (since it
+#   was handed to him, or since the last reminder) and he has not tapped Got it, his
+#   devices ring once more. Only 8:00–18:00 New York. Code: report/todo-remind.mjs.
+#   The first notice goes out right away from the page (api/todo-push.mjs); this is the repeat.
+#   Needs: secret HUB_SERVICE_ACCOUNT (already there) and secret VAPID_PRIVATE_KEY
+#   (the same value as VAPID_PRIVATE_KEY in the Vercel project).
+#   The repository is public: the log shows counts only, never task text.
+name: To-do reminders
+
+on:
+  schedule:
+    - cron: '25 12-23 * * 1-5'   # hourly, UTC; the script keeps to 8:00–18:00 New York (summer and winter)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run: say what would ring, send nothing'
+        type: boolean
+        default: true
+      anytime:
+        description: 'Ignore the 8:00–18:00 window (for a test)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: todo-remind
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install firebase-admin
+        working-directory: report
+        run: npm install --omit=dev --no-audit --no-fund
+      - name: Ring if still waiting
+        run: node report/todo-remind.mjs
+        env:
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+          ANYTIME: ${{ inputs.anytime && '1' || '' }}
+          HUB_SERVICE_ACCOUNT: ${{ secrets.HUB_SERVICE_ACCOUNT }}
+          HUB_DATABASE_URL: ${{ secrets.HUB_DATABASE_URL }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}

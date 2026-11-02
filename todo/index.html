@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="To-do">
+<meta name="theme-color" content="#0f1419">
+<link rel="manifest" href="/todo/manifest.json">
+<link rel="apple-touch-icon" href="/todo/icon-180.png">
 <title>✅ To-do — Advanced Facade</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1419'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle'%3E✅%3C/text%3E%3C/svg%3E">
 <style>
@@ -58,6 +62,9 @@
   .grp h2 .n { color: var(--text-dim); font-weight: 400; font-size: 13px; }
   .grp h2 .late { color: var(--red); font-weight: 600; font-size: 13px; }
   .row.myturn { box-shadow: inset 3px 0 0 var(--accent); padding-left: 8px; margin-left: -8px; }
+  .row.flash { animation: flash 2.4s ease-out; }
+  @keyframes flash { 0%, 40% { background: color-mix(in srgb, var(--accent) 22%, transparent); } 100% { background: transparent; } }
+  .notebox ol { margin: 0; padding-left: 20px; line-height: 1.7; }
   .turn { color: var(--text-dim); font-weight: 600; }
   .turn.mine { color: var(--accent); }
   .links { display: flex; gap: 14px; margin-top: 4px; flex-wrap: wrap; }
@@ -232,6 +239,18 @@
   </div>
 </div>
 
+<div class="notebox" id="pushHelp" hidden>
+  <div class="card" style="max-width:460px">
+    <div style="display:flex;gap:8px;align-items:center"><b>🔔 Notifications on iPad / iPhone</b><span class="grow"></span><button class="btn" type="button" id="pushHelpClose">Close</button></div>
+    <ol>
+      <li>Tap <b>Share</b> (the square with the arrow) → <b>Add to Home Screen</b> → Add.</li>
+      <li>Open <b>To-do</b> from the new icon on the home screen and sign in.</li>
+      <li>Tap <b>🔔 Notify me</b> there and allow notifications.</li>
+    </ol>
+    <div class="heard">Apple only lets a web page ring from its home-screen icon (iPadOS 16.4 or newer). Safari tabs cannot.</div>
+  </div>
+</div>
+
 <div class="msg" id="msg" hidden></div>
 
 <form class="gate" id="gate" hidden>
@@ -258,6 +277,8 @@
   };
   const LIST = 'todo/leo-jaesik/items';
   const REMIND_AT = [[8, 30], [13, 0]];   // weekdays, while the page is open
+  const PUSH_TO = ['leo'];   // whose devices ring when the other person acts (same list as api/todo-push.mjs; Leo 11-02: only him for now)
+  const PUSH_DB = 'todo/leo-jaesik/push';
 
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -269,8 +290,8 @@
   const when = ms => { const d = new Date(ms); return MON[d.getMonth()] + ' ' + d.getDate() + ' ' + d.getHours() + ':' + pad(d.getMinutes()); };
   const ago = ms => { const days = Math.floor((Date.now() - ms) / 864e5); return days <= 0 ? 'today' : days === 1 ? '1 day ago' : days + ' days ago'; };
   let toastT = 0;
-  const toast = t => { let el = document.querySelector('.toast'); if (!el) { el = document.createElement('div'); el.className = 'toast'; document.body.appendChild(el); }
-    el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, 2200); };
+  const toast = (t, ms) => { let el = document.querySelector('.toast'); if (!el) { el = document.createElement('div'); el.className = 'toast'; document.body.appendChild(el); }
+    el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, ms || 2200); };
   const msg = html => { $('msg').hidden = !html; $('msg').innerHTML = html || ''; };
 
   try { if (localStorage.getItem('af_hub_theme') === 'day') document.body.classList.add('day-mode'); } catch (e) {}
@@ -284,6 +305,11 @@
 
   let me = null, other = null, ref = null, items = {}, forWho = null, editing = null, started = false;
   const name = k => PEOPLE[k] ? PEOPLE[k].name : k;
+  // 🔔 after you add, hand over, note or close: ring the other person's devices (the server builds the message from the list)
+  const ping = ids => {
+    if (!me || !ids.length || !PUSH_TO.some(k => k !== me) || !auth.currentUser) return;
+    auth.currentUser.getIdToken().then(token => fetch('../api/todo-push', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token, ids }) })).catch(() => {});
+  };
 
   auth.onAuthStateChanged(u => {
     if (!u || u.isAnonymous) { $('app').hidden = true; msg(''); $('gate').hidden = false; return; }
@@ -298,8 +324,9 @@
     if (started) return;
     started = true;
     setupForm();
+    pushStart();
     ref = db.ref(LIST);
-    ref.on('value', s => { items = s.val() || {}; render(); },
+    ref.on('value', s => { items = s.val() || {}; render(); if (wantOpen) focusTask(); },
       err => msg('Could not open the list (' + esc(err && err.code || err) + '). The hub database rules may need updating: Actions → Project database → mode <b>rules</b>, project <b>hub</b>.'));
   });
   $('gate').addEventListener('submit', async e => {
@@ -326,7 +353,8 @@
       if ($('due').value) v.due = $('due').value;
       if ($('note').value.trim()) v.note = $('note').value.trim();
       if (forWho === me) v.seen = v.at;   // you wrote it yourself, so you have seen it
-      ref.push().set(v).then(() => { $('what').value = ''; $('note').value = ''; $('due').value = ''; $('what').focus(); toast(v.to === me ? 'Added: your turn' : 'Added: ' + name(v.to) + '\u2019s turn'); },
+      const nr = ref.push();
+      nr.set(v).then(() => { $('what').value = ''; $('note').value = ''; $('due').value = ''; $('what').focus(); toast(v.to === me ? 'Added: your turn' : 'Added: ' + name(v.to) + '\u2019s turn'); ping([nr.key]); },
         er => toast('Not added: ' + (er.message || er)));
     });
   }
@@ -440,21 +468,21 @@
       if (!text) { toast('Write the note first'); return; }
       const up = []; up.push(addLog(id, { text, act: 'note' }));
       if (!it.done && it.to === me && !it.seen) up.push(ref.child(id + '/seen').set(now));   // writing a note counts as seen
-      Promise.all(up).then(() => toast('Note added'), fail);
+      Promise.all(up).then(() => { toast('Note added'); ping([id]); }, fail);
     }
     else if (act === 'give') {
       const to = b.dataset.to; if (to !== 'leo' && to !== 'jaesik') return;
       const entry = { act: 'turn', turn: to }; if (text) entry.text = text;
       Promise.all([ref.child(id).update({ to, seen: to === me ? now : null }), addLog(id, entry)])
-        .then(() => toast(to === me ? 'It’s your turn now' : 'Given to ' + name(to)), fail);
+        .then(() => { toast(to === me ? 'It’s your turn now' : 'Given to ' + name(to)); ping([id]); }, fail);
     }
     else if (act === 'close') {
       const entry = { act: 'close' }; if (text) entry.text = text;
-      Promise.all([ref.child(id).update({ done: now, doneBy: me }), addLog(id, entry)]).then(() => { threads.delete(id); toast('Closed. It stays under Closed.'); }, fail);
+      Promise.all([ref.child(id).update({ done: now, doneBy: me }), addLog(id, entry)]).then(() => { threads.delete(id); toast('Closed. It stays under Closed.'); ping([id]); }, fail);
     }
     else if (act === 'reopen') {   // back to whoever had it; they tap Got it again unless it is me
       Promise.all([ref.child(id).update({ done: null, doneBy: null, checked: null, seen: it.to === me ? now : null }), addLog(id, { act: 'reopen' })])
-        .then(() => toast('Reopened: ' + turnWord(it.to).toLowerCase()), fail);
+        .then(() => { toast('Reopened: ' + turnWord(it.to).toLowerCase()); ping([id]); }, fail);
     }
     else if (act === 'del') { if (confirm('Delete “' + it.what + '” and its notes for good? Closing keeps it; deleting does not.')) ref.child(id).remove(); }
     else if (act === 'edit') { editing = id; render(); const w = document.querySelector('.row[data-id="' + id + '"] [data-f="what"]'); if (w) w.focus(); }
@@ -612,12 +640,13 @@
       const note = { img: inkImg, at: Date.now(), by: me };
       if (inkText) note.text = inkText.slice(0, 4000);
       await nref.set(note);
-      const now = Date.now();
+      const now = Date.now(), keys = [];
       await Promise.all(rows.map((t, i) => {
         const v = { what: t.what, to: t.to, by: t.to === 'leo' ? 'jaesik' : 'leo', at: now + i, ink: nref.key };
         if (t.p) v.p = t.p; if (t.due) v.due = t.due; if (t.to === me) v.seen = now;
-        return ref.push().set(v);
+        const r = ref.push(); keys.push(r.key); return r.set(v);
       }));
+      ping(keys);
       toast('Added ' + rows.length + ' task' + (rows.length === 1 ? '' : 's'));
       $('review').hidden = true; $('ink').hidden = true; strokes = []; paperH = 0;
     } catch (er) { toast('Not saved: ' + (er.message || er)); }
@@ -634,18 +663,122 @@
   $('noteClose').onclick = () => { $('notebox').hidden = true; };
   $('notebox').addEventListener('click', e => { if (e.target === $('notebox')) $('notebox').hidden = true; });
 
-  // ---- reminders: a desktop notice at 8:30 and 1:00 on weekdays while the page is open
+  // ---- opened from a notice: /todo/#t=<task> shows that task with its notes
+  let wantOpen = null;
+  const readHash = () => { const m = /#t=([-A-Za-z0-9_]{1,40})/.exec(location.hash); if (m) wantOpen = m[1]; };
+  function focusTask() {
+    const id = wantOpen; if (!id || !items[id]) return;
+    wantOpen = null;
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    if (items[id].done) $('closedBox').open = true; else filter = 'all';
+    threads.add(id); render();
+    const el = document.querySelector('.row[data-id="' + id + '"]');
+    if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('flash'); }
+  }
+  readHash();
+  window.addEventListener('hashchange', () => { readHash(); focusTask(); });
+  if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => {
+    const u = e.data && e.data.open; if (!u) return;
+    try { const h = new URL(u, location.href).hash; if (h) location.hash = h; } catch (er) {}
+  });
+
+  // ---- 🔔 notifications
+  // PUSH_TO (Leo): the device rings even with this page closed — a new task or one handed to him,
+  //   any note or close by Jaesik, and every ~2 h until Got it (Leo 11-02). Windows: Edge / Chrome.
+  //   iPad: only from the home-screen icon (Apple's rule).
+  // Everyone else: a desktop notice at 8:30 and 1:00 on weekdays while the page is open (Leo 11-01).
   const remindOn = () => { try { return localStorage.getItem('todo_remind') === 'on'; } catch (e) { return false; } };
-  const paintRemind = () => { $('remind').textContent = remindOn() && window.Notification && Notification.permission === 'granted' ? '🔔 Reminders on' : '🔔 Remind me'; };
-  $('remind').onclick = async () => {
-    if (!window.Notification) { toast('This browser cannot show notices'); return; }
-    if (remindOn()) { try { localStorage.setItem('todo_remind', 'off'); } catch (e) {} paintRemind(); toast('Reminders off'); return; }
-    const p = await Notification.requestPermission();
-    if (p !== 'granted') { toast('Notices are blocked for this site in the browser settings'); return; }
-    try { localStorage.setItem('todo_remind', 'on'); } catch (e) {}
-    paintRemind(); toast('On: 8:30 and 1:00 on weekdays, while this tab stays open');
+  const setRemind = on => { try { localStorage.setItem('todo_remind', on ? 'on' : 'off'); } catch (e) {} };
+  const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const homeScreen = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  const canPush = () => 'serviceWorker' in navigator && 'PushManager' in window && !!window.Notification;
+  const pushMine = () => PUSH_TO.includes(me);
+  const b64u = buf => btoa(String.fromCharCode.apply(null, new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const unb64u = s => Uint8Array.from(atob(String(s).replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+  const sidOf = async endpoint => b64u(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(endpoint))).slice(0, 24);
+  const deviceName = () => {
+    const u = navigator.userAgent;
+    const os = /iPad/.test(u) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ? 'iPad' : /iPhone/.test(u) ? 'iPhone' : /Windows/.test(u) ? 'Windows' : /Android/.test(u) ? 'Android' : /Mac/.test(u) ? 'Mac' : 'Device';
+    const br = /Edg\//.test(u) ? 'Edge' : /Chrome\//.test(u) ? 'Chrome' : /Firefox\//.test(u) ? 'Firefox' : '';
+    return (br && os !== 'iPad' && os !== 'iPhone' ? os + ' · ' + br : os).slice(0, 60);
   };
-  paintRemind();
+  async function pushSub() {
+    if (!canPush()) return null;
+    const reg = await navigator.serviceWorker.getRegistration('/todo/');
+    return reg ? reg.pushManager.getSubscription() : null;
+  }
+  async function saveSub(sub) {
+    const j = sub.toJSON(), sid = await sidOf(j.endpoint);
+    await db.ref(PUSH_DB + '/' + me + '/' + sid).set({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, at: Date.now(), ua: deviceName() });
+    return sid;
+  }
+  const sameKey = (sub, key) => { const k = sub.options && sub.options.applicationServerKey; if (!k) return true; const a = new Uint8Array(k); return a.length === key.length && a.every((v, i) => v === key[i]); };
+  async function pushOn() {
+    const kr = await fetch('../api/todo-push'); const kj = await kr.json().catch(() => ({}));
+    if (!kj.key) throw new Error(kj.error || 'the hub has no push key yet');
+    const key = unb64u(kj.key);
+    await navigator.serviceWorker.register('/todo/sw.js', { scope: '/todo/' });
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (sub && !sameKey(sub, key)) { await sub.unsubscribe(); sub = null; }
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+    const sid = await saveSub(sub);
+    setRemind(true);
+    const token = await auth.currentUser.getIdToken();
+    const t = await fetch('../api/todo-push', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token, test: sid }) }).then(x => x.json()).catch(() => ({}));
+    return !!(t && t.sent);
+  }
+  async function pushOff() {
+    const sub = await pushSub();
+    if (sub) { const sid = await sidOf(sub.endpoint); await db.ref(PUSH_DB + '/' + me + '/' + sid).remove().catch(() => {}); await sub.unsubscribe(); }
+    setRemind(false);
+  }
+  async function paintRemind() {
+    if (!me) return;
+    const b = $('remind');
+    if (!pushMine()) { b.textContent = remindOn() && window.Notification && Notification.permission === 'granted' ? '🔔 Reminders on' : '🔔 Remind me'; return; }
+    const on = !!(window.Notification && Notification.permission === 'granted' && await pushSub().catch(() => null));
+    b.textContent = on ? '🔔 On' : '🔔 Notify me';
+    b.title = on ? 'This device rings when ' + name(other) + ' gives you a task, leaves a note or closes one, and every 2 hours until you tap Got it. Tap to turn it off.'
+      : 'Ring this device, even with the page closed, when ' + name(other) + ' gives you a task';
+  }
+  // on every visit: keep this device's entry fresh (and the worker up to date)
+  function pushStart() {
+    paintRemind();
+    if (!pushMine() || !canPush() || !window.Notification || Notification.permission !== 'granted') return;
+    navigator.serviceWorker.register('/todo/sw.js', { scope: '/todo/' }).then(() => pushSub()).then(sub => sub && saveSub(sub)).catch(() => {});
+  }
+  $('pushHelpClose').onclick = () => { $('pushHelp').hidden = true; };
+  $('pushHelp').addEventListener('click', e => { if (e.target === $('pushHelp')) $('pushHelp').hidden = true; });
+  $('remind').onclick = () => {
+    if (!me) return;
+    if (!window.Notification) { if (isApple && !homeScreen()) $('pushHelp').hidden = false; else toast('This browser cannot show notices'); return; }
+    if (!pushMine()) {   // the 8:30 / 1:00 notices while the page is open
+      if (remindOn()) { setRemind(false); paintRemind(); toast('Reminders off'); return; }
+      Notification.requestPermission().then(p => {
+        if (p !== 'granted') { toast('Notices are blocked for this site in the browser settings'); return; }
+        setRemind(true); paintRemind(); toast('On: 8:30 and 1:00 on weekdays, while this tab stays open');
+      });
+      return;
+    }
+    if (isApple && !homeScreen()) { $('pushHelp').hidden = false; return; }
+    if (!canPush()) { toast('This browser cannot ring. On the PC use Edge or Chrome; on the iPad use the home-screen icon.', 5000); return; }
+    if (Notification.permission === 'denied') { toast('Notifications are blocked for this site. Allow them in the browser (or iPad Settings → Notifications), then tap again.', 6000); return; }
+    // ask first, inside the tap (iPad only shows the question during a tap)
+    const ask = Notification.permission === 'granted' ? Promise.resolve('granted') : Notification.requestPermission();
+    ask.then(async p => {
+      if (p !== 'granted') { toast('Not allowed, so this device will not ring'); return; }
+      const sub = await pushSub().catch(() => null);
+      if (sub && $('remind').textContent === '🔔 On') {
+        if (!confirm('Notifications are on for this device (' + deviceName() + ').\n\nTurn them off?')) return;
+        await pushOff().catch(() => {}); paintRemind(); toast('Off for this device'); return;
+      }
+      toast('Turning on…', 8000);
+      try { const ok = await pushOn(); toast(ok ? 'On. A test notice is on its way.' : 'On for this device.', 4000); }
+      catch (er) { toast('Could not turn on: ' + (er.message || er), 7000); }
+      paintRemind();
+    });
+  };
   setInterval(() => {
     if (!me || !remindOn() || !window.Notification || Notification.permission !== 'granted') return;
     const now = new Date(), wd = now.getDay(); if (wd === 0 || wd === 6) return;

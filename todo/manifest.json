@@ -1,0 +1,13 @@
+{
+  "name": "AF To-do (Leo ↔ Jaesik)",
+  "short_name": "To-do",
+  "start_url": "/todo/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f1419",
+  "theme_color": "#0f1419",
+  "icons": [
+    { "src": "/todo/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/todo/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

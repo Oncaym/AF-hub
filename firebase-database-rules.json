@@ -213,6 +213,24 @@
             "$other": { ".validate": false }
           }
         },
+        // 🔔 the devices that ring (Web Push subscriptions), per person (Leo 11-02)
+        "push": {
+          "$who": {
+            "$sid": {
+              ".validate": "($who == 'leo' || $who == 'jaesik') && $sid.matches(/^[-A-Za-z0-9_]{10,40}$/) && newData.hasChildren(['endpoint', 'p256dh', 'auth', 'at'])",
+              "endpoint": { ".validate": "newData.isString() && newData.val().beginsWith('https://') && newData.val().length <= 1000" },
+              "p256dh": { ".validate": "newData.isString() && newData.val().matches(/^[-A-Za-z0-9_=]{80,100}$/)" },
+              "auth": { ".validate": "newData.isString() && newData.val().matches(/^[-A-Za-z0-9_=]{16,30}$/)" },
+              "at": { ".validate": "newData.isNumber()" },
+              "ua": { ".validate": "newData.isString() && newData.val().length <= 60" },
+              "$other": { ".validate": false }
+            }
+          }
+        },
+        // ⏰ when the last "still waiting for Got it" reminder went out, per task (written by the reminder job)
+        "nudge": {
+          "$id": { ".validate": "newData.isNumber()" }
+        },
         "$other": { ".validate": false }
       },
       "$other": { ".read": false, ".write": false }

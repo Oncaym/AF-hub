@@ -132,5 +132,18 @@ c('an unknown log action is refused', db4(LEO).write(td + 'i1/log/-Nlog0000004',
 c('an unknown log field is refused', db4(LEO).write(td + 'i1/log/-Nlog0000004', { by: 'leo', at: 2, act: 'note', text: 'x', cost: 5 }).allowed, false);
 c('a note cannot make a task out of nothing', db4(LEO).write(td + 'i9/log/-Nlog0000004', { by: 'leo', at: 2, act: 'note', text: 'x' }).allowed, false);
 c('other staff cannot leave notes', db4(STAFF).write(td + 'i1/log/-Nlog0000004', { by: 'leo', at: 2, act: 'note', text: 'x' }).allowed, false);
+// 🔔 (2026-11-02) devices that ring, and the 2-hour reminder times
+const dev = (extra) => Object.assign({ endpoint: 'https://fcm.googleapis.com/fcm/send/abc', p256dh: 'B' + 'x'.repeat(86), auth: 'a'.repeat(22), at: 1, ua: 'Windows · Edge' }, extra || {});
+const pu = '/todo/leo-jaesik/push/';
+c('Leo saves a device', db4(LEO).write(pu + 'leo/AbCdEfGhIjKlMnOpQrStUvWx', dev()).allowed, true);
+c('Leo turns a device off', db4(LEO).write(pu + 'leo/AbCdEfGhIjKlMnOpQrStUvWx', null).allowed, true);
+c('a device needs its keys', db4(LEO).write(pu + 'leo/AbCdEfGhIjKlMnOpQrStUvWx', dev({ auth: null })).allowed, false);
+c('a device must use https', db4(LEO).write(pu + 'leo/AbCdEfGhIjKlMnOpQrStUvWx', dev({ endpoint: 'http://evil.example/x' })).allowed, false);
+c('devices only for Leo or Jaesik', db4(LEO).write(pu + 'boss/AbCdEfGhIjKlMnOpQrStUvWx', dev()).allowed, false);
+c('a bad device id is refused', db4(LEO).write(pu + 'leo/x', dev()).allowed, false);
+c('an unknown device field is refused', db4(LEO).write(pu + 'leo/AbCdEfGhIjKlMnOpQrStUvWx', dev({ cost: 1 })).allowed, false);
+c('other staff cannot read the devices', db4(STAFF).read(pu + 'leo').allowed, false);
+c('a reminder time is a number', db4(LEO).write('/todo/leo-jaesik/nudge/i1', 'soon').allowed, false);
+c('a reminder time can be cleared', db4(LEO).write('/todo/leo-jaesik/nudge/i1', null).allowed, true);
 console.log(`hub rules (local simulator): ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
