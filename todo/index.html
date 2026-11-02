@@ -47,6 +47,32 @@
   .seg button.on { background: var(--accent); color: #fff; }
   .hint { color: var(--text-dim); font-size: 12.5px; margin-top: 6px; }
 
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 0 0 12px; }
+  .chip { background: var(--panel); border: 1px solid var(--border); color: var(--text-dim); border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  .chip b { color: var(--text); font-weight: 600; margin-left: 2px; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chip.on b { color: #fff; }
+  .fresh { color: var(--yellow); font-size: 12.5px; font-weight: 600; margin-right: 6px; }
+  .grp { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 6px 14px 8px; margin-bottom: 12px; }
+  .grp h2 { font-size: 16px; margin: 6px 0 2px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .grp h2 .n { color: var(--text-dim); font-weight: 400; font-size: 13px; }
+  .grp h2 .late { color: var(--red); font-weight: 600; font-size: 13px; }
+  .row.myturn { box-shadow: inset 3px 0 0 var(--accent); padding-left: 8px; margin-left: -8px; }
+  .turn { color: var(--text-dim); font-weight: 600; }
+  .turn.mine { color: var(--accent); }
+  .links { display: flex; gap: 14px; margin-top: 4px; flex-wrap: wrap; }
+  .thread { margin-top: 8px; border-left: 2px solid var(--border); padding-left: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .logline { font-size: 13px; }
+  .logline .who { font-weight: 600; }
+  .logline .at { color: var(--text-dim); font-size: 12px; }
+  .logline .act { color: var(--text-dim); }
+  .logline.sys { color: var(--text-dim); }
+  .logline .txt { white-space: pre-wrap; word-wrap: break-word; margin-top: 1px; }
+  .composer textarea { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; font: inherit; font-size: 14px; resize: vertical; }
+  .composer .line { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .closedbox { margin-top: 6px; }
+  .closedbox summary { cursor: pointer; color: var(--text-dim); font-size: 13.5px; padding: 6px 0; }
+  .closedbox #closedList { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 2px 14px 6px; }
   .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
   .col { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px 10px; min-width: 0; }
   .col h2 { font-size: 16px; margin: 6px 0 2px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
@@ -72,7 +98,7 @@
   .meta .unseen { color: var(--yellow); }
   .meta .seen { color: var(--green); }
   .note { color: var(--text-dim); font-size: 13px; margin-top: 3px; word-wrap: break-word; }
-  .acts { display: flex; gap: 4px; flex: 0 0 auto; }
+  .acts { display: flex; gap: 4px; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; max-width: 260px; }
   .edit { display: flex; flex-direction: column; gap: 6px; }
   .edit input, .edit select { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 14px; }
   .edit .line { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -120,6 +146,8 @@
     .rt input[data-f="what"] { grid-column: 1 / -1; }
 
     .cols { grid-template-columns: 1fr; }
+    .row { flex-wrap: wrap; }
+    .acts { max-width: none; width: 100%; justify-content: flex-start; padding-left: 32px; }
     .add #what, .add #note { flex-basis: 100%; }
   }
 </style>
@@ -160,10 +188,9 @@
       <div class="hint" id="addHint"></div>
     </form>
 
-    <div class="cols">
-      <section class="col" id="col-leo"></section>
-      <section class="col" id="col-jaesik"></section>
-    </div>
+    <div class="filters" id="filters"></div>
+    <div id="groups"></div>
+    <details class="closedbox" id="closedBox" hidden><summary id="closedSum"></summary><div id="closedList"></div></details>
   </main>
 </div>
 
@@ -256,7 +283,6 @@
   const db = firebase.database();
 
   let me = null, other = null, ref = null, items = {}, forWho = null, editing = null, started = false;
-  const doneOpen = {};   // column -> open/closed, once the person has toggled it
   const name = k => PEOPLE[k] ? PEOPLE[k].name : k;
 
   auth.onAuthStateChanged(u => {
@@ -288,7 +314,7 @@
     $('forMe').dataset.to = me; $('forOther').dataset.to = other;
     $('forOther').textContent = 'For ' + name(other);
     const pick = k => { forWho = k; $('forMe').classList.toggle('on', k === me); $('forOther').classList.toggle('on', k === other);
-      $('addHint').textContent = k === me ? name(other) + ' asked you. Write it down the moment it is said.' : 'You need ' + name(other) + ' to look, decide or reply. Put the email subject in the note. It shows as seen once ' + name(other) + ' taps Got it.'; };
+      $('addHint').textContent = k === me ? 'Starts as your turn. Write it down the moment ' + name(other) + ' says it.' : 'Starts as ' + name(other) + '\u2019s turn: you need ' + name(other) + ' to look, decide or reply. Put the email subject in the note. ' + name(other) + ' taps Got it once seen.'; };
     $('forMe').onclick = () => pick(me); $('forOther').onclick = () => pick(other);
     pick(me);
     $('addForm').addEventListener('submit', e => {
@@ -300,110 +326,152 @@
       if ($('due').value) v.due = $('due').value;
       if ($('note').value.trim()) v.note = $('note').value.trim();
       if (forWho === me) v.seen = v.at;   // you wrote it yourself, so you have seen it
-      ref.push().set(v).then(() => { $('what').value = ''; $('note').value = ''; $('due').value = ''; $('what').focus(); toast('Added for ' + name(v.to)); },
+      ref.push().set(v).then(() => { $('what').value = ''; $('note').value = ''; $('due').value = ''; $('what').focus(); toast(v.to === me ? 'Added: your turn' : 'Added: ' + name(v.to) + '\u2019s turn'); },
         er => toast('Not added: ' + (er.message || er)));
     });
   }
 
-  // "Seen" = the person it is for tapped Got it (Leo 11-01), not just opened the page.
+  // Turns (Leo 11-02): a task goes back and forth. `to` = whose turn it is now, `by` = who raised it,
+  // `seen` = the person whose turn it is tapped Got it since it was last handed over (a note or a hand-back counts too),
+  // `done` = closed by either side and kept for good, `log` = notes and hand-overs with who and when.
+  const PROJ_ORDER = ['AC3', 'CP2', 'LEX', 'P7', 'FH', 'BAB', 'NPC', 'Other', ''];
+  let filter = 'all'; try { filter = localStorage.getItem('todo_filter') || 'all'; } catch (e) {}
+  const threads = new Set();   // tasks whose notes are open
+  const all = () => Object.keys(items).map(id => Object.assign({ id }, items[id]));
+  const openOf = k => all().filter(it => !it.done && (!k || it.to === k));
+  const closedAll = () => all().filter(it => it.done).sort((a, b) => b.done - a.done);
+  const byDue = (a, b) => { const t = today(), la = a.due && a.due < t ? 0 : 1, lb = b.due && b.due < t ? 0 : 1; if (la !== lb) return la - lb;
+    if (a.due && b.due && a.due !== b.due) return a.due < b.due ? -1 : 1; if (!!a.due !== !!b.due) return a.due ? -1 : 1; return a.at - b.at; };
+  const sortOpen = list => list.sort(byDue);
+  const logOf = it => Object.keys(it.log || {}).map(k => Object.assign({ k }, it.log[k])).sort((a, b) => a.at - b.at);
+  const notesOf = it => { const l = logOf(it).filter(e => e.text); if (it.note) l.unshift({ by: it.by, at: it.at, text: it.note, first: true }); return l; };
+  const turnWord = k => k === me ? 'Your turn' : name(k) + '’s turn';
 
-  const openOf = k => Object.keys(items).map(id => Object.assign({ id }, items[id])).filter(it => it.to === k && !it.done);
-  const doneOf = k => Object.keys(items).map(id => Object.assign({ id }, items[id]))
-    .filter(it => it.to === k && it.done && Date.now() - it.done < 30 * 864e5).sort((a, b) => b.done - a.done);
-  const sortOpen = list => { const t = today();
-    return list.sort((a, b) => { const la = a.due && a.due < t ? 0 : 1, lb = b.due && b.due < t ? 0 : 1; if (la !== lb) return la - lb;
-      if (a.due && b.due && a.due !== b.due) return a.due < b.due ? -1 : 1; if (!!a.due !== !!b.due) return a.due ? -1 : 1; return a.at - b.at; }); };
-
+  function logLine(e) {
+    const what = e.act === 'turn' ? 'gave it to ' + esc(name(e.turn)) : e.act === 'close' ? 'closed it' : e.act === 'reopen' ? 'reopened it' : '';
+    return '<div class="logline' + (e.text ? '' : ' sys') + '"><span class="who">' + esc(name(e.by)) + '</span> <span class="at">' + when(e.at) + '</span>' +
+      (what ? ' <span class="act">' + what + '</span>' : '') + (e.text ? '<div class="txt">' + esc(e.text) + '</div>' : '') + '</div>';
+  }
+  function threadHtml(it) {
+    const lines = logOf(it), next = it.to === me ? other : me;
+    const legacy = it.note ? '<div class="logline"><span class="who">' + esc(name(it.by)) + '</span> <span class="at">' + when(it.at) + '</span><div class="txt">' + esc(it.note) + '</div></div>' : '';
+    return '<div class="thread">' + legacy + lines.map(logLine).join('') + (legacy || lines.length ? '' : '<div class="logline sys">No notes yet.</div>') +
+      '<div class="composer"><textarea data-f="msg" rows="2" maxlength="1000" placeholder="Note (where things stand, what you need)…"></textarea>' +
+      '<div class="line">' +
+      (it.done ? '<button class="btn small" type="button" data-act="note">Add note</button>' :
+        '<button class="btn small" type="button" data-act="note">Add note</button>' +
+        '<button class="btn go small" type="button" data-act="give" data-to="' + next + '">' + (next === me ? 'Note + take it back' : 'Note + give to ' + esc(name(next))) + '</button>' +
+        '<button class="btn small" type="button" data-act="close">Close it</button>') +
+      '</div></div></div>';
+  }
   function rowHtml(it) {
     if (editing === it.id) return editHtml(it);
-    const t = today();
-    const meta = [];
-    if (it.p) meta.push('<span class="p">' + esc(it.p) + '</span>');
-    if (it.due) meta.push('<span class="' + (it.due < t ? 'due-late' : it.due === t ? 'due-today' : '') + '">' + (it.due < t ? 'Overdue · ' : it.due === t ? 'Due today · ' : 'Due ') + dayWord(it.due) + '</span>');
-    meta.push('<span>' + esc(name(it.by)) + ' asked · ' + ago(it.at) + '</span>');
+    const t = today(), meta = [];
+    if (it.done) meta.push('<span class="turn">Closed ' + when(it.done) + (it.doneBy ? ' by ' + esc(name(it.doneBy)) : '') + '</span>');
+    else meta.push('<span class="turn' + (it.to === me ? ' mine' : '') + '">▶ ' + esc(turnWord(it.to)) + '</span>');
+    if (it.done && it.p) meta.push('<span class="p">' + esc(it.p) + '</span>');
+    if (it.due && !it.done) meta.push('<span class="' + (it.due < t ? 'due-late' : it.due === t ? 'due-today' : '') + '">' + (it.due < t ? 'Overdue · ' : it.due === t ? 'Due today · ' : 'Due ') + dayWord(it.due) + '</span>');
+    meta.push('<span>' + esc(name(it.by)) + ' raised · ' + ago(it.at) + '</span>');
     if (!it.done) meta.push(it.seen ? '<span class="seen">' + esc(name(it.to)) + ' got it ' + when(it.seen) + '</span>'
-      : '<span class="unseen">' + (it.to === me ? 'New: tap Got it' : esc(name(it.to)) + ' hasn\u2019t tapped Got it yet') + '</span>');
-    else {
-      meta.push('<span>Done ' + when(it.done) + (it.doneBy ? ' by ' + esc(name(it.doneBy)) : '') + '</span>');
-      meta.push(it.checked ? '<span class="seen">Checked by ' + esc(name(it.by)) + ' ' + when(it.checked) + '</span>'
-        : '<span class="unseen">' + (it.by === me ? 'Not checked yet' : esc(name(it.by)) + ' hasn\u2019t checked') + '</span>');
-    }
-    return '<div class="row' + (it.done ? ' isdone' : '') + '" data-id="' + esc(it.id) + '">' +
-      '<button class="tick' + (it.done ? ' done' : '') + '" type="button" data-act="' + (it.done ? 'reopen' : 'done') + '" title="' + (it.done ? 'Not done after all' : 'Done') + '" aria-label="' + (it.done ? 'Reopen' : 'Mark done') + '"></button>' +
+      : '<span class="unseen">' + (it.to === me ? 'New: tap Got it' : esc(name(it.to)) + ' hasn’t tapped Got it yet') + '</span>');
+    const notes = notesOf(it), last = notes[notes.length - 1], isOpen = threads.has(it.id);
+    return '<div class="row' + (it.done ? ' isdone' : '') + (it.to === me && !it.done ? ' myturn' : '') + '" data-id="' + esc(it.id) + '">' +
+      '<button class="tick' + (it.done ? ' done' : '') + '" type="button" data-act="' + (it.done ? 'reopen' : 'close') + '" title="' + (it.done ? 'Reopen' : 'Close it: it is finished') + '" aria-label="' + (it.done ? 'Reopen' : 'Close') + '"></button>' +
       '<div class="body"><div class="what">' + esc(it.what) + '</div><div class="meta">' + meta.join('') + '</div>' +
-      (it.note ? '<div class="note">' + esc(it.note) + '</div>' : '') +
+      (last && !isOpen ? '<div class="note"><b>' + esc(name(last.by)) + ':</b> ' + esc(last.text) + '</div>' : '') +
+      '<div class="links"><button class="notebtn" type="button" data-act="thread">' + (isOpen ? 'Hide notes' : '💬 ' + (notes.length ? notes.length + ' note' + (notes.length === 1 ? '' : 's') : 'Add a note')) + '</button>' +
       (it.ink ? '<button class="notebtn" type="button" data-note="' + esc(it.ink) + '">✍️ Original note</button>' : '') + '</div>' +
-      '<div class="acts">' + (!it.done && it.to === me && !it.seen ? '<button class="btn go small" type="button" data-act="ack" title="Tell ' + esc(name(it.by)) + ' you saw this">Got it</button>' : '') +
-      (it.done && it.by === me && !it.checked ? '<button class="btn go small" type="button" data-act="check" title="You looked at it and it is done right">Checked</button>' : '') +
-      (it.done ? '' : '<button class="btn small" type="button" data-act="edit">Edit</button>') +
+      (isOpen ? threadHtml(it) : '') + '</div>' +
+      '<div class="acts">' + (!it.done && it.to === me && !it.seen ? '<button class="btn go small" type="button" data-act="ack" title="Tell ' + esc(name(other)) + ' you saw this">Got it</button>' : '') +
+      (!it.done ? '<button class="btn small" type="button" data-act="give" data-to="' + (it.to === me ? other : me) + '" data-quick="1">' + (it.to === me ? 'Give to ' + esc(name(other)) : 'Take it') + '</button>' : '') +
+      (it.done ? '<button class="btn small" type="button" data-act="reopen">Reopen</button>' : '<button class="btn small" type="button" data-act="edit">Edit</button>') +
       '<button class="btn small" type="button" data-act="del" title="Delete">✕</button></div></div>';
   }
   function editHtml(it) {
-    const opts = ['', 'AC3', 'CP2', 'LEX', 'P7', 'FH', 'BAB', 'NPC', 'Other'].map(p => '<option value="' + p + '"' + ((it.p || '') === p ? ' selected' : '') + '>' + (p || 'No project') + '</option>').join('');
+    const opts = PROJ_ORDER.map(p => '<option value="' + p + '"' + ((it.p || '') === p ? ' selected' : '') + '>' + (p || 'No project') + '</option>').join('');
     return '<div class="row" data-id="' + esc(it.id) + '"><div class="body edit">' +
       '<input data-f="what" maxlength="300" value="' + esc(it.what) + '">' +
       '<div class="line"><select data-f="p">' + opts + '</select><input type="date" data-f="due" value="' + esc(it.due || '') + '"></div>' +
-      '<input data-f="note" maxlength="500" placeholder="Note" value="' + esc(it.note || '') + '">' +
       '<div class="line"><button class="btn go small" type="button" data-act="save">Save</button><button class="btn small" type="button" data-act="cancel">Cancel</button></div>' +
       '</div></div>';
   }
-  function colHtml(k) {
-    const open = sortOpen(openOf(k)), done = doneOf(k), t = today();
-    const late = open.filter(it => it.due && it.due < t).length;
-    const head = k === me ? 'Me (' + name(k) + ')' : name(k);
-    let h = '<h2>' + esc(head) + ' to do <span class="n">' + open.length + ' open</span>' + (late ? '<span class="late">' + late + ' overdue</span>' : '') + '</h2>' +
-      '<p class="sub">Asked by ' + esc(name(k === 'leo' ? 'jaesik' : 'leo')) + '</p>';
-    if (k !== me && open.length) h += '<div class="tools"><button class="btn small" type="button" data-copy="' + k + '" title="Copy the open list to paste into a message">📋 Copy as message</button></div>';
-    h += open.length ? open.map(rowHtml).join('') : '<div class="empty">Nothing open.</div>';
-    if (done.length) {
-      const toCheck = done.filter(it => !it.checked).length, asker = k === me ? other : me;
-      const open = doneOpen[k] != null ? doneOpen[k] : (asker === me && toCheck > 0);
-      h += '<details class="donebox" data-col="' + k + '"' + (open ? ' open' : '') + '><summary>Done in the last 30 days (' + done.length + ')' +
-        (toCheck ? ' · <span class="tocheck">' + toCheck + ' for ' + esc(asker === me ? 'you' : name(asker)) + ' to check</span>' : '') + '</summary>' +
-        done.map(rowHtml).join('') + '</details>';
-    }
-    return h;
-  }
   function render() {
-    $('col-' + me).innerHTML = colHtml(me);
-    $('col-' + other).innerHTML = colHtml(other);
-    $('col-' + me).parentNode.insertBefore($('col-' + me), $('col-' + me).parentNode.firstChild);   // my list first
-    const mine = openOf(me).length, fresh = openOf(me).filter(it => !it.seen).length;
-    document.title = (mine ? '(' + mine + (fresh ? ', ' + fresh + ' new' : '') + ') ' : '') + '✅ To-do — Advanced Facade';
+    const mine = openOf(me), theirs = openOf(other), fresh = mine.filter(it => !it.seen).length;
+    const chip = (k, label, n) => '<button class="chip' + (filter === k ? ' on' : '') + '" type="button" data-filter="' + k + '">' + label + ' <b>' + n + '</b></button>';
+    $('filters').innerHTML = chip('all', 'All', mine.length + theirs.length) + chip('mine', 'My turn', mine.length) +
+      (fresh ? '<span class="fresh">' + fresh + ' new</span>' : '') + chip('theirs', esc(name(other)) + '’s turn', theirs.length) +
+      '<span class="grow"></span>' + (theirs.length ? '<button class="btn small" type="button" data-copy="' + other + '" title="Copy what is waiting on ' + esc(name(other)) + ' to paste into a message">📋 Copy ' + esc(name(other)) + '’s turn</button>' : '');
+    const shown = (filter === 'mine' ? mine : filter === 'theirs' ? theirs : mine.concat(theirs));
+    const groups = {};
+    shown.forEach(it => { const p = PROJ_ORDER.indexOf(it.p || '') >= 0 ? (it.p || '') : 'Other'; (groups[p] = groups[p] || []).push(it); });
+    const t = today();
+    $('groups').innerHTML = PROJ_ORDER.filter(p => groups[p]).map(p => {
+      const list = groups[p].sort((a, b) => ((a.to === me ? 0 : 1) - (b.to === me ? 0 : 1)) || byDue(a, b));
+      const nMine = list.filter(it => it.to === me).length, late = list.filter(it => it.due && it.due < t).length;
+      return '<section class="grp"><h2>' + esc(p || 'No project') + ' <span class="n">' + list.length + (filter === 'all' && nMine ? ' · ' + nMine + ' your turn' : '') + '</span>' +
+        (late ? '<span class="late">' + late + ' overdue</span>' : '') + '</h2>' + list.map(rowHtml).join('') + '</section>';
+    }).join('') || '<div class="empty">' + (filter === 'mine' ? 'Nothing is on you right now.' : filter === 'theirs' ? 'Nothing is waiting on ' + esc(name(other)) + '.' : 'Nothing open.') + '</div>';
+    const closed = closedAll();
+    $('closedBox').hidden = !closed.length;
+    $('closedSum').textContent = 'Closed (' + closed.length + ') · kept for good';
+    if ($('closedBox').open) $('closedList').innerHTML = closed.map(rowHtml).join('');
+    document.title = (mine.length ? '(' + mine.length + (fresh ? ', ' + fresh + ' new' : '') + ') ' : '') + '✅ To-do — Advanced Facade';
   }
-
-  document.querySelector('.cols').addEventListener('toggle', e => { const d = e.target; if (d.classList && d.classList.contains('donebox')) doneOpen[d.dataset.col] = d.open; }, true);
+  $('closedBox').addEventListener('toggle', () => { if ($('closedBox').open) render(); });
+  $('filters').addEventListener('click', e => {
+    const c = e.target.closest('[data-filter]');
+    if (c) { filter = c.dataset.filter; try { localStorage.setItem('todo_filter', filter); } catch (er) {} render(); return; }
+    const copy = e.target.closest('[data-copy]'); if (copy) copyList(copy.dataset.copy);
+  });
 
   // ---- row actions
-  document.querySelector('.cols').addEventListener('click', e => {
+  const addLog = (id, entry) => ref.child(id + '/log').push().set(Object.assign({ by: me, at: Date.now() }, entry));
+  document.querySelector('main').addEventListener('click', e => {
     const nb = e.target.closest('[data-note]');
     if (nb) { openNote(nb.dataset.note); return; }
-    const copy = e.target.closest('[data-copy]');
-    if (copy) { copyList(copy.dataset.copy); return; }
-    const b = e.target.closest('[data-act]'); if (!b) return;
+    const b = e.target.closest('[data-act]'); if (!b || !b.closest('#groups, #closedList')) return;
     const row = b.closest('.row'); const id = row && row.dataset.id; const it = id && items[id]; if (!it) return;
-    const act = b.dataset.act;
-    if (act === 'ack') ref.child(id + '/seen').set(Date.now());
-    else if (act === 'done') ref.child(id).update({ done: Date.now(), doneBy: me });
-    else if (act === 'reopen') ref.child(id).update({ done: null, doneBy: null, checked: null });
-    else if (act === 'check') ref.child(id + '/checked').set(Date.now());
-    else if (act === 'del') { if (confirm('Delete “' + it.what + '”?')) ref.child(id).remove(); }
+    const act = b.dataset.act, now = Date.now();
+    const box = row.querySelector('[data-f="msg"]'), text = box ? box.value.trim() : '';
+    const fail = er => toast('Not saved: ' + (er.message || er));
+    if (act === 'thread') { if (threads.has(id)) threads.delete(id); else threads.add(id); render(); const t = document.querySelector('.row[data-id="' + id + '"] [data-f="msg"]'); if (t) t.focus(); }
+    else if (act === 'ack') ref.child(id + '/seen').set(now).catch(fail);
+    else if (act === 'note') {
+      if (!text) { toast('Write the note first'); return; }
+      const up = []; up.push(addLog(id, { text, act: 'note' }));
+      if (!it.done && it.to === me && !it.seen) up.push(ref.child(id + '/seen').set(now));   // writing a note counts as seen
+      Promise.all(up).then(() => toast('Note added'), fail);
+    }
+    else if (act === 'give') {
+      const to = b.dataset.to; if (to !== 'leo' && to !== 'jaesik') return;
+      const entry = { act: 'turn', turn: to }; if (text) entry.text = text;
+      Promise.all([ref.child(id).update({ to, seen: to === me ? now : null }), addLog(id, entry)])
+        .then(() => toast(to === me ? 'It’s your turn now' : 'Given to ' + name(to)), fail);
+    }
+    else if (act === 'close') {
+      const entry = { act: 'close' }; if (text) entry.text = text;
+      Promise.all([ref.child(id).update({ done: now, doneBy: me }), addLog(id, entry)]).then(() => { threads.delete(id); toast('Closed. It stays under Closed.'); }, fail);
+    }
+    else if (act === 'reopen') {   // back to whoever had it; they tap Got it again unless it is me
+      Promise.all([ref.child(id).update({ done: null, doneBy: null, checked: null, seen: it.to === me ? now : null }), addLog(id, { act: 'reopen' })])
+        .then(() => toast('Reopened: ' + turnWord(it.to).toLowerCase()), fail);
+    }
+    else if (act === 'del') { if (confirm('Delete “' + it.what + '” and its notes for good? Closing keeps it; deleting does not.')) ref.child(id).remove(); }
     else if (act === 'edit') { editing = id; render(); const w = document.querySelector('.row[data-id="' + id + '"] [data-f="what"]'); if (w) w.focus(); }
     else if (act === 'cancel') { editing = null; render(); }
     else if (act === 'save') {
       const f = n => row.querySelector('[data-f="' + n + '"]').value.trim();
       if (!f('what')) { toast('Write what needs doing'); return; }
-      const v = Object.assign({}, it, { what: f('what') });
-      ['p', 'due', 'note'].forEach(n => { if (f(n)) v[n] = f(n); else delete v[n]; });
-      ref.child(id).set(v).then(() => { editing = null; render(); }, er => toast('Not saved: ' + (er.message || er)));
+      const up = { what: f('what'), p: f('p') || null, due: f('due') || null };
+      ref.child(id).update(up).then(() => { editing = null; render(); }, fail);
     }
   });
 
   function copyList(k) {
     const open = sortOpen(openOf(k));
-    const lines = open.map((it, i) => (i + 1) + '. ' + (it.p ? '[' + it.p + '] ' : '') + it.what +
-      (it.due ? ' (due ' + dayWord(it.due) + ')' : '') + (it.note ? ' — ' + it.note : ''));
-    const text = name(k) + ', waiting on you:\n' + lines.join('\n') + '\n\nFull list: ' + location.origin + '/todo/';
+    const lines = open.map((it, i) => { const n = notesOf(it), last = n[n.length - 1];
+      return (i + 1) + '. ' + (it.p ? '[' + it.p + '] ' : '') + it.what + (it.due ? ' (due ' + dayWord(it.due) + ')' : '') + (last ? ' — ' + last.text : ''); });
+    const text = name(k) + ', your turn on these:\n' + lines.join('\n') + '\n\nFull list: ' + location.origin + '/todo/';
     const done = () => toast('Copied ' + open.length + ' item' + (open.length === 1 ? '' : 's'));
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => window.prompt('Copy this:', text));
     else window.prompt('Copy this:', text);

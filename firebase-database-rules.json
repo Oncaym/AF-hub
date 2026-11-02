@@ -187,6 +187,18 @@
             "doneBy": { ".validate": "newData.val() == 'leo' || newData.val() == 'jaesik'" },
             "checked": { ".validate": "newData.isNumber() && newData.parent().child('done').exists()" },
             "ink": { ".validate": "newData.isString() && newData.val().matches(/^[-A-Za-z0-9_]{10,40}$/)" },
+            // 💬 the task's thread: notes, hand-overs ("your turn"), close / reopen — who and when
+            "log": {
+              "$lid": {
+                ".validate": "newData.hasChildren(['by', 'at'])",
+                "by": { ".validate": "newData.val() == 'leo' || newData.val() == 'jaesik'" },
+                "at": { ".validate": "newData.isNumber()" },
+                "text": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 1000" },
+                "act": { ".validate": "newData.val() == 'note' || newData.val() == 'turn' || newData.val() == 'close' || newData.val() == 'reopen'" },
+                "turn": { ".validate": "newData.val() == 'leo' || newData.val() == 'jaesik'" },
+                "$other": { ".validate": false }
+              }
+            },
             "$other": { ".validate": false }
           }
         },

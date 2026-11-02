@@ -120,5 +120,17 @@ c('a page must be a picture', db4(LEO).write('/todo/leo-jaesik/notes/-NabcdEFGhi
 c('other staff cannot read the pages', db4(STAFF).read('/todo/leo-jaesik/notes').allowed, false);
 c('a bad page id on a task is refused', db4(LEO).write(td + 'i5', item({ ink: '../x' })).allowed, false);
 c('no other shared lists exist yet', db4(LEO).read('/todo/leo-boss').allowed, false);
+// 💬 (2026-11-02) a task goes back and forth: notes, "your turn", either side closes it (kept for good)
+c('Jaesik leaves a note on a task', db4(JAESIK).write(td + 'i1/log/-Nlog0000001', { by: 'jaesik', at: 2, act: 'note', text: 'KWK asked for the anchor calc too' }).allowed, true);
+c('Leo hands it to Jaesik with a note', db4(LEO).update(td + 'i1', { to: 'jaesik', seen: null, 'log/-Nlog0000002': { by: 'leo', at: 3, act: 'turn', turn: 'jaesik', text: 'sent, please check' } }).allowed, true);
+c('Jaesik closes it', db4(JAESIK).update(td + 'i1', { done: 4, doneBy: 'jaesik', 'log/-Nlog0000003': { by: 'jaesik', at: 4, act: 'close' } }).allowed, true);
+c('a closed task is reopened', db4(LEO).write(td + 'i1', item({ log: { a: { by: 'leo', at: 5, act: 'reopen' } } })).allowed, true);
+c('a note needs words', db4(LEO).write(td + 'i1/log/-Nlog0000004', { by: 'leo', at: 2, act: 'note', text: '' }).allowed, false);
+c('a note needs who and when', db4(LEO).write(td + 'i1/log/-Nlog0000004', { act: 'note', text: 'hi' }).allowed, false);
+c('a turn goes only to Leo or Jaesik', db4(LEO).write(td + 'i1/log/-Nlog0000004', { by: 'leo', at: 2, act: 'turn', turn: 'boss' }).allowed, false);
+c('an unknown log action is refused', db4(LEO).write(td + 'i1/log/-Nlog0000004', { by: 'leo', at: 2, act: 'pay' }).allowed, false);
+c('an unknown log field is refused', db4(LEO).write(td + 'i1/log/-Nlog0000004', { by: 'leo', at: 2, act: 'note', text: 'x', cost: 5 }).allowed, false);
+c('a note cannot make a task out of nothing', db4(LEO).write(td + 'i9/log/-Nlog0000004', { by: 'leo', at: 2, act: 'note', text: 'x' }).allowed, false);
+c('other staff cannot leave notes', db4(STAFF).write(td + 'i1/log/-Nlog0000004', { by: 'leo', at: 2, act: 'note', text: 'x' }).allowed, false);
 console.log(`hub rules (local simulator): ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
