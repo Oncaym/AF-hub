@@ -203,7 +203,7 @@
     started = true;
     setupForm();
     ref = db.ref(LIST);
-    ref.on('value', s => { items = s.val() || {}; markSeen(); render(); },
+    ref.on('value', s => { items = s.val() || {}; render(); },
       err => msg('Could not open the list (' + esc(err && err.code || err) + '). The hub database rules may need updating: Actions → Project database → mode <b>rules</b>, project <b>hub</b>.'));
   });
   $('gate').addEventListener('submit', async e => {
@@ -218,7 +218,7 @@
     $('forMe').dataset.to = me; $('forOther').dataset.to = other;
     $('forOther').textContent = 'For ' + name(other);
     const pick = k => { forWho = k; $('forMe').classList.toggle('on', k === me); $('forOther').classList.toggle('on', k === other);
-      $('addHint').textContent = k === me ? name(other) + ' asked you. Write it down the moment it is said.' : 'You need ' + name(other) + ' to look, decide or reply. Put the email subject in the note.'; };
+      $('addHint').textContent = k === me ? name(other) + ' asked you. Write it down the moment it is said.' : 'You need ' + name(other) + ' to look, decide or reply. Put the email subject in the note. It shows as seen once ' + name(other) + ' taps Got it.'; };
     $('forMe').onclick = () => pick(me); $('forOther').onclick = () => pick(other);
     pick(me);
     $('addForm').addEventListener('submit', e => {
@@ -229,15 +229,13 @@
       if ($('proj').value) v.p = $('proj').value;
       if ($('due').value) v.due = $('due').value;
       if ($('note').value.trim()) v.note = $('note').value.trim();
+      if (forWho === me) v.seen = v.at;   // you wrote it yourself, so you have seen it
       ref.push().set(v).then(() => { $('what').value = ''; $('note').value = ''; $('due').value = ''; $('what').focus(); toast('Added for ' + name(v.to)); },
         er => toast('Not added: ' + (er.message || er)));
     });
   }
 
-  // The person it is for has opened the page: mark it seen, so the asker knows.
-  function markSeen() {
-    Object.keys(items).forEach(id => { const it = items[id]; if (it && it.to === me && !it.seen && !it.done) ref.child(id + '/seen').set(Date.now()); });
-  }
+  // "Seen" = the person it is for tapped Got it (Leo 11-01), not just opened the page.
 
   const openOf = k => Object.keys(items).map(id => Object.assign({ id }, items[id])).filter(it => it.to === k && !it.done);
   const doneOf = k => Object.keys(items).map(id => Object.assign({ id }, items[id]))
@@ -253,13 +251,15 @@
     if (it.p) meta.push('<span class="p">' + esc(it.p) + '</span>');
     if (it.due) meta.push('<span class="' + (it.due < t ? 'due-late' : it.due === t ? 'due-today' : '') + '">' + (it.due < t ? 'Overdue · ' : it.due === t ? 'Due today · ' : 'Due ') + dayWord(it.due) + '</span>');
     meta.push('<span>' + esc(name(it.by)) + ' asked · ' + ago(it.at) + '</span>');
-    if (!it.done) meta.push(it.seen ? '<span class="seen">Seen by ' + esc(name(it.to)) + ' ' + when(it.seen) + '</span>' : '<span class="unseen">Not seen by ' + esc(name(it.to)) + ' yet</span>');
+    if (!it.done) meta.push(it.seen ? '<span class="seen">' + esc(name(it.to)) + ' got it ' + when(it.seen) + '</span>'
+      : '<span class="unseen">' + (it.to === me ? 'New: tap Got it' : esc(name(it.to)) + ' hasn\u2019t tapped Got it yet') + '</span>');
     else meta.push('<span>Done ' + when(it.done) + (it.doneBy ? ' by ' + esc(name(it.doneBy)) : '') + '</span>');
     return '<div class="row' + (it.done ? ' isdone' : '') + '" data-id="' + esc(it.id) + '">' +
       '<button class="tick' + (it.done ? ' done' : '') + '" type="button" data-act="' + (it.done ? 'reopen' : 'done') + '" title="' + (it.done ? 'Not done after all' : 'Done') + '" aria-label="' + (it.done ? 'Reopen' : 'Mark done') + '"></button>' +
       '<div class="body"><div class="what">' + esc(it.what) + '</div><div class="meta">' + meta.join('') + '</div>' +
       (it.note ? '<div class="note">' + esc(it.note) + '</div>' : '') + '</div>' +
-      '<div class="acts">' + (it.done ? '' : '<button class="btn small" type="button" data-act="edit">Edit</button>') +
+      '<div class="acts">' + (!it.done && it.to === me && !it.seen ? '<button class="btn go small" type="button" data-act="ack" title="Tell ' + esc(name(it.by)) + ' you saw this">Got it</button>' : '') +
+      (it.done ? '' : '<button class="btn small" type="button" data-act="edit">Edit</button>') +
       '<button class="btn small" type="button" data-act="del" title="Delete">✕</button></div></div>';
   }
   function editHtml(it) {
@@ -286,8 +286,8 @@
     $('col-' + me).innerHTML = colHtml(me);
     $('col-' + other).innerHTML = colHtml(other);
     $('col-' + me).parentNode.insertBefore($('col-' + me), $('col-' + me).parentNode.firstChild);   // my list first
-    const mine = openOf(me).length;
-    document.title = (mine ? '(' + mine + ') ' : '') + '✅ To-do — Advanced Facade';
+    const mine = openOf(me).length, fresh = openOf(me).filter(it => !it.seen).length;
+    document.title = (mine ? '(' + mine + (fresh ? ', ' + fresh + ' new' : '') + ') ' : '') + '✅ To-do — Advanced Facade';
   }
 
   // ---- row actions
@@ -297,7 +297,8 @@
     const b = e.target.closest('[data-act]'); if (!b) return;
     const row = b.closest('.row'); const id = row && row.dataset.id; const it = id && items[id]; if (!it) return;
     const act = b.dataset.act;
-    if (act === 'done') ref.child(id).update({ done: Date.now(), doneBy: me });
+    if (act === 'ack') ref.child(id + '/seen').set(Date.now());
+    else if (act === 'done') ref.child(id).update({ done: Date.now(), doneBy: me });
     else if (act === 'reopen') ref.child(id).update({ done: null, doneBy: null });
     else if (act === 'del') { if (confirm('Delete “' + it.what + '”?')) ref.child(id).remove(); }
     else if (act === 'edit') { editing = id; render(); const w = document.querySelector('.row[data-id="' + id + '"] [data-f="what"]'); if (w) w.focus(); }
@@ -344,7 +345,8 @@
       try { localStorage.setItem('todo_last_' + h, slot); } catch (e) {}
       if (now.getHours() > h + 2) return;   // opened much later: don't fire a stale notice
       const mine = sortOpen(openOf(me)), theirs = openOf(other);
-      const body = (mine.length ? mine.slice(0, 3).map(it => '• ' + it.what).join('\n') : 'Nothing open for you.') +
+      const fresh = mine.filter(it => !it.seen).length;
+      const body = (fresh ? fresh + ' new, tap Got it\n' : '') + (mine.length ? mine.slice(0, 3).map(it => '• ' + it.what).join('\n') : 'Nothing open for you.') +
         (theirs.length ? '\nWaiting on ' + name(other) + ': ' + theirs.length : '');
       const n = new Notification('To-do: ' + mine.length + ' for you', { body, tag: 'todo-' + h });
       n.onclick = () => { window.focus(); n.close(); };
