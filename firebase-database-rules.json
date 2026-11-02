@@ -185,6 +185,7 @@
             "seen": { ".validate": "newData.isNumber()" },
             "done": { ".validate": "newData.isNumber()" },
             "doneBy": { ".validate": "newData.val() == 'leo' || newData.val() == 'jaesik'" },
+            "checked": { ".validate": "newData.isNumber() && newData.parent().child('done').exists()" },
             "$other": { ".validate": false }
           }
         },

@@ -111,6 +111,9 @@ c('a task needs words', db4(LEO).write(td + 'i4', item({ what: '' })).allowed, f
 c('a bad due date is refused', db4(LEO).write(td + 'i4', item({ due: 'Friday' })).allowed, false);
 c('an unknown field is refused', db4(LEO).write(td + 'i4', item({ cost: 5 })).allowed, false);
 c('other staff cannot add to it', db4(STAFF).write(td + 'i4', item()).allowed, false);
+c('Jaesik checks a task Leo finished', db4(JAESIK).write(td + 'i1', item({ done: 9, doneBy: 'leo', checked: 12 })).allowed, true);
+c('a task cannot be checked before it is done', db4(JAESIK).write(td + 'i1/checked', 12).allowed, false);
+c('checked must be a time', db4(JAESIK).write(td + 'i1', item({ done: 9, doneBy: 'leo', checked: 'yes' })).allowed, false);
 c('no other shared lists exist yet', db4(LEO).read('/todo/leo-boss').allowed, false);
 console.log(`hub rules (local simulator): ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
