@@ -6,6 +6,10 @@
         Called by the page right after someone adds, hands over, notes or closes a task.
         Rings the other person's devices — today only Leo's (Leo 11-02: "先只给我").
    POST /api/todo-push { token, test: deviceId }   → a test notice to that one device
+   POST /api/todo-push { token, call: 'ring' }     → 📣 Jaesik's "come to my office": rings Leo now
+        (his page asks again every minute until Leo answers, at most 10 times)
+   POST /api/todo-push { token, call: 'reply' }    → Leo's answer (on my way / 2 minutes / away
+        from my desk) rings Jaesik's devices (Leo 11-06)
 
    What rings (Leo 11-02): a new task for him or one handed to him, any note Jaesik
    leaves, a task Jaesik closes (and a task Jaesik reopens that is Leo's turn).
@@ -25,6 +29,34 @@ export const PUSH_TO = ['leo'];          // whose devices ring (add 'jaesik' whe
 const FRESH = 15 * 60 * 1000;
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const ID = /^[-A-Za-z0-9_]{1,40}$/;
+// 📣 who calls whom (Leo 11-06: Jaesik calls Leo to his office)
+export const CALLER = 'jaesik', CALLEE = 'leo';
+const CALL_OPEN = 15 * 60 * 1000, RING_GAP = 45 * 1000, MAX_RINGS = 10;
+export const REPLIES = {
+  way: { title: '🏃 Leo: on my way' },
+  two: { title: '⏱ Leo: there in 2 minutes' },
+  away: { title: '🚶 Leo: away from my desk — coming as soon as I\'m back' },
+};
+const clock = ms => new Date(ms).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' });
+
+/** The notice for an open call (n = rings so far), or null if there is nothing to ring for. */
+export function callNotice(call, actor, now) {
+  if (!call || call.by !== actor || actor !== CALLER || call.to !== CALLEE) return null;
+  if (call.reply || call.closed || now - (call.at || 0) > CALL_OPEN) return null;
+  const n = +call.rings || 0;
+  if (n >= MAX_RINGS || (call.ringAt && now - call.ringAt < RING_GAP)) return null;
+  return {
+    title: '📣 ' + PEOPLE[CALLER].name + ': come to my office',
+    body: (n ? 'Called at ' + clock(call.at) + ' · still waiting (' + (n + 1) + ')' : 'Called at ' + clock(call.at)) + '\nTap to answer: on my way / 2 minutes / away',
+    tag: 'todo-call', url: '/todo/#call', sticky: true,
+  };
+}
+/** The notice for Leo's answer, once per answer. */
+export function replyNotice(call, actor, now) {
+  if (!call || actor !== CALLEE || call.to !== actor || !REPLIES[call.reply] || call.replyBy !== actor) return null;
+  if (call.closed || !call.replyAt || now - call.replyAt > 2 * 60 * 1000 || call.replyPushed === call.replyAt) return null;
+  return { title: REPLIES[call.reply].title, body: 'Answered at ' + clock(call.replyAt) + ' (you called at ' + clock(call.at) + ')', tag: 'todo-call-reply', url: '/todo/#call', sticky: true };
+}
 
 const short = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 const label = it => (it.p ? '[' + it.p + '] ' : '') + short(it.what, 110);
@@ -82,7 +114,7 @@ export default async function handler(req, res) {
   if (!vk) return res.status(500).json({ error: 'VAPID_PRIVATE_KEY is not set in the Vercel project' });
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { return res.status(400).json({ error: 'Invalid JSON' }); } }
-  const { token, ids, test } = body || {};
+  const { token, ids, test, call } = body || {};
   if (!token || typeof token !== 'string' || token.length > 5000) return res.status(403).json({ error: 'Sign in again with your hub account.' });
 
   try {
@@ -94,22 +126,43 @@ export default async function handler(req, res) {
     const now = Date.now();
     const ring = async (to, note, ttl) => {
       const subs = Object.entries(devices[to] || {}).filter(([sid, s]) => ID.test(sid) && s && s.endpoint);
-      let sent = 0, gone = 0;
+      let sent = 0, gone = 0; const names = [];
       await Promise.all(subs.map(async ([sid, s]) => {
         try {
           const r = await sendPush(s, note, vk, { ttl });
-          if (r.ok) sent++;
+          if (r.ok) { sent++; if (s.ua && !names.includes(s.ua)) names.push(String(s.ua).slice(0, 40)); }
           else if (r.gone) { gone++; await fetch(`${HUB_DB}/${LIST}/push/${to}/${sid}.json?auth=${encodeURIComponent(token)}`, { method: 'DELETE' }); }
           else console.error('push refused', r.status, new URL(s.endpoint).host);
         } catch (e) { console.error('push failed', e.message); }
       }));
-      return { sent, gone, devices: subs.length };
+      return { sent, gone, devices: subs.length, names };
     };
+    const patchCall = v => fetch(`${HUB_DB}/${LIST}/call.json?auth=${encodeURIComponent(token)}`, { method: 'PATCH', body: JSON.stringify(v) });
+
+    if (call === 'ring' || call === 'reply') {   // 📣 come to my office / the answer
+      const cr = await get(LIST + '/call', token);
+      const c = cr.ok ? await cr.json() : null;
+      if (call === 'ring') {
+        const note = callNotice(c, actor, now);
+        if (!note) return res.status(200).json({ sent: 0, skipped: true });
+        const r = await ring(CALLEE, note, 600);
+        await patchCall({ ringAt: now, rings: (+c.rings || 0) + 1, sentTo: r.names.join(', ').slice(0, 200) });
+        return res.status(200).json(r);
+      }
+      const note = replyNotice(c, actor, now);
+      if (!note) return res.status(200).json({ sent: 0, skipped: true });
+      const r = await ring(CALLER, note, 600);
+      await patchCall({ replyPushed: c.replyAt });
+      return res.status(200).json(r);
+    }
 
     if (test) {   // "is this device on?" — only your own device
       const s = ID.test(String(test)) && (devices[actor] || {})[test];
       if (!s) return res.status(404).json({ error: 'This device is not saved yet. Tap 🔔 again.' });
-      const r = await ring(actor, { title: '🔔 To-do notifications are on', body: 'This device will ring when ' + PEOPLE[actor === 'leo' ? 'jaesik' : 'leo'].name + ' gives you a task, leaves a note or closes one.', tag: 'todo-test', url: '/todo/' }, 600);
+      const body = actor === CALLER && !PUSH_TO.includes(actor)
+        ? 'This device will ring when ' + PEOPLE[CALLEE].name + ' answers your call.'
+        : 'This device will ring when ' + PEOPLE[actor === 'leo' ? 'jaesik' : 'leo'].name + ' gives you a task, leaves a note or closes one' + (actor === CALLEE ? ', or calls you to his office.' : '.');
+      const r = await ring(actor, { title: '🔔 To-do notifications are on', body, tag: 'todo-test', url: '/todo/' }, 600);
       return res.status(200).json(r);
     }
 

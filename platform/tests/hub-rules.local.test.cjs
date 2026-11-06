@@ -145,5 +145,20 @@ c('an unknown device field is refused', db4(LEO).write(pu + 'leo/AbCdEfGhIjKlMnO
 c('other staff cannot read the devices', db4(STAFF).read(pu + 'leo').allowed, false);
 c('a reminder time is a number', db4(LEO).write('/todo/leo-jaesik/nudge/i1', 'soon').allowed, false);
 c('a reminder time can be cleared', db4(LEO).write('/todo/leo-jaesik/nudge/i1', null).allowed, true);
+// 📣 (2026-11-06) Jaesik calls Leo to his office; Leo answers; "away from my desk"
+const cl = '/todo/leo-jaesik/call';
+const db5 = a => targaryen.database(rules, Object.assign({}, data, { todo: { 'leo-jaesik': { call: { by: 'jaesik', to: 'leo', at: 1 } } } }), 1790000000000).as(a);
+c('Jaesik calls Leo', db4(JAESIK).write(cl, { by: 'jaesik', to: 'leo', at: 1 }).allowed, true);
+c('Leo answers on my way', db5(LEO).update(cl, { reply: 'way', replyAt: 2, replyBy: 'leo' }).allowed, true);
+c('the ring count is kept', db5(JAESIK).update(cl, { ringAt: 3, rings: 2, sentTo: 'iPhone, Windows · Edge' }).allowed, true);
+c('Jaesik says he is here', db5(JAESIK).update(cl, { closed: 4, closedBy: 'jaesik' }).allowed, true);
+c('an unknown answer is refused', db5(LEO).update(cl, { reply: 'later', replyAt: 2, replyBy: 'leo' }).allowed, false);
+c('a call needs who and when', db4(JAESIK).write(cl, { by: 'jaesik', at: 1 }).allowed, false);
+c('an unknown call field is refused', db5(LEO).update(cl, { note: 'x' }).allowed, false);
+c('other staff cannot call', db4(STAFF).write(cl, { by: 'jaesik', to: 'leo', at: 1 }).allowed, false);
+c('Leo steps away', db4(LEO).write('/todo/leo-jaesik/away/leo', { at: 1, until: 2 }).allowed, true);
+c('Leo is back', db4(LEO).write('/todo/leo-jaesik/away/leo', null).allowed, true);
+c('away needs until', db4(LEO).write('/todo/leo-jaesik/away/leo', { at: 1 }).allowed, false);
+c('away only for Leo or Jaesik', db4(LEO).write('/todo/leo-jaesik/away/boss', { at: 1, until: 2 }).allowed, false);
 console.log(`hub rules (local simulator): ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

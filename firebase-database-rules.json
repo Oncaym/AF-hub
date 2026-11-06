@@ -231,6 +231,32 @@
         "nudge": {
           "$id": { ".validate": "newData.isNumber()" }
         },
+        // 📣 "come to my office" (Leo 11-06): the one open call, Leo's answer, how often it rang
+        "call": {
+          ".validate": "newData.hasChildren(['by', 'to', 'at'])",
+          "by": { ".validate": "newData.val() == 'leo' || newData.val() == 'jaesik'" },
+          "to": { ".validate": "newData.val() == 'leo' || newData.val() == 'jaesik'" },
+          "at": { ".validate": "newData.isNumber()" },
+          "reply": { ".validate": "newData.val() == 'way' || newData.val() == 'two' || newData.val() == 'away'" },
+          "replyAt": { ".validate": "newData.isNumber()" },
+          "replyBy": { ".validate": "newData.val() == 'leo' || newData.val() == 'jaesik'" },
+          "replyPushed": { ".validate": "newData.isNumber()" },
+          "ringAt": { ".validate": "newData.isNumber()" },
+          "rings": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+          "sentTo": { ".validate": "newData.isString() && newData.val().length <= 200" },
+          "closed": { ".validate": "newData.isNumber()" },
+          "closedBy": { ".validate": "newData.val() == 'leo' || newData.val() == 'jaesik'" },
+          "$other": { ".validate": false }
+        },
+        // 🚶 "away from my desk, back ~10:50"
+        "away": {
+          "$who": {
+            ".validate": "($who == 'leo' || $who == 'jaesik') && newData.hasChildren(['at', 'until'])",
+            "at": { ".validate": "newData.isNumber()" },
+            "until": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          }
+        },
         "$other": { ".validate": false }
       },
       "$other": { ".read": false, ".write": false }

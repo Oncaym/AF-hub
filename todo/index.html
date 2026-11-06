@@ -78,6 +78,24 @@
   .composer textarea { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; font: inherit; font-size: 14px; resize: vertical; }
   .composer .line { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
   .closedbox { margin-top: 6px; }
+  .cgrp { border-top: 1px solid var(--border); }
+  .cgrp:first-child { border-top: 0; }
+  .cgrp > summary { cursor: pointer; padding: 9px 0; font-size: 14.5px; }
+  .cgrp > summary .n { color: var(--text-dim); font-weight: 400; font-size: 13px; }
+  .cgrp[open] > summary { padding-bottom: 2px; }
+  /* 📣 come to my office (Leo 11-06) */
+  .callbar { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .callbar.ringing { border-color: var(--yellow); animation: ringpulse 1.6s ease-in-out infinite; }
+  @keyframes ringpulse { 0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--yellow) 40%, transparent); } 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--yellow) 12%, transparent); } }
+  .callbar .btn.call { font-size: 17px; padding: 12px 18px; align-self: flex-start; }
+  .callbar .btn.big { font-size: 15px; padding: 10px 14px; }
+  .callbar .line, .awaybox .line { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .callbar .dim, .awayline { color: var(--text-dim); font-size: 13px; }
+  .cstate { font-size: 15px; }
+  .cstate.ok b { color: var(--green); }
+  .cstate.alert b { color: var(--yellow); }
+  .cwait { color: var(--yellow); font-size: 13.5px; }
+  .awaybox { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; }
   .closedbox summary { cursor: pointer; color: var(--text-dim); font-size: 13.5px; padding: 6px 0; }
   .closedbox #closedList { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 2px 14px 6px; }
   .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
@@ -166,6 +184,7 @@
     <div class="bar">
       <h1>✅ Leo ↔ Jaesik</h1>
       <span class="grow"></span>
+      <button class="btn" type="button" id="awayBtn" hidden title="Tell Jaesik you are away from your desk">🚶 Away</button>
       <button class="btn" type="button" id="remind" title="A desktop notice at 8:30 and 1:00 on weekdays, while this page is open in a tab">🔔 Remind me</button>
       <a class="btn" href="/" title="Project overview">Hub</a>
       <button class="btn" type="button" id="theme" title="Day / night">☀️</button>
@@ -173,6 +192,13 @@
     </div>
   </header>
   <main>
+    <div class="awaybox" id="awayBox" hidden>
+      <div class="line"><span>🚶 Away from my desk for about</span>
+        <button class="btn" type="button" data-min="5">5 min</button><button class="btn" type="button" data-min="15">15 min</button>
+        <button class="btn" type="button" data-min="30">30 min</button><button class="btn" type="button" data-min="60">1 hour</button>
+        <button class="btn" type="button" data-min="0">Cancel</button></div>
+    </div>
+    <section class="callbar" id="callBar" hidden></section>
     <form class="add" id="addForm" autocomplete="off">
       <div class="line">
         <input id="what" maxlength="300" placeholder="What needs doing? e.g. Send the CP2 calc to KWK" required>
@@ -279,6 +305,9 @@
   const REMIND_AT = [[8, 30], [13, 0]];   // weekdays, while the page is open
   const PUSH_TO = ['leo'];   // whose devices ring when the other person acts (same list as api/todo-push.mjs; Leo 11-02: only him for now)
   const PUSH_DB = 'todo/leo-jaesik/push';
+  const PUSH_DEVICES = ['leo', 'jaesik'];   // who can turn on 🔔 (Jaesik: for Leo's answers to his calls, Leo 11-06)
+  const BASE = 'todo/leo-jaesik';
+  const CALLER = 'jaesik', CALLEE = 'leo';   // 📣 Jaesik calls Leo to his office (Leo 11-06)
 
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -325,6 +354,9 @@
     started = true;
     setupForm();
     pushStart();
+    $('awayBtn').hidden = me !== CALLEE;
+    db.ref(BASE + '/call').on('value', s => { call = s.val(); renderCall(); paintTitle(); });
+    db.ref(BASE + '/away').on('value', s => { away = s.val() || {}; renderCall(); paintAway(); });
     ref = db.ref(LIST);
     ref.on('value', s => { items = s.val() || {}; render(); if (wantOpen) focusTask(); },
       err => msg('Could not open the list (' + esc(err && err.code || err) + '). The hub database rules may need updating: Actions → Project database → mode <b>rules</b>, project <b>hub</b>.'));
@@ -365,6 +397,9 @@
   const PROJ_ORDER = ['AC3', 'CP2', 'LEX', 'P7', 'FH', 'BAB', 'NPC', 'Other', ''];
   let filter = 'all'; try { filter = localStorage.getItem('todo_filter') || 'all'; } catch (e) {}
   const threads = new Set();   // tasks whose notes are open
+  const closedOpen = new Set();   // Closed: projects unfolded
+  const groupOf = it => PROJ_ORDER.indexOf(it.p || '') >= 0 ? (it.p || '') : 'Other';
+  let titleBase = '✅ To-do — Advanced Facade';
   const all = () => Object.keys(items).map(id => Object.assign({ id }, items[id]));
   const openOf = k => all().filter(it => !it.done && (!k || it.to === k));
   const closedAll = () => all().filter(it => it.done).sort((a, b) => b.done - a.done);
@@ -397,7 +432,6 @@
     const t = today(), meta = [];
     if (it.done) meta.push('<span class="turn">Closed ' + when(it.done) + (it.doneBy ? ' by ' + esc(name(it.doneBy)) : '') + '</span>');
     else meta.push('<span class="turn' + (it.to === me ? ' mine' : '') + '">▶ ' + esc(turnWord(it.to)) + '</span>');
-    if (it.done && it.p) meta.push('<span class="p">' + esc(it.p) + '</span>');
     if (it.due && !it.done) meta.push('<span class="' + (it.due < t ? 'due-late' : it.due === t ? 'due-today' : '') + '">' + (it.due < t ? 'Overdue · ' : it.due === t ? 'Due today · ' : 'Due ') + dayWord(it.due) + '</span>');
     meta.push('<span>' + esc(name(it.by)) + ' raised · ' + ago(it.at) + '</span>');
     if (!it.done) meta.push(it.seen ? '<span class="seen">' + esc(name(it.to)) + ' got it ' + when(it.seen) + '</span>'
@@ -431,7 +465,7 @@
       '<span class="grow"></span>' + (theirs.length ? '<button class="btn small" type="button" data-copy="' + other + '" title="Copy what is waiting on ' + esc(name(other)) + ' to paste into a message">📋 Copy ' + esc(name(other)) + '’s turn</button>' : '');
     const shown = (filter === 'mine' ? mine : filter === 'theirs' ? theirs : mine.concat(theirs));
     const groups = {};
-    shown.forEach(it => { const p = PROJ_ORDER.indexOf(it.p || '') >= 0 ? (it.p || '') : 'Other'; (groups[p] = groups[p] || []).push(it); });
+    shown.forEach(it => { const p = groupOf(it); (groups[p] = groups[p] || []).push(it); });
     const t = today();
     $('groups').innerHTML = PROJ_ORDER.filter(p => groups[p]).map(p => {
       const list = groups[p].sort((a, b) => ((a.to === me ? 0 : 1) - (b.to === me ? 0 : 1)) || byDue(a, b));
@@ -442,10 +476,20 @@
     const closed = closedAll();
     $('closedBox').hidden = !closed.length;
     $('closedSum').textContent = 'Closed (' + closed.length + ') · kept for good';
-    if ($('closedBox').open) $('closedList').innerHTML = closed.map(rowHtml).join('');
-    document.title = (mine.length ? '(' + mine.length + (fresh ? ', ' + fresh + ' new' : '') + ') ' : '') + '✅ To-do — Advanced Facade';
+    if ($('closedBox').open) {   // by project, each folded until tapped (Leo 11-06); newest closed first
+      const cg = {};
+      closed.forEach(it => { const p = groupOf(it); (cg[p] = cg[p] || []).push(it); });
+      $('closedList').innerHTML = PROJ_ORDER.filter(p => cg[p]).map(p => '<details class="cgrp" data-g="' + esc(p) + '"' + (closedOpen.has(p) ? ' open' : '') + '><summary><b>' + esc(p || 'No project') + '</b> <span class="n">' +
+        cg[p].length + ' closed · last ' + dayWord(isoDay(new Date(cg[p][0].done))) + '</span></summary>' + cg[p].map(rowHtml).join('') + '</details>').join('');
+    }
+    titleBase = (mine.length ? '(' + mine.length + (fresh ? ', ' + fresh + ' new' : '') + ') ' : '') + '✅ To-do — Advanced Facade';
+    paintTitle();
   }
   $('closedBox').addEventListener('toggle', () => { if ($('closedBox').open) render(); });
+  $('closedList').addEventListener('toggle', e => {   // remember which projects are unfolded across updates
+    const d = e.target; if (!d.classList || !d.classList.contains('cgrp')) return;
+    if (d.open) closedOpen.add(d.dataset.g); else closedOpen.delete(d.dataset.g);
+  }, true);
   $('filters').addEventListener('click', e => {
     const c = e.target.closest('[data-filter]');
     if (c) { filter = c.dataset.filter; try { localStorage.setItem('todo_filter', filter); } catch (er) {} render(); return; }
@@ -665,12 +709,15 @@
 
   // ---- opened from a notice: /todo/#t=<task> shows that task with its notes
   let wantOpen = null;
-  const readHash = () => { const m = /#t=([-A-Za-z0-9_]{1,40})/.exec(location.hash); if (m) wantOpen = m[1]; };
+  const readHash = () => {
+    if (location.hash === '#call') { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} window.scrollTo(0, 0); return; }
+    const m = /#t=([-A-Za-z0-9_]{1,40})/.exec(location.hash); if (m) wantOpen = m[1];
+  };
   function focusTask() {
     const id = wantOpen; if (!id || !items[id]) return;
     wantOpen = null;
     try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
-    if (items[id].done) $('closedBox').open = true; else filter = 'all';
+    if (items[id].done) { closedOpen.add(groupOf(items[id])); $('closedBox').open = true; } else filter = 'all';
     threads.add(id); render();
     const el = document.querySelector('.row[data-id="' + id + '"]');
     if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('flash'); }
@@ -680,6 +727,99 @@
   if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => {
     const u = e.data && e.data.open; if (!u) return;
     try { const h = new URL(u, location.href).hash; if (h) location.hash = h; } catch (er) {}
+  });
+
+  // ---- 📣 come to my office (Leo 11-06: Jaesik wants Leo right away; Leo may be away from his desk)
+  // Jaesik taps once → Leo's phone / PC / iPad ring now, then every minute until Leo answers (at most 10).
+  // Jaesik always sees where it stands: rang which devices, not answered yet (after 1 min), or Leo's answer.
+  // Leo answers On my way / 2 minutes / Away from my desk → Jaesik's devices ring with it.
+  let call = null, away = {}, callBusy = false, lastCallHtml = null;
+  const CALL_OPEN = 15 * 60e3, CALL_SHOW = 30 * 60e3;
+  const REPLY = { way: '🏃 On my way', two: '⏱ There in 2 minutes', away: '🚶 Away from my desk — I’ll come as soon as I’m back' };
+  const REPLY_THEM = { way: '🏃 on my way', two: '⏱ there in 2 minutes', away: '🚶 away from my desk — coming as soon as I’m back' };
+  const clock = ms => { const d = new Date(ms); return d.getHours() + ':' + pad(d.getMinutes()); };
+  const minsAgo = ms => { const m = Math.floor((Date.now() - ms) / 60000); return m <= 0 ? 'just now' : m === 1 ? '1 min ago' : m + ' min ago'; };
+  const callLive = () => !!(call && call.at && !call.closed && Date.now() - call.at < CALL_SHOW);
+  const awayOf = k => { const a = away && away[k]; return a && a.until > Date.now() ? a : null; };
+  const callRef = () => db.ref(BASE + '/call');
+  function callPing(kind) {
+    if (!auth.currentUser) return Promise.resolve(null);
+    return auth.currentUser.getIdToken().then(token => fetch('../api/todo-push', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token, call: kind }) }))
+      .then(r => r.json()).catch(() => null);
+  }
+  function paintTitle() {
+    document.title = (me === CALLEE && callLive() && !call.reply ? '📣 ' + name(CALLER) + ' is calling · ' : '') + titleBase;
+  }
+  function renderCall() {
+    const bar = $('callBar'); if (!me || !bar) return;
+    const live = callLive(), a = awayOf(CALLEE);
+    let h = '';
+    if (me === CALLER) {
+      const awayLine = a ? '<div class="awayline">🚶 ' + esc(name(CALLEE)) + ' stepped away at ' + clock(a.at) + ' · back about ' + clock(a.until) + '. A call still rings his phone.</div>' : '';
+      if (!live) h = '<button class="btn go call" type="button" data-call="ring">📣 ' + esc(name(CALLEE)) + ', come to my office</button>' + awayLine;
+      else if (call.reply) {
+        h = '<div class="cstate ok"><b>' + esc(name(CALLEE)) + ': ' + (REPLY_THEM[call.reply] || '') + '</b> <span class="dim">· answered ' + clock(call.replyAt) + ' · you called ' + clock(call.at) + '</span></div>' +
+          '<div class="line"><button class="btn go small" type="button" data-call="here">✓ He’s here</button><button class="btn small" type="button" data-call="ring">📣 Call again</button></div>';
+      } else {
+        const n = +call.rings || 0, waited = Date.now() - call.at;
+        const sent = call.sentTo ? 'Rang his ' + esc(call.sentTo) + '.' : n ? '<span style="color:var(--red)">Nothing rang: ' + esc(name(CALLEE)) + ' has no notifications on. Call out or phone him.</span>' : 'Ringing…';
+        h = '<div class="cstate"><b>📣 Called ' + esc(name(CALLEE)) + ' at ' + clock(call.at) + '</b> <span class="dim">' + sent + '</span></div>' +
+          (waited >= 60e3 ? '<div class="cwait">' + esc(name(CALLEE)) + ' hasn’t answered yet — he may be away from his desk. ' +
+            (n >= 10 || waited >= CALL_OPEN ? 'It rang ' + n + ' times and has stopped now.' : 'It rings again every minute (' + n + ' so far).') + ' He’ll come as soon as he sees it.</div>' : '') + awayLine +
+          '<div class="line"><button class="btn go small" type="button" data-call="here">✓ He’s here</button><button class="btn small" type="button" data-call="cancel">Cancel</button></div>';
+      }
+    } else if (me === CALLEE && live) {
+      const btns = cur => '<div class="line">' + ['way', 'two', 'away'].filter(k => k !== cur).map(k => '<button class="btn ' + (cur ? 'small' : 'big') + (k === 'way' && !cur ? ' go' : '') + '" type="button" data-call="' + k + '">' + (cur ? 'Now: ' : '') + REPLY[k] + '</button>').join('') +
+        (cur ? '<button class="btn small" type="button" data-call="here">✓ I’m there</button>' : '') + '</div>';
+      h = !call.reply
+        ? '<div class="cstate alert"><b>📣 ' + esc(name(CALLER)) + ' wants you in his office</b> <span class="dim">· called ' + clock(call.at) + ' (' + minsAgo(call.at) + ')</span></div>' + btns('')
+        : '<div class="cstate ok"><b>You answered: ' + REPLY[call.reply] + '</b> <span class="dim">· ' + clock(call.replyAt) + ' · ' + esc(name(CALLER)) + ' called ' + clock(call.at) + '</span></div>' + btns(call.reply);
+    }
+    if (h !== lastCallHtml) { bar.innerHTML = h; lastCallHtml = h; }   // only when it changed, so a tap is never lost to a redraw
+    bar.hidden = !h;
+    bar.classList.toggle('ringing', me === CALLEE && live && !call.reply);
+  }
+  $('callBar').addEventListener('click', e => {
+    const b = e.target.closest('[data-call]'); if (!b || !me) return;
+    const k = b.dataset.call, now = Date.now(), fail = er => toast('Not sent: ' + (er.message || er), 5000);
+    if (k === 'ring' && me === CALLER) {
+      callRef().set({ by: me, to: CALLEE, at: now }).then(() => { callBusy = true; return callPing('ring'); })
+        .then(r => { callBusy = false; if (r && r.devices === 0) toast(name(CALLEE) + ' has no notifications on — call out or phone him', 6000); }, er => { callBusy = false; fail(er); });
+    } else if ((k === 'here' || k === 'cancel') && callLive()) {
+      callRef().update({ closed: now, closedBy: me }).then(() => toast(k === 'cancel' ? 'Call cancelled' : 'Done'), fail);
+    } else if (REPLY[k] && me === CALLEE && callLive()) {
+      const up = [callRef().update({ reply: k, replyAt: now, replyBy: me })];
+      if (k !== 'away' && awayOf(me)) up.push(db.ref(BASE + '/away/' + me).remove());
+      Promise.all(up).then(() => { toast('Sent to ' + name(CALLER)); callPing('reply'); }, fail);
+    }
+  });
+  // Jaesik's page asks for another ring every minute until Leo answers (the server rings at most 10 times in 15 min)
+  setInterval(() => {
+    if (me === CALLER && callLive() && !call.reply && call.by === me && !callBusy && (+call.rings || 0) < 10 &&
+        Date.now() - call.at < CALL_OPEN && Date.now() - (call.ringAt || call.at) >= 60e3) {
+      callBusy = true; callPing('ring').then(() => { callBusy = false; });
+    }
+    renderCall(); paintAway(); paintTitle();
+  }, 5000);
+
+  // 🚶 away from my desk (Leo): Jaesik sees it next to his call button
+  function paintAway() {
+    if (me !== CALLEE) return;
+    const a = awayOf(me);
+    $('awayBtn').textContent = a ? '🚶 Away till ' + clock(a.until) : '🚶 Away';
+    $('awayBtn').title = a ? 'Jaesik sees you are away. Tap when you are back at your desk.' : 'Tell Jaesik you are away from your desk';
+    $('awayBtn').classList.toggle('go', !!a);
+  }
+  $('awayBtn').onclick = () => {
+    if (awayOf(me)) { db.ref(BASE + '/away/' + me).remove().then(() => { toast('Back at your desk'); paintAway(); }); return; }
+    $('awayBox').hidden = !$('awayBox').hidden;
+  };
+  $('awayBox').addEventListener('click', e => {
+    const b = e.target.closest('[data-min]'); if (!b) return;
+    const min = +b.dataset.min; $('awayBox').hidden = true; if (!min) return;
+    const now = Date.now(), until = now + min * 60e3;
+    db.ref(BASE + '/away/' + me).set({ at: now, until }).then(() => { toast(name(CALLER) + ' sees: away, back about ' + clock(until), 4000); paintAway(); },
+      er => toast('Not saved: ' + (er.message || er), 5000));
   });
 
   // ---- 🔔 notifications
@@ -692,7 +832,9 @@
   const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const homeScreen = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
   const canPush = () => 'serviceWorker' in navigator && 'PushManager' in window && !!window.Notification;
-  const pushMine = () => PUSH_TO.includes(me);
+  const pushMine = () => PUSH_DEVICES.includes(me);
+  const pushWhat = () => me === CALLER && !PUSH_TO.includes(me) ? name(CALLEE) + ' answers your call'
+    : name(other) + ' gives you a task, leaves a note or closes one' + (me === CALLEE ? ', or calls you to his office' : '');
   const b64u = buf => btoa(String.fromCharCode.apply(null, new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const unb64u = s => Uint8Array.from(atob(String(s).replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
   const sidOf = async endpoint => b64u(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(endpoint))).slice(0, 24);
@@ -739,8 +881,8 @@
     if (!pushMine()) { b.textContent = remindOn() && window.Notification && Notification.permission === 'granted' ? '🔔 Reminders on' : '🔔 Remind me'; return; }
     const on = !!(window.Notification && Notification.permission === 'granted' && await pushSub().catch(() => null));
     b.textContent = on ? '🔔 On' : '🔔 Notify me';
-    b.title = on ? 'This device rings when ' + name(other) + ' gives you a task, leaves a note or closes one, and every 2 hours until you tap Got it. Tap to turn it off.'
-      : 'Ring this device, even with the page closed, when ' + name(other) + ' gives you a task';
+    b.title = on ? 'This device rings when ' + pushWhat() + (PUSH_TO.includes(me) ? ', and every 2 hours until you tap Got it' : '') + '. Tap to turn it off.'
+      : 'Ring this device, even with the page closed, when ' + pushWhat();
   }
   // on every visit: keep this device's entry fresh (and the worker up to date)
   function pushStart() {
