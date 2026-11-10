@@ -261,6 +261,15 @@
       },
       "$other": { ".read": false, ".write": false }
     },
+    "material": {
+      // 📦 Material — AC3 price snapshot + shop material account (counts, shortage).
+      // Staff-only (verified @advfacade.com). Writes live under /material/<project>.
+      ".read": "auth != null && auth.token.email_verified == true && auth.token.email.matches(/@advfacade\\.com$/i)",
+      "$proj": {
+        ".write": "auth != null && auth.token.email_verified == true && auth.token.email.matches(/@advfacade\\.com$/i)"
+      }
+    },
+
 
     "admins": {
       ".read": "auth != null && auth.token.email_verified == true && auth.token.email.matches(/@advfacade\\.com$/i)",

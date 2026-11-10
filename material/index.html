@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>📦 Material — Advanced Facade</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1419'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E">
+<style>
+  /* 📦 Material — price (bid vs order) + material account (counts & shortage). Palette = the hub's. */
+  :root {
+    --bg:#0f1419; --panel:#1a2028; --panel-2:#232b36; --border:#2d3744;
+    --text:#e6edf3; --text-dim:#8b949e; --accent:#4493f8;
+    --green:#2ea043; --yellow:#d29922; --red:#f85149;
+  }
+  body.day-mode {
+    --bg:#f2f4f7; --panel:#fff; --panel-2:#e9edf2; --border:#d0d7de;
+    --text:#1f2328; --text-dim:#59636e; --accent:#0969da;
+    --green:#1a7f37; --yellow:#9a6700; --red:#cf222e;
+  }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  html, body { margin:0; background:var(--bg); color:var(--text);
+    font:15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  a { color:var(--accent); }
+  header { position:sticky; top:0; z-index:5; background:var(--bg); border-bottom:1px solid var(--border);
+    padding:10px 16px; padding-top:max(10px, env(safe-area-inset-top)); }
+  .bar { max-width:980px; margin:0 auto; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  h1 { font-size:18px; margin:0; }
+  .grow { flex:1; }
+  .btn { background:var(--panel-2); color:var(--text); border:1px solid var(--border); border-radius:8px;
+    padding:6px 11px; font-size:13px; cursor:pointer; text-decoration:none; display:inline-block; }
+  main { max-width:980px; margin:0 auto; padding:14px 16px 70px; }
+  .tabs { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+  .tab { background:var(--panel); border:1px solid var(--border); color:var(--text-dim); border-radius:999px;
+    padding:6px 14px; font-size:13.5px; cursor:pointer; }
+  .tab.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+  h2 { font-size:16px; margin:0 0 4px; }
+  .sub { color:var(--text-dim); font-size:13px; margin:0 0 12px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:14px; }
+  .kpi { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+  .kpi .l { color:var(--text-dim); font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; }
+  .kpi .v { font-size:22px; font-variant-numeric:tabular-nums; margin-top:3px; }
+  .kpi .s { color:var(--text-dim); font-size:12px; }
+  .pos { color:var(--red); } .neg { color:var(--green); }
+  .tablewrap { overflow-x:auto; }
+  table { border-collapse:collapse; width:100%; font-size:13.5px; font-variant-numeric:tabular-nums; }
+  th, td { padding:7px 9px; border-bottom:1px solid var(--border); text-align:right; white-space:nowrap; }
+  th:first-child, td:first-child, th.l, td.l { text-align:left; }
+  th { color:var(--text-dim); font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:.03em; position:sticky; top:0; background:var(--panel); }
+  tr.total td { border-top:2px solid var(--border); font-weight:700; }
+  .bar-cell { position:relative; min-width:120px; }
+  .vbar { height:7px; border-radius:3px; display:inline-block; vertical-align:middle; }
+  input.cell { width:62px; background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:4px 6px; font-size:13px; text-align:right; font-variant-numeric:tabular-nums; }
+  input.cell:focus { outline:1px solid var(--accent); }
+  td.short { color:var(--red); font-weight:700; }
+  td.okv { color:var(--green); }
+  .meta { color:var(--text-dim); font-size:12.5px; margin:8px 0 0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .meta input { background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 7px; font-size:12.5px; }
+  details.notes { color:var(--text-dim); font-size:12.5px; margin-top:6px; }
+  details.notes summary { cursor:pointer; color:var(--text); }
+  .gate { max-width:340px; margin:12vh auto 0; padding:0 16px; display:flex; flex-direction:column; gap:10px; }
+  .gate h2 { margin:0; } .gate p { margin:0 0 6px; color:var(--text-dim); font-size:14px; }
+  .gate input { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:11px 12px; font-size:16px; color:var(--text); }
+  .gate .go { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:11px; font-size:15px; cursor:pointer; }
+  .err { color:var(--red); font-size:13px; min-height:18px; }
+  .note { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin:16px; }
+  .saved { color:var(--green); font-size:12px; opacity:0; transition:opacity .2s; }
+  .saved.on { opacity:1; }
+</style>
+</head>
+<body>
+
+<div id="app" hidden>
+  <header>
+    <div class="bar">
+      <h1>📦 Material</h1>
+      <span class="grow"></span>
+      <span id="saved" class="saved">saved</span>
+      <a class="btn" href="/" title="Project overview">Hub</a>
+      <button class="btn" type="button" id="theme" title="Day / night">☀️</button>
+      <button class="btn" type="button" id="out" title="Sign out"><span id="me"></span> · Sign out</button>
+    </div>
+  </header>
+  <main>
+    <div class="tabs" id="tabs"></div>
+    <div id="view"></div>
+  </main>
+</div>
+
+<div class="note" id="note" hidden></div>
+
+<form class="gate" id="gate" hidden>
+  <h2>📦 Material</h2>
+  <p>Material price and the shop material account. Sign in with your hub account.</p>
+  <input type="email" id="email" placeholder="you@advfacade.com" autocomplete="email" required>
+  <input type="password" id="pw" placeholder="Password" autocomplete="current-password" required>
+  <button class="go" type="submit" id="go">Sign in</button>
+  <div class="err" id="err"></div>
+  <a href="/" style="font-size:13px">Forgot password or first time here? Use the hub →</a>
+</form>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="../af-hub-config.js"></script>
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  try { if (localStorage.getItem('af_hub_theme') === 'day') document.body.classList.add('day-mode'); } catch (e) {}
+  $('theme').onclick = () => {
+    const day = document.body.classList.toggle('day-mode');
+    try { localStorage.setItem('af_hub_theme', day ? 'day' : 'night'); } catch (e) {}
+    render();
+  };
+
+  // ---- data ---------------------------------------------------------------
+  // AC3 material price: bid vs order, from Jaesik's AC3_Material_Price_Schedule (2).xlsx (snapshot 2026-11-10).
+  const PRICE_AC3 = [
+    ['EX Storefront (750XT)','Aluminum framing',132930,186842],
+    ['Ex-Glass','1-1/8" BF Glass',183570,107415],
+    ['IN-Storefront','Aluminum Frame',21280,null],
+    ['Custom Face Cap','Aluminum Frame',12660,null],
+    ['IN-GL','1" IGU',19000,3996],
+    ['Auto Slider','Dormakaba Automatic Sliding Doors',39200,26566],
+    ['Auto Slider Glass','Sliding door Glass',6300,null],
+    ['Louver','Airolite SF Louver',119380,122938.2],
+    ['Metal Panel (ACM)','ACM Metal Panel & Accessories',51840,30231],
+    ['Louver @ Maisonette','PTAC Louver screen',0,12212],
+    ['Extrusions & Misc','Extrusions, Alum. Bar & Angle, Anodized',92125,40000],
+  ].map(r => ({ scope:r[0], material:r[1], bid:r[2], order:r[3],
+                varD:r[3]==null?null:r[3]-r[2], varP:(r[3]==null||r[2]===0)?null:(r[3]-r[2])/r[2] }));
+
+  // Material account — stock-length extrusion parts (Jaesik's procedure, Table 4).
+  // recd = qty received (pcs); theor = theoretical stock lengths the cut list should consume.
+  const MATERIAL = {
+    ac3: { label:'AC3', parts:[
+      {id:'BE93901', desc:'V/H Mullion', finish:'YB5N', stock:24, recd:165, theor:null},
+      {id:'BE93904', desc:'Open B Mull', finish:'YB5N', stock:24, recd:90,  theor:null},
+      {id:'E93162',  desc:'Flush Filler', finish:'YB5N', stock:24, recd:90,  theor:null},
+      {id:'E91206',  desc:'Face Cover', finish:'YB5N', stock:24, recd:210, theor:null},
+      {id:'E98602',  desc:'Cst FC Cover', finish:'YB5N', stock:24, recd:21,  theor:null},
+      {id:'AS3906',  desc:'Std P Plate', finish:'MILL', stock:24, recd:95,  theor:null},
+      {id:'AS3907',  desc:'Per P Plate', finish:'MILL', stock:24, recd:135, theor:null},
+      {id:'AS3576',  desc:'Cst P Plate', finish:'YB5N', stock:24, recd:21,  theor:null},
+      {id:'E91253',  desc:'Pocket Filler', finish:'YB5N', stock:24, recd:84,  theor:null},
+    ]},
+    cp2: { label:'CP2', parts:[
+      {id:'BE9-3901', desc:'Jamb / Mullion / Horizontal', finish:'YB5N', stock:24, recd:null, theor:139},
+      {id:'BE9-3904', desc:'Head / Sill', finish:'YB5N', stock:24, recd:null, theor:44},
+    ]},
+  };
+
+  const cfg = window.AF_HUB_FIREBASE;
+  if (!cfg || typeof firebase === 'undefined') { $('note').hidden = false; $('note').textContent = 'Could not load. Check the connection and reload.'; return; }
+  firebase.initializeApp(cfg);
+  const auth = firebase.auth();
+  const db = firebase.database();
+
+  let state = {};        // /material  -> { ac3:{count:{part:{full,drops,wip,scrap}}, meta:{...}}, cp2:{...} }
+  let tab = 'price';     // price | ac3 | cp2
+  let me = '';
+
+  const money = n => (n<0?'-$':'$') + Math.round(Math.abs(n)).toLocaleString('en-US');
+  const svar  = n => (n>0?'+':'') + money(n).replace('$', n<0?'-$':'$').replace('--','-');
+  const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  // ---- render -------------------------------------------------------------
+  function tabsBar() {
+    const t = [['price','Price · AC3'], ['ac3','材料账 · AC3'], ['cp2','材料账 · CP2']];
+    $('tabs').innerHTML = t.map(([k,l]) => `<button class="tab${k===tab?' on':''}" data-t="${k}">${esc(l)}</button>`).join('');
+    $('tabs').querySelectorAll('.tab').forEach(b => b.onclick = () => { tab = b.dataset.t; render(); });
+  }
+
+  function renderPrice() {
+    const rows = PRICE_AC3;
+    const bidTotal = rows.reduce((a,r)=>a+r.bid,0);
+    const ordTotal = rows.filter(r=>r.order!=null).reduce((a,r)=>a+r.order,0);
+    const nOrd = rows.filter(r=>r.order!=null).length;
+    const nOver = rows.filter(r=>r.varD!=null && r.varD>0).length;
+    const vart = ordTotal - bidTotal;
+    const maxAbs = Math.max(...rows.filter(r=>r.varD!=null).map(r=>Math.abs(r.varD)), 1);
+    const red = getComputedStyle(document.documentElement).getPropertyValue('--red');
+    const grn = getComputedStyle(document.documentElement).getPropertyValue('--green');
+    const bar = v => { const w = Math.round(Math.abs(v)/maxAbs*70); return `<span class="vbar" style="width:${w}px;background:${v>0?red:grn}"></span>`; };
+    $('view').innerHTML =
+      `<div class="kpis">
+        <div class="kpi"><div class="l">Total Bid</div><div class="v">${money(bidTotal)}</div><div class="s">all scopes</div></div>
+        <div class="kpi"><div class="l">Ordered to date</div><div class="v">${money(ordTotal)}</div><div class="s">${nOrd} of ${rows.length} scopes</div></div>
+        <div class="kpi"><div class="l">Variance to date</div><div class="v ${vart<0?'neg':'pos'}">${svar(vart)}</div><div class="s">${(vart/bidTotal*100).toFixed(1)}%</div></div>
+        <div class="kpi"><div class="l">Scopes over bid</div><div class="v pos">${nOver}</div><div class="s">ordered above bid</div></div>
+      </div>
+      <div class="card"><h2>Bid vs. order by scope</h2>
+      <p class="sub">Source: Jaesik's AC3_Material_Price_Schedule (2).xlsx (snapshot). Variance = order − bid; <span style="color:var(--red)">red = over bid</span>, <span style="color:var(--green)">green = under</span>. Several scopes not yet ordered, so the total will rise.</p>
+      <div class="tablewrap"><table>
+        <thead><tr><th class="l">Scope</th><th class="l">Material</th><th>Bid $</th><th>Order $</th><th>Variance $</th><th>Var %</th><th class="l">&nbsp;</th></tr></thead>
+        <tbody>` +
+        rows.map(r => `<tr>
+          <td class="l">${esc(r.scope)}</td><td class="l" style="color:var(--text-dim)">${esc(r.material)}</td>
+          <td>${money(r.bid)}</td>
+          <td>${r.order==null?'<span style="color:var(--text-dim)">—</span>':money(r.order)}</td>
+          <td class="${r.varD==null?'':(r.varD>0?'pos':'neg')}">${r.varD==null?'':svar(r.varD)}</td>
+          <td class="${r.varD==null?'':(r.varD>0?'pos':'neg')}">${r.varP==null?'':(r.varP>0?'+':'')+(r.varP*100).toFixed(1)+'%'}</td>
+          <td class="l bar-cell">${r.varD==null?'':bar(r.varD)}</td></tr>`).join('') +
+        `<tr class="total"><td class="l">Total</td><td></td><td>${money(bidTotal)}</td><td>${money(ordTotal)}</td>
+          <td class="${vart<0?'neg':'pos'}">${svar(vart)}</td><td class="${vart<0?'neg':'pos'}">${(vart/bidTotal*100).toFixed(1)}%</td><td></td></tr>
+        </tbody></table></div></div>`;
+  }
+
+  function renderAccount(proj) {
+    const P = MATERIAL[proj];
+    const st = (state[proj] && state[proj].count) || {};
+    const meta = (state[proj] && state[proj].meta) || {};
+    const num = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
+    const rows = P.parts.map(p => {
+      const c = st[p.id] || {};
+      const full = num(c.full), drops = num(c.drops), wip = num(c.wip), scrap = num(c.scrap);
+      const dropsEq = drops / p.stock;
+      const usable = full + dropsEq;
+      const accounted = full + dropsEq + wip + scrap;
+      const variance = p.recd==null ? null : p.recd - accounted;
+      const remaining = p.theor==null ? null : Math.max(0, p.theor - wip);
+      const shortage = remaining==null ? null : Math.max(0, remaining - usable);
+      return { p, c, full, drops, wip, scrap, usable, variance, remaining, shortage };
+    });
+    const f = (n,d=0) => n==null ? '' : Number(n).toLocaleString('en-US',{maximumFractionDigits:d});
+    $('view').innerHTML =
+      `<div class="card">
+        <h2>Material account — ${esc(P.label)}</h2>
+        <p class="sub">Stock-length extrusions, per Jaesik's inventory procedure. Received / theoretical are the baseline; count the shop each week (full lengths, usable drops in LF, WIP+finished, scrap+damaged). Shortage = what's still needed minus usable on hand.</p>
+        <div class="tablewrap"><table>
+          <thead><tr>
+            <th class="l">Part</th><th class="l">Desc</th><th>Fin</th><th>Stk ft</th>
+            <th>Rec'd</th><th>Theor.</th>
+            <th>Full len</th><th>Drops LF</th><th>WIP/Fin</th><th>Scrap/Dmg</th>
+            <th>Usable</th><th>Variance</th><th>Remain</th><th>Shortage</th>
+          </tr></thead>
+          <tbody>` +
+          rows.map(r => `<tr>
+            <td class="l"><b>${esc(r.p.id)}</b></td><td class="l" style="color:var(--text-dim)">${esc(r.p.desc)}</td>
+            <td>${esc(r.p.finish)}</td><td>${r.p.stock}</td>
+            <td>${r.p.recd==null?'<span style="color:var(--text-dim)">—</span>':r.p.recd}</td>
+            <td>${r.p.theor==null?'<span style="color:var(--text-dim)">—</span>':r.p.theor}</td>
+            <td><input class="cell" data-p="${esc(r.p.id)}" data-k="full" value="${esc(r.c.full||'')}" inputmode="decimal"></td>
+            <td><input class="cell" data-p="${esc(r.p.id)}" data-k="drops" value="${esc(r.c.drops||'')}" inputmode="decimal"></td>
+            <td><input class="cell" data-p="${esc(r.p.id)}" data-k="wip" value="${esc(r.c.wip||'')}" inputmode="decimal"></td>
+            <td><input class="cell" data-p="${esc(r.p.id)}" data-k="scrap" value="${esc(r.c.scrap||'')}" inputmode="decimal"></td>
+            <td>${f(r.usable,1)}</td>
+            <td class="${r.variance==null?'':(Math.abs(r.variance)>=2?'short':'okv')}">${r.variance==null?'':f(r.variance,1)}</td>
+            <td>${f(r.remaining,0)}</td>
+            <td class="${r.shortage>0?'short':'okv'}">${f(r.shortage,0)}</td>
+          </tr>`).join('') +
+          `</tbody></table></div>
+          <div class="meta">
+            <span>Weekly count:</span>
+            <input type="date" id="cdate" value="${esc(meta.countDate||'')}">
+            <span id="cby" style="color:var(--text-dim)">${meta.by?('last by '+esc(meta.by)):''}</span>
+          </div>
+          <details class="notes"><summary>How the numbers work</summary>
+            <p>Usable on hand = full lengths + usable drops (LF ÷ stock length). Variance = received − (full + drops + WIP/finished + scrap/damaged); non-zero means something is unaccounted (cut-list error, re-cut, used on another job, receiving gap) — investigate when it exceeds ~2. Remaining = theoretical stock lengths still needed (theoretical − consumed). Shortage = remaining − usable on hand; red means reorder within the extrusion + finish lead time. AC3 has no theoretical yet (needs the AC3 cut list); CP2 has no received count yet.</p>
+          </details>
+       </div>`;
+    $('view').querySelectorAll('input.cell').forEach(inp => {
+      inp.onchange = () => saveCount(proj, inp.dataset.p, inp.dataset.k, inp.value);
+    });
+    $('cdate').onchange = () => saveMeta(proj, { countDate: $('cdate').value });
+  }
+
+  function render() {
+    tabsBar();
+    if (tab === 'price') renderPrice();
+    else renderAccount(tab);
+  }
+
+  // ---- persist ------------------------------------------------------------
+  function flashSaved() { const s = $('saved'); s.classList.add('on'); setTimeout(()=>s.classList.remove('on'), 900); }
+  function saveCount(proj, part, key, val) {
+    const v = val.trim();
+    const ref = db.ref(`material/${proj}/count/${part}`);
+    const upd = {}; upd[key] = v === '' ? null : parseFloat(v); upd.at = Date.now(); upd.by = me;
+    ref.update(upd).then(flashSaved).catch(e => { $('note').hidden=false; $('note').textContent='Save failed: '+(e.message||e.code); });
+  }
+  function saveMeta(proj, obj) {
+    db.ref(`material/${proj}/meta`).update(Object.assign({ by: me, at: Date.now() }, obj)).then(flashSaved).catch(()=>{});
+  }
+
+  // ---- auth ---------------------------------------------------------------
+  auth.onAuthStateChanged(u => {
+    if (!u || u.isAnonymous) { $('app').hidden = true; $('note').hidden = true; $('gate').hidden = false; return; }
+    $('gate').hidden = true;
+    me = (u.email || '').split('@')[0];
+    $('me').textContent = me;
+    if (!u.emailVerified) {
+      $('note').hidden = false;
+      $('note').innerHTML = 'Confirm your email first: open the <a href="/">hub</a>, tap “Send the link” and open it. Then reload this page.';
+      return;
+    }
+    $('note').hidden = true;
+    $('app').hidden = false;
+    db.ref('material').on('value', snap => { state = snap.val() || {}; render(); });
+    render();
+  });
+  $('gate').addEventListener('submit', async e => {
+    e.preventDefault(); $('err').textContent = '';
+    try { await auth.signInWithEmailAndPassword($('email').value.trim(), $('pw').value); }
+    catch (er) { $('err').textContent = /wrong-password|invalid-credential|user-not-found|invalid-login/.test(er.code||'') ? 'Wrong email or password.' : (er.message||er.code); }
+  });
+  $('out').onclick = () => auth.signOut().then(() => location.reload());
+})();
+</script>
+</body>
+</html>
