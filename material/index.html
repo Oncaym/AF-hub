@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>📦 Material — Advanced Facade</title>
+<title>Material — Advanced Facade</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1419'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E">
 <style>
-  /* 📦 Material — price (bid vs order) + material account (counts & shortage). Palette = the hub's. */
+  /* Material — price (bid vs order) + material account (counts & reorder). Palette = the hub's. */
   :root {
     --bg:#0f1419; --panel:#1a2028; --panel-2:#232b36; --border:#2d3744;
     --text:#e6edf3; --text-dim:#8b949e; --accent:#4493f8;
@@ -50,17 +50,18 @@
   th:first-child, td:first-child, th.l, td.l { text-align:left; }
   th { color:var(--text-dim); font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:.03em; position:sticky; top:0; background:var(--panel); }
   tr.total td { border-top:2px solid var(--border); font-weight:700; }
-  .bar-cell { position:relative; min-width:120px; }
-  .vbar { height:7px; border-radius:3px; display:inline-block; vertical-align:middle; }
-  input.cell { width:62px; background:var(--panel-2); border:1px solid var(--border); color:var(--text);
-    border-radius:6px; padding:4px 6px; font-size:13px; text-align:right; font-variant-numeric:tabular-nums; }
+  input.cell { width:66px; background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:5px 7px; font-size:13.5px; text-align:right; font-variant-numeric:tabular-nums; }
+  input.cell.counted { border-style:dashed; }
   input.cell:focus { outline:1px solid var(--accent); }
   td.short { color:var(--red); font-weight:700; }
   td.okv { color:var(--green); }
-  .meta { color:var(--text-dim); font-size:12.5px; margin:8px 0 0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .chip { display:inline-block; font-size:11px; padding:1px 7px; border-radius:999px; border:1px solid var(--border); color:var(--text-dim); }
+  .meta { color:var(--text-dim); font-size:12.5px; margin:10px 0 0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .meta input { background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 7px; font-size:12.5px; }
   details.notes { color:var(--text-dim); font-size:12.5px; margin-top:6px; }
   details.notes summary { cursor:pointer; color:var(--text); }
+  details.notes p { line-height:1.55; }
   .gate { max-width:340px; margin:12vh auto 0; padding:0 16px; display:flex; flex-direction:column; gap:10px; }
   .gate h2 { margin:0; } .gate p { margin:0 0 6px; color:var(--text-dim); font-size:14px; }
   .gate input { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:11px 12px; font-size:16px; color:var(--text); }
@@ -69,6 +70,7 @@
   .note { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin:16px; }
   .saved { color:var(--green); font-size:12px; opacity:0; transition:opacity .2s; }
   .saved.on { opacity:1; }
+  svg text { font-family:inherit; }
 </style>
 </head>
 <body>
@@ -110,6 +112,12 @@
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
+  const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '';
+  const money = n => (n<0?'-$':'$') + Math.round(Math.abs(n)).toLocaleString('en-US');
+  const svar  = n => (n>0?'+':(n<0?'-':'')) + '$' + Math.round(Math.abs(n)).toLocaleString('en-US');
+  const numf  = (n,d=0) => n==null ? '' : Number(n).toLocaleString('en-US',{maximumFractionDigits:d});
+
   try { if (localStorage.getItem('af_hub_theme') === 'day') document.body.classList.add('day-mode'); } catch (e) {}
   $('theme').onclick = () => {
     const day = document.body.classList.toggle('day-mode');
@@ -117,7 +125,7 @@
     render();
   };
 
-  // ---- data ---------------------------------------------------------------
+  // ---- reference data -----------------------------------------------------
   // AC3 material price: bid vs order, from Jaesik's AC3_Material_Price_Schedule (2).xlsx (snapshot 2026-11-10).
   const PRICE_AC3 = [
     ['EX Storefront (750XT)','Aluminum framing',132930,186842],
@@ -134,47 +142,79 @@
   ].map(r => ({ scope:r[0], material:r[1], bid:r[2], order:r[3],
                 varD:r[3]==null?null:r[3]-r[2], varP:(r[3]==null||r[2]===0)?null:(r[3]-r[2])/r[2] }));
 
-  // Material account — stock-length extrusion parts (Jaesik's procedure, Table 4).
-  // recd = qty received (pcs); theor = theoretical stock lengths the cut list should consume.
-  const MATERIAL = {
+  // Part catalog — stock-length extrusions (Jaesik's inventory procedure).
+  // received = qty received (stock lengths); build = theoretical stock lengths the cut list needs.
+  // The mutable counts (used / counted) live in each project's database, not here.
+  const CATALOG = {
     ac3: { label:'AC3', parts:[
-      {id:'BE93901', desc:'V/H Mullion', finish:'YB5N', stock:24, recd:165, theor:null},
-      {id:'BE93904', desc:'Open B Mull', finish:'YB5N', stock:24, recd:90,  theor:null},
-      {id:'E93162',  desc:'Flush Filler', finish:'YB5N', stock:24, recd:90,  theor:null},
-      {id:'E91206',  desc:'Face Cover', finish:'YB5N', stock:24, recd:210, theor:null},
-      {id:'E98602',  desc:'Cst FC Cover', finish:'YB5N', stock:24, recd:21,  theor:null},
-      {id:'AS3906',  desc:'Std P Plate', finish:'MILL', stock:24, recd:95,  theor:null},
-      {id:'AS3907',  desc:'Per P Plate', finish:'MILL', stock:24, recd:135, theor:null},
-      {id:'AS3576',  desc:'Cst P Plate', finish:'YB5N', stock:24, recd:21,  theor:null},
-      {id:'E91253',  desc:'Pocket Filler', finish:'YB5N', stock:24, recd:84,  theor:null},
+      {id:'BE93901', desc:'V/H Mullion',   finish:'YB5N', stock:24, received:165, build:null},
+      {id:'BE93904', desc:'Open B Mull',   finish:'YB5N', stock:24, received:90,  build:null},
+      {id:'E93162',  desc:'Flush Filler',  finish:'YB5N', stock:24, received:90,  build:null},
+      {id:'E91206',  desc:'Face Cover',    finish:'YB5N', stock:24, received:210, build:null},
+      {id:'E98602',  desc:'Cst FC Cover',  finish:'YB5N', stock:24, received:21,  build:null},
+      {id:'AS3906',  desc:'Std P Plate',   finish:'MILL', stock:24, received:95,  build:null},
+      {id:'AS3907',  desc:'Per P Plate',   finish:'MILL', stock:24, received:135, build:null},
+      {id:'AS3576',  desc:'Cst P Plate',   finish:'YB5N', stock:24, received:21,  build:null},
+      {id:'E91253',  desc:'Pocket Filler', finish:'YB5N', stock:24, received:84,  build:null},
     ]},
     cp2: { label:'CP2', parts:[
-      {id:'BE9-3901', desc:'Jamb / Mullion / Horizontal', finish:'YB5N', stock:24, recd:null, theor:139},
-      {id:'BE9-3904', desc:'Head / Sill', finish:'YB5N', stock:24, recd:null, theor:44},
+      {id:'BE9-3901', desc:'Jamb / Mullion / Horizontal', finish:'YB5N', stock:24, received:null, build:139},
+      {id:'BE9-3904', desc:'Head / Sill',                 finish:'YB5N', stock:24, received:null, build:44},
     ]},
   };
+
+  const PROJDB = { ac3:'https://af-hub-8f188-ac3.firebaseio.com', cp2:'https://af-hub-8f188-cp2.firebaseio.com' };
 
   const cfg = window.AF_HUB_FIREBASE;
   if (!cfg || typeof firebase === 'undefined') { $('note').hidden = false; $('note').textContent = 'Could not load. Check the connection and reload.'; return; }
   firebase.initializeApp(cfg);
   const auth = firebase.auth();
-  const db = firebase.database();
+  function projDb(proj){ return firebase.app().database(PROJDB[proj]); }
 
-  let state = {};        // /material  -> { ac3:{count:{part:{full,drops,wip,scrap}}, meta:{...}}, cp2:{...} }
-  let tab = 'price';     // price | ac3 | cp2
-  let me = '';
+  let state  = {};     // proj -> { counts:{part:{used,counted,...}}, meta:{...} }
+  let access = {};     // proj -> true if this account can read that project's DB
+  let meEmail = '';
+  let tab = null;      // 'price' | 'ac3' | 'cp2'
 
-  const money = n => (n<0?'-$':'$') + Math.round(Math.abs(n)).toLocaleString('en-US');
-  const svar  = n => (n>0?'+':'') + money(n).replace('$', n<0?'-$':'$').replace('--','-');
-  const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-
-  // ---- render -------------------------------------------------------------
+  // ---- tabs ---------------------------------------------------------------
+  function tabList() {
+    const t = [];
+    if (access.ac3) { t.push(['price','Price · AC3']); t.push(['ac3','Material · AC3']); }
+    if (access.cp2) { t.push(['cp2','Material · CP2']); }
+    return t;
+  }
   function tabsBar() {
-    const t = [['price','Price · AC3'], ['ac3','材料账 · AC3'], ['cp2','材料账 · CP2']];
-    $('tabs').innerHTML = t.map(([k,l]) => `<button class="tab${k===tab?' on':''}" data-t="${k}">${esc(l)}</button>`).join('');
+    const t = tabList();
+    $('tabs').innerHTML = t.map(([k,l]) => '<button class="tab'+(k===tab?' on':'')+'" data-t="'+k+'">'+esc(l)+'</button>').join('');
     $('tabs').querySelectorAll('.tab').forEach(b => b.onclick = () => { tab = b.dataset.t; render(); });
   }
 
+  // ---- diverging bar chart (plain SVG, no deps) ---------------------------
+  function divergeChart(data) {
+    const rows = data.filter(r => r.v != null).slice().sort((a,b) => a.v - b.v);
+    if (!rows.length) return '<p class="sub">No scopes ordered yet.</p>';
+    const W = 840, rowH = 32, pad = 8, mL = 170, mR = 94;
+    const innerW = W - mL - mR, H = pad*2 + rows.length*rowH;
+    const maxAbs = Math.max.apply(null, rows.map(r => Math.abs(r.v)).concat([1]));
+    const valPad = 72; // keep the longest bar short of the margins so end labels fit
+    const zero = mL + innerW/2, sc = (innerW/2 - valPad)/maxAbs, xv = v => zero + v*sc;
+    const red = cssVar('--red'), grn = cssVar('--green'), dim = cssVar('--text-dim'), bord = cssVar('--border'), txt = cssVar('--text');
+    let s = '<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="Cost variance by scope" style="max-width:100%;height:auto">';
+    s += '<line x1="'+zero+'" x2="'+zero+'" y1="'+pad+'" y2="'+(H-pad)+'" stroke="'+bord+'"/>';
+    rows.forEach((r,i) => {
+      const y = pad + i*rowH, bh = Math.round(rowH*0.52), by = y + (rowH-bh)/2;
+      const x0 = Math.min(zero, xv(r.v)), w = Math.abs(xv(r.v) - zero);
+      s += '<rect x="'+x0+'" y="'+by+'" width="'+w+'" height="'+bh+'" rx="2.5" fill="'+(r.v>0?red:grn)+'"/>';
+      const name = r.scope.length > 26 ? r.scope.slice(0,25)+'…' : r.scope;
+      s += '<text x="'+(mL-10)+'" y="'+(y+rowH/2)+'" text-anchor="end" dominant-baseline="central" font-size="12.5" fill="'+dim+'">'+esc(name)+'</text>';
+      const lx = r.v>0 ? xv(r.v)+6 : xv(r.v)-6, anc = r.v>0 ? 'start' : 'end';
+      s += '<text x="'+lx+'" y="'+(y+rowH/2)+'" text-anchor="'+anc+'" dominant-baseline="central" font-size="12" fill="'+txt+'" font-variant-numeric="tabular-nums">'+esc(r.fmt)+'</text>';
+    });
+    s += '</svg>';
+    return s;
+  }
+
+  // ---- Price tab ----------------------------------------------------------
   function renderPrice() {
     const rows = PRICE_AC3;
     const bidTotal = rows.reduce((a,r)=>a+r.bid,0);
@@ -182,117 +222,138 @@
     const nOrd = rows.filter(r=>r.order!=null).length;
     const nOver = rows.filter(r=>r.varD!=null && r.varD>0).length;
     const vart = ordTotal - bidTotal;
-    const maxAbs = Math.max(...rows.filter(r=>r.varD!=null).map(r=>Math.abs(r.varD)), 1);
-    const red = getComputedStyle(document.documentElement).getPropertyValue('--red');
-    const grn = getComputedStyle(document.documentElement).getPropertyValue('--green');
-    const bar = v => { const w = Math.round(Math.abs(v)/maxAbs*70); return `<span class="vbar" style="width:${w}px;background:${v>0?red:grn}"></span>`; };
+    const chartRows = rows.filter(r=>r.varD!=null).map(r=>({ scope:r.scope, v:r.varD, fmt:svar(r.varD) }));
     $('view').innerHTML =
-      `<div class="kpis">
-        <div class="kpi"><div class="l">Total Bid</div><div class="v">${money(bidTotal)}</div><div class="s">all scopes</div></div>
-        <div class="kpi"><div class="l">Ordered to date</div><div class="v">${money(ordTotal)}</div><div class="s">${nOrd} of ${rows.length} scopes</div></div>
-        <div class="kpi"><div class="l">Variance to date</div><div class="v ${vart<0?'neg':'pos'}">${svar(vart)}</div><div class="s">${(vart/bidTotal*100).toFixed(1)}%</div></div>
-        <div class="kpi"><div class="l">Scopes over bid</div><div class="v pos">${nOver}</div><div class="s">ordered above bid</div></div>
-      </div>
-      <div class="card"><h2>Bid vs. order by scope</h2>
-      <p class="sub">Source: Jaesik's AC3_Material_Price_Schedule (2).xlsx (snapshot). Variance = order − bid; <span style="color:var(--red)">red = over bid</span>, <span style="color:var(--green)">green = under</span>. Several scopes not yet ordered, so the total will rise.</p>
-      <div class="tablewrap"><table>
-        <thead><tr><th class="l">Scope</th><th class="l">Material</th><th>Bid $</th><th>Order $</th><th>Variance $</th><th>Var %</th><th class="l">&nbsp;</th></tr></thead>
-        <tbody>` +
-        rows.map(r => `<tr>
-          <td class="l">${esc(r.scope)}</td><td class="l" style="color:var(--text-dim)">${esc(r.material)}</td>
-          <td>${money(r.bid)}</td>
-          <td>${r.order==null?'<span style="color:var(--text-dim)">—</span>':money(r.order)}</td>
-          <td class="${r.varD==null?'':(r.varD>0?'pos':'neg')}">${r.varD==null?'':svar(r.varD)}</td>
-          <td class="${r.varD==null?'':(r.varD>0?'pos':'neg')}">${r.varP==null?'':(r.varP>0?'+':'')+(r.varP*100).toFixed(1)+'%'}</td>
-          <td class="l bar-cell">${r.varD==null?'':bar(r.varD)}</td></tr>`).join('') +
-        `<tr class="total"><td class="l">Total</td><td></td><td>${money(bidTotal)}</td><td>${money(ordTotal)}</td>
-          <td class="${vart<0?'neg':'pos'}">${svar(vart)}</td><td class="${vart<0?'neg':'pos'}">${(vart/bidTotal*100).toFixed(1)}%</td><td></td></tr>
-        </tbody></table></div></div>`;
+      '<div class="card"><h2>Variance by scope — ordered to date</h2>'+
+        '<p class="sub">Order price minus bid. <span style="color:var(--red)">Red = over bid</span>, <span style="color:var(--green)">green = under</span>. Source: Jaesik’s AC3 price schedule (snapshot). Scopes not yet ordered are left out, so totals will move.</p>'+
+        divergeChart(chartRows)+
+      '</div>'+
+      '<div class="kpis">'+
+        '<div class="kpi"><div class="l">Total Bid</div><div class="v">'+money(bidTotal)+'</div><div class="s">all scopes</div></div>'+
+        '<div class="kpi"><div class="l">Ordered to date</div><div class="v">'+money(ordTotal)+'</div><div class="s">'+nOrd+' of '+rows.length+' scopes</div></div>'+
+        '<div class="kpi"><div class="l">Variance to date</div><div class="v '+(vart<0?'neg':'pos')+'">'+svar(vart)+'</div><div class="s">'+(vart/bidTotal*100).toFixed(1)+'%</div></div>'+
+        '<div class="kpi"><div class="l">Scopes over bid</div><div class="v pos">'+nOver+'</div><div class="s">ordered above bid</div></div>'+
+      '</div>'+
+      '<details class="notes" open><summary>All scopes (bid vs order)</summary>'+
+        '<div class="tablewrap"><table>'+
+        '<thead><tr><th class="l">Scope</th><th class="l">Material</th><th>Bid $</th><th>Order $</th><th>Variance $</th><th>Var %</th></tr></thead><tbody>'+
+        rows.map(r =>
+          '<tr><td class="l">'+esc(r.scope)+'</td><td class="l" style="color:var(--text-dim)">'+esc(r.material)+'</td>'+
+          '<td>'+money(r.bid)+'</td>'+
+          '<td>'+(r.order==null?'<span style="color:var(--text-dim)">—</span>':money(r.order))+'</td>'+
+          '<td class="'+(r.varD==null?'':(r.varD>0?'pos':'neg'))+'">'+(r.varD==null?'':svar(r.varD))+'</td>'+
+          '<td class="'+(r.varD==null?'':(r.varD>0?'pos':'neg'))+'">'+(r.varP==null?'':(r.varP>0?'+':'')+(r.varP*100).toFixed(1)+'%')+'</td></tr>'
+        ).join('')+
+        '<tr class="total"><td class="l">Total</td><td></td><td>'+money(bidTotal)+'</td><td>'+money(ordTotal)+'</td>'+
+          '<td class="'+(vart<0?'neg':'pos')+'">'+svar(vart)+'</td><td class="'+(vart<0?'neg':'pos')+'">'+(vart/bidTotal*100).toFixed(1)+'%</td></tr>'+
+        '</tbody></table></div></details>';
   }
 
+  // ---- Material account tab ----------------------------------------------
   function renderAccount(proj) {
-    const P = MATERIAL[proj];
-    const st = (state[proj] && state[proj].count) || {};
-    const meta = (state[proj] && state[proj].meta) || {};
+    const P = CATALOG[proj];
+    const counts = (state[proj] && state[proj].counts) || {};
+    const meta   = (state[proj] && state[proj].meta) || {};
     const num = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
     const rows = P.parts.map(p => {
-      const c = st[p.id] || {};
-      const full = num(c.full), drops = num(c.drops), wip = num(c.wip), scrap = num(c.scrap);
-      const dropsEq = drops / p.stock;
-      const usable = full + dropsEq;
-      const accounted = full + dropsEq + wip + scrap;
-      const variance = p.recd==null ? null : p.recd - accounted;
-      const remaining = p.theor==null ? null : Math.max(0, p.theor - wip);
-      const shortage = remaining==null ? null : Math.max(0, remaining - usable);
-      return { p, c, full, drops, wip, scrap, usable, variance, remaining, shortage };
+      const c = counts[p.id] || {};
+      const used = num(c.used);
+      const counted = (c.counted===''||c.counted==null) ? null : num(c.counted);
+      const onHand = p.received==null ? null : p.received - used;
+      const delta  = (counted==null || onHand==null) ? null : counted - onHand;
+      const low = onHand!=null && onHand < Math.max(5, (p.received||0)*0.1);
+      const reorder = (p.received!=null && p.build!=null) ? Math.max(0, p.build - p.received) : null;
+      return { p, c, used, counted, onHand, delta, low, reorder };
     });
-    const f = (n,d=0) => n==null ? '' : Number(n).toLocaleString('en-US',{maximumFractionDigits:d});
+    const nLow = rows.filter(r=>r.low).length;
+    const nChase = rows.filter(r=>r.delta!=null && Math.abs(r.delta)>=2).length;
     $('view').innerHTML =
-      `<div class="card">
-        <h2>Material account — ${esc(P.label)}</h2>
-        <p class="sub">Stock-length extrusions, per Jaesik's inventory procedure. Received / theoretical are the baseline; count the shop each week (full lengths, usable drops in LF, WIP+finished, scrap+damaged). Shortage = what's still needed minus usable on hand.</p>
-        <div class="tablewrap"><table>
-          <thead><tr>
-            <th class="l">Part</th><th class="l">Desc</th><th>Fin</th><th>Stk ft</th>
-            <th>Rec'd</th><th>Theor.</th>
-            <th>Full len</th><th>Drops LF</th><th>WIP/Fin</th><th>Scrap/Dmg</th>
-            <th>Usable</th><th>Variance</th><th>Remain</th><th>Shortage</th>
-          </tr></thead>
-          <tbody>` +
-          rows.map(r => `<tr>
-            <td class="l"><b>${esc(r.p.id)}</b></td><td class="l" style="color:var(--text-dim)">${esc(r.p.desc)}</td>
-            <td>${esc(r.p.finish)}</td><td>${r.p.stock}</td>
-            <td>${r.p.recd==null?'<span style="color:var(--text-dim)">—</span>':r.p.recd}</td>
-            <td>${r.p.theor==null?'<span style="color:var(--text-dim)">—</span>':r.p.theor}</td>
-            <td><input class="cell" data-p="${esc(r.p.id)}" data-k="full" value="${esc(r.c.full||'')}" inputmode="decimal"></td>
-            <td><input class="cell" data-p="${esc(r.p.id)}" data-k="drops" value="${esc(r.c.drops||'')}" inputmode="decimal"></td>
-            <td><input class="cell" data-p="${esc(r.p.id)}" data-k="wip" value="${esc(r.c.wip||'')}" inputmode="decimal"></td>
-            <td><input class="cell" data-p="${esc(r.p.id)}" data-k="scrap" value="${esc(r.c.scrap||'')}" inputmode="decimal"></td>
-            <td>${f(r.usable,1)}</td>
-            <td class="${r.variance==null?'':(Math.abs(r.variance)>=2?'short':'okv')}">${r.variance==null?'':f(r.variance,1)}</td>
-            <td>${f(r.remaining,0)}</td>
-            <td class="${r.shortage>0?'short':'okv'}">${f(r.shortage,0)}</td>
-          </tr>`).join('') +
-          `</tbody></table></div>
-          <div class="meta">
-            <span>Weekly count:</span>
-            <input type="date" id="cdate" value="${esc(meta.countDate||'')}">
-            <span id="cby" style="color:var(--text-dim)">${meta.by?('last by '+esc(meta.by)):''}</span>
-          </div>
-          <details class="notes"><summary>How the numbers work</summary>
-            <p>Usable on hand = full lengths + usable drops (LF ÷ stock length). Variance = received − (full + drops + WIP/finished + scrap/damaged); non-zero means something is unaccounted (cut-list error, re-cut, used on another job, receiving gap) — investigate when it exceeds ~2. Remaining = theoretical stock lengths still needed (theoretical − consumed). Shortage = remaining − usable on hand; red means reorder within the extrusion + finish lead time. AC3 has no theoretical yet (needs the AC3 cut list); CP2 has no received count yet.</p>
-          </details>
-       </div>`;
+      '<div class="kpis">'+
+        '<div class="kpi"><div class="l">Parts tracked</div><div class="v">'+P.parts.length+'</div><div class="s">'+esc(P.label)+' stock-length extrusions</div></div>'+
+        '<div class="kpi"><div class="l">Running low</div><div class="v '+(nLow?'pos':'')+'">'+nLow+'</div><div class="s">on-hand near empty</div></div>'+
+        '<div class="kpi"><div class="l">Count mismatches</div><div class="v '+(nChase?'pos':'')+'">'+nChase+'</div><div class="s">should vs counted ≥ 2</div></div>'+
+        '<div class="kpi"><div class="l">Last count</div><div class="v" style="font-size:16px">'+(meta.countDate?esc(meta.countDate):'—')+'</div><div class="s">'+(meta.by?('by '+esc(String(meta.by).split('@')[0])):'not counted yet')+'</div></div>'+
+      '</div>'+
+      '<div class="card"><h2>Material account — '+esc(P.label)+'</h2>'+
+        '<p class="sub">Enter <b>Used</b> (stock lengths consumed so far) for each part. <b>On hand (should)</b> = Received − Used. Walk the rack now and then and enter <b>Counted</b> (dashed box) to true it up — <b>Δ</b> flags where they disagree.</p>'+
+        '<div class="tablewrap"><table><thead><tr>'+
+          '<th class="l">Part</th><th class="l">Desc</th><th>Fin</th>'+
+          '<th>Received</th><th>To build</th><th>Used</th><th>On hand<br>(should)</th><th>Counted<br>(actual)</th><th>Δ</th>'+
+        '</tr></thead><tbody>'+
+        rows.map(r =>
+          '<tr><td class="l"><b>'+esc(r.p.id)+'</b></td>'+
+          '<td class="l" style="color:var(--text-dim)">'+esc(r.p.desc)+'</td>'+
+          '<td><span class="chip">'+esc(r.p.finish)+'</span></td>'+
+          '<td>'+(r.p.received==null?'<span style="color:var(--text-dim)">—</span>':r.p.received)+'</td>'+
+          '<td>'+(r.p.build==null?'<span style="color:var(--text-dim)">—</span>':r.p.build)+'</td>'+
+          '<td><input class="cell" data-p="'+esc(r.p.id)+'" data-k="used" value="'+esc(r.c.used==null?'':r.c.used)+'" inputmode="decimal" aria-label="Used '+esc(r.p.id)+'"></td>'+
+          '<td class="'+(r.low?'short':'')+'">'+(r.onHand==null?'<span style="color:var(--text-dim)">—</span>':numf(r.onHand))+'</td>'+
+          '<td><input class="cell counted" data-p="'+esc(r.p.id)+'" data-k="counted" value="'+esc(r.c.counted==null?'':r.c.counted)+'" inputmode="decimal" aria-label="Counted '+esc(r.p.id)+'"></td>'+
+          '<td class="'+(r.delta==null?'':(Math.abs(r.delta)>=2?'short':'okv'))+'">'+(r.delta==null?'':(r.delta>0?'+':'')+numf(r.delta))+'</td></tr>'
+        ).join('')+
+        '</tbody></table></div>'+
+        '<div class="meta"><span>Physical count date:</span>'+
+          '<input type="date" id="cdate" value="'+esc(meta.countDate||'')+'">'+
+          '<span style="color:var(--text-dim)">'+(meta.by?('last saved by '+esc(String(meta.by).split('@')[0])):'')+'</span>'+
+        '</div>'+
+        '<details class="notes"><summary>How the numbers work</summary>'+
+          '<p><b>Used</b> = stock lengths that have left the rack — cut, in <b>WIP</b> (work in progress: cut but not yet installed), or installed. One running number per part.<br>'+
+          '<b>On hand (should)</b> = Received − Used — what you ought to have left.<br>'+
+          '<b>Counted (actual)</b> = your physical count when you walk the rack. Optional; fill it in when you count.<br>'+
+          '<b>Δ</b> = Counted − should. Non-zero means something is unaccounted (cut-list error, re-cut, pulled for another job, receiving gap) — chase anything ≥ 2.<br>'+
+          '<b>On hand in red</b> = running low; reorder within the extrusion + finish lead time.<br>'+
+          'AC3 has no cut-list total yet (To build —); CP2 has no received count yet. '+
+          'Tip: once a per-unit cut list is loaded, <b>Used</b> can fill in automatically from the tracker’s fabricated count — for now enter it by hand.</p>'+
+        '</details>'+
+      '</div>';
     $('view').querySelectorAll('input.cell').forEach(inp => {
       inp.onchange = () => saveCount(proj, inp.dataset.p, inp.dataset.k, inp.value);
     });
-    $('cdate').onchange = () => saveMeta(proj, { countDate: $('cdate').value });
+    const cd = $('cdate'); if (cd) cd.onchange = () => saveMeta(proj, { countDate: cd.value });
   }
 
   function render() {
     tabsBar();
+    if (!tab) {
+      $('view').innerHTML = '<div class="card"><h2>No project yet</h2><p class="sub">You’re signed in, but you’re not on any project’s team, so there’s nothing to show. Ask Leo or Jaesik to add you to a project and reload.</p></div>';
+      return;
+    }
     if (tab === 'price') renderPrice();
     else renderAccount(tab);
   }
 
-  // ---- persist ------------------------------------------------------------
+  // ---- persist (per-project DB) ------------------------------------------
   function flashSaved() { const s = $('saved'); s.classList.add('on'); setTimeout(()=>s.classList.remove('on'), 900); }
+  function showSaveErr(err) {
+    const code = (err && (err.code || err.message)) || 'unknown';
+    $('note').hidden = false;
+    $('note').textContent = /PERMISSION_DENIED|permission_denied/.test(code)
+      ? 'Save blocked — you can view this project but not edit it. Ask to be added as an editor.'
+      : 'Save failed: ' + code;
+    setTimeout(()=>{ $('note').hidden = true; }, 6000);
+  }
   function saveCount(proj, part, key, val) {
-    const v = val.trim();
-    const ref = db.ref(`material/${proj}/count/${part}`);
-    const upd = {}; upd[key] = v === '' ? null : parseFloat(v); upd.at = Date.now(); upd.by = me;
-    ref.update(upd).then(flashSaved).catch(e => { $('note').hidden=false; $('note').textContent='Save failed: '+(e.message||e.code); });
+    const v = String(val).trim();
+    const upd = { _project: proj, _by: meEmail, _ts: Date.now() };
+    upd[key] = v === '' ? null : parseFloat(v);
+    projDb(proj).ref('material/counts/' + part).update(upd).then(flashSaved).catch(showSaveErr);
   }
   function saveMeta(proj, obj) {
-    db.ref(`material/${proj}/meta`).update(Object.assign({ by: me, at: Date.now() }, obj)).then(flashSaved).catch(()=>{});
+    projDb(proj).ref('material/meta').update(Object.assign({ _project: proj, _by: meEmail, _ts: Date.now() }, obj)).then(flashSaved).catch(showSaveErr);
   }
 
-  // ---- auth ---------------------------------------------------------------
+  // ---- auth + access probe ------------------------------------------------
+  function probe(proj) {
+    return projDb(proj).ref('meta/project').once('value').then(()=>true).catch(()=>false);
+  }
+  function subscribe(proj) {
+    projDb(proj).ref('material').on('value', snap => { state[proj] = snap.val() || {}; if (tab===proj) render(); }, ()=>{});
+  }
   auth.onAuthStateChanged(u => {
     if (!u || u.isAnonymous) { $('app').hidden = true; $('note').hidden = true; $('gate').hidden = false; return; }
     $('gate').hidden = true;
-    me = (u.email || '').split('@')[0];
-    $('me').textContent = me;
+    meEmail = u.email || '';
+    $('me').textContent = meEmail.split('@')[0];
     if (!u.emailVerified) {
       $('note').hidden = false;
       $('note').innerHTML = 'Confirm your email first: open the <a href="/">hub</a>, tap “Send the link” and open it. Then reload this page.';
@@ -300,8 +361,14 @@
     }
     $('note').hidden = true;
     $('app').hidden = false;
-    db.ref('material').on('value', snap => { state = snap.val() || {}; render(); });
-    render();
+    $('view').innerHTML = '<div class="card"><p class="sub">Loading your projects…</p></div>';
+    Promise.all([probe('ac3'), probe('cp2')]).then(res => {
+      access.ac3 = res[0]; access.cp2 = res[1];
+      if (access.ac3) subscribe('ac3');
+      if (access.cp2) subscribe('cp2');
+      tab = access.ac3 ? 'price' : (access.cp2 ? 'cp2' : null);
+      render();
+    });
   });
   $('gate').addEventListener('submit', async e => {
     e.preventDefault(); $('err').textContent = '';

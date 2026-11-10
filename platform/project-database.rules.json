@@ -150,6 +150,25 @@
       }
     },
 
+    // 📦 Material account (/material/ page). The shop's running count of stock-length
+    // extrusions: "used to date" (consumed — cut, in WIP, or installed) plus an
+    // optional physical "counted" true-up. The part catalog (received / theoretical)
+    // lives in the page; only the mutable counts live here. Read by anyone on the
+    // project; editors write. Every row carries this project's id, like /state.
+    "material": {
+      ".read": "auth != null && auth.token.email_verified == true && (auth.token.boss == true || auth.token.shop == true || root.child('allowlist').child(auth.token.email.replace('.', ',')).exists() || root.child('gcList').child(auth.token.email.replace('.', ',')).exists() || root.child('viewers').child(auth.token.email.replace('.', ',')).exists())",
+      "counts": {
+        "$part": {
+          ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+          ".validate": "newData.hasChildren(['_project', '_by', '_ts']) && root.child('meta/project').isString() && newData.child('_project').val() == root.child('meta/project').val() && newData.child('_by').val() == auth.token.email"
+        }
+      },
+      "meta": {
+        ".write": "auth != null && auth.token.email_verified == true && root.child('allowlist').child(auth.token.email.replace('.', ',')).exists()",
+        ".validate": "newData.hasChildren(['_project', '_by']) && root.child('meta/project').isString() && newData.child('_project').val() == root.child('meta/project').val() && newData.child('_by').val() == auth.token.email"
+      }
+    },
+
     // Membership lists. Each person can read only their own entry; the lists
     // themselves are edited in the Firebase console (or by the admin workflow).
     "allowlist": {
