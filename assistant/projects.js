@@ -15,5 +15,10 @@ window.AF_PROJECTS = [
     "id": "lex",
     "name": "355 Lexington Avenue",
     "databaseURL": "https://af-hub-8f188-lex.firebaseio.com"
+  },
+  {
+    "id": "p7",
+    "name": "MTA ADA Package 7",
+    "databaseURL": "https://af-hub-8f188-p7.firebaseio.com"
   }
 ];

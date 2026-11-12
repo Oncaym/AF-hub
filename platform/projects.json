@@ -38,6 +38,12 @@
         "secret": "LEX_SERVICE_ACCOUNT",
         "site": "https://355-lexington-dashboard.vercel.app"
       }
+    },
+    {
+      "id": "p7",
+      "name": "MTA ADA Package 7",
+      "folder": "p7",
+      "databaseURL": "https://af-hub-8f188-p7.firebaseio.com"
     }
   ],
   "design": {

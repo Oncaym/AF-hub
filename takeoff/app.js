@@ -6036,6 +6036,7 @@ const HUB_PROJECTS = [
   { id: 'ac3', name: 'Atlantic-Chestnut Building 3' },
   { id: 'cp2', name: 'Cooper Park 2' },
   { id: 'lex', name: '355 Lexington Avenue' },
+  { id: 'p7', name: 'MTA ADA Package 7' },
 ];
 const hubDbUrl = id => `https://af-hub-8f188-${id}.firebaseio.com`;
 let _hubProject = '';

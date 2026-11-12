@@ -25,5 +25,14 @@
     "url": "https://af-hub-two.vercel.app/lex/",
     "databaseURL": "https://af-hub-8f188-lex.firebaseio.com",
     "secret": "HUB_SERVICE_ACCOUNT"
+  },
+  {
+    "id": "p7",
+    "name": "MTA ADA Package 7",
+    "unit": "units",
+    "scope": "Elevator Enclosures / Roofs / Windscreen - Kingsbridge Rd & 167th St",
+    "url": "https://af-hub-two.vercel.app/p7/",
+    "databaseURL": "https://af-hub-8f188-p7.firebaseio.com",
+    "secret": "HUB_SERVICE_ACCOUNT"
   }
 ]

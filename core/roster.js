@@ -15,6 +15,9 @@ window.AF_ROSTER = [
   { id:'lex', name:'355 Lexington Avenue', unit:'pieces',
     scope:'Shower Door 159 · Terrace Divider 33 · Guardrail 8 · Equipment Screen 2',
     url:'lex/' },
+  { id:'p7', name:'MTA ADA Package 7', unit:'units',
+    scope:'Elevator Enclosures · Roofs · Windscreen — Kingsbridge Rd & 167th St',
+    url:'p7/' },
   // Benji's Glass Replacement Tracker, hosted as-is (mn/hub-adapter.js pushes its summary)
   { id:'mn', name:'Morgan North', unit:'panes',
     scope:'Glass replacement',
