@@ -148,17 +148,62 @@ def inpoly(x,y,P):
         x1,y1=P[i]; x2,y2=P[(i+1)%n]
         if (y1>y)!=(y2>y) and x<(x2-x1)*(y-y1)/(y2-y1)+x1: c=not c
     return c
+def roof_shapes(clip,RO,used,fixed=(),s=2.0,reach=45):
+    """Outline each roof from the standing-seam hatch it owns (Leo 11-13: hand boxes left gaps).
+    Hatch lines are painted solid, gaps closed, and every painted pixel goes to the nearest
+    seed polygon (RO) within `reach` pt. Elevator roofs (`fixed`) keep their seed box and
+    are carved out of the others. Returns {rid: [poly pts in pt]}, {rid: [segments]}."""
+    import numpy as np, cv2
+    W=int(clip.width*s)+2; H=int(clip.height*s)+2
+    P=lambda pt:(int(round((pt[0]-clip.x0)*s)),int(round((pt[1]-clip.y0)*s)))
+    mask=np.zeros((H,W),np.uint8)
+    for p,q in used: cv2.line(mask,P((p.x,p.y)),P((q.x,q.y)),255,thickness=int(4.5*s)+2)
+    k=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(int(7*s)|1,int(7*s)|1))
+    mask=cv2.morphologyEx(mask,cv2.MORPH_CLOSE,k)
+    ids=list(RO); seedm={}
+    for rid in ids:
+        m=np.zeros((H,W),np.uint8); cv2.fillPoly(m,[np.array([P(v) for v in RO[rid][1]],np.int32)],255); seedm[rid]=m
+    fixed=[r for r in fixed if r in RO]
+    for rid in fixed: mask[seedm[rid]>0]=0
+    free=[r for r in ids if r not in fixed]
+    D=np.stack([cv2.distanceTransform(255-seedm[r],cv2.DIST_L2,5) for r in free])
+    lab=D.argmin(0); dmin=D.min(0)
+    ok=(mask>0)&(dmin<reach*s)
+    shapes={}; segs_of={r:[] for r in ids}
+    for rid in fixed:
+        if rid in RO: shapes[rid]=[RO[rid][1]]
+    for i,rid in enumerate(free):
+        m=((lab==i)&ok).astype(np.uint8)*255
+        m=cv2.morphologyEx(m,cv2.MORPH_OPEN,cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5)))
+        cs,_=cv2.findContours(m,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+        cs=sorted([c for c in cs if cv2.contourArea(c)>150*s*s],key=cv2.contourArea,reverse=True)
+        out=[]
+        for c in cs:
+            ap=cv2.approxPolyDP(c,1.2*s,True).reshape(-1,2)
+            out.append([(round(x/s+clip.x0,1),round(y/s+clip.y0,1)) for x,y in ap])
+        shapes[rid]=out or [RO[rid][1]]
+    for p,q in used:
+        x,y=P(((p.x+q.x)/2,(p.y+q.y)/2))
+        if not(0<=x<W and 0<=y<H): continue
+        hit=[r for r in fixed if r in seedm and seedm[r][y,x]]
+        if hit: segs_of[hit[0]].append((p,q)); continue
+        if dmin[y,x]<reach*s: segs_of[free[lab[y,x]]].append((p,q))
+    return shapes,segs_of
 for fk,nm,pg,clip,RO,sheet in (('KBRE',{'en':'KB Roofs East','zh':'KB 屋面 东'},36,R(550,100,1500,1300),ROOF_E,'KGS-A-151'),('KBRW',{'en':'KB Roofs West','zh':'KB 屋面 西'},35,R(400,60,1720,1300),ROOF_W,'KGS-A-150')):
     add_floor(fk,nm,KB,pg,clip,sheet,dpi=130)
     page=KB[pg-1]; a,used=hatch_area(seglist(page),4.5)
+    shapes,segs_of=roof_shapes(clip,RO,used,fixed=('R-EL535','R-EL536'))
     for rid,(label,poly) in RO.items():
-        segsin=[(p,q) for p,q in used if inpoly((p.x+q.x)/2,(p.y+q.y)/2,poly)]
+        segsin=segs_of[rid]
         sf=round(sum(math.hypot(q.x-p.x,q.y-p.y)*4.5 for p,q in segsin)/81)
         panels=max(1,round(len(segsin)/2))
         if rid in('R-EL535','R-EL536'): sf,panels=146,49
-        xs=[x for x,y in poly]; ys=[y for x,y in poly]
+        geo=[]
+        for P in shapes[rid]:
+            xs=[x for x,y in P]; ys=[y for x,y in P]
+            geo.append(dict(f=fk,poly=normpoly(clip,P),**norm(clip,R(min(xs),min(ys),max(xs),max(ys)))))
         u=dict(key=rid,id=rid,type='Standing Seam Roof',kind='roof',zone='KB Roofs',level=fk,status='pending',date='',louver='na',
-               sub=label,sf=sf,panelsTotal=panels,geo=[dict(f=fk,poly=normpoly(clip,poly),**norm(clip,R(min(xs),min(ys),max(xs),max(ys))))],
+               sub=label,sf=sf,panelsTotal=panels,geo=geo,
                note=f'{label} · ≈{sf} sf plan · ≈{panels} panels @ 12" (estimate)')
         PIECES.append(u)
 for el,pg,rr in (('534',40,R(460,184,837,567)),('533',41,R(442,199,819,582))):
@@ -169,13 +214,15 @@ for el,pg,rr in (('534',40,R(460,184,837,567)),('533',41,R(442,199,819,582))):
         sub=f'EL-{el} roof',sf=sf,panelsTotal=panels,geo=[dict(f=fk,**norm(clip,rr))],note=f'EL-{el} roof · ≈{sf} sf plan · ≈{panels} panels @ 12" (estimate)'))
 # ---------------- key plans
 KEYS={'KBKEY':(KB,18,R(450,330,1350,1060),'KGS-A-103',{'en':'Kingsbridge key plan','zh':'Kingsbridge 总平面'},
-        [('EL535',R(795,815,865,905)),('EL536',R(860,470,925,560)),('KBR',R(780,905,870,990))]),
+        [('EL535',R(795,815,865,905)),('EL536',R(860,470,925,560)),
+         ('KBR',R(780,905,870,990),'KBRE'),('KBR',R(830,380,890,468),'KBRW')]),
       '167KEY':(S7,16,R(300,150,1750,1100),'167-A-111',{'en':'167th St key plan','zh':'167街 总平面'},
         [('EL534',R(1095,415,1195,515)),('EL533',R(1105,770,1205,870))])}
 HOT={}
 for fk,(doc,pg,clip,sheet,nm,hs) in KEYS.items():
     add_floor(fk,nm,doc,pg,clip,sheet,dpi=110)
-    HOT[fk]=[dict(group=g,**norm(clip,r)) for g,r in hs]
+    # (group, rect[, floor]) — a floor sends the hot spot straight to that sheet (roofs E / W)
+    HOT[fk]=[dict(group=h[0],**norm(clip,h[1]),**({'floor':h[2]} if len(h)>2 else {})) for h in hs]
 json.dump(dict(floors=FLOORS,pieces=PIECES,hot=HOT),open(f'{OUT}/p7data.json','w'),ensure_ascii=False)
 import collections
 print(len(FLOORS),'floors',len(PIECES),'pieces')

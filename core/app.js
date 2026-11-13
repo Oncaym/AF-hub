@@ -6634,10 +6634,26 @@ function initApp() {
   }
 }
 
+/* Leo 2026-11-13: every tracker gets a way back to the hub (site root). Injected from core so
+   the trackers' index.html stay untouched; hidden when the tracker is embedded in the hub. */
+function _injectHubButton() {
+  if (document.getElementById('hubBtn')) return;
+  const anchor = document.getElementById('langSwitcher') || document.getElementById('themeToggle') || document.getElementById('themePicker');
+  if (!anchor || !anchor.parentNode) return;
+  const a = document.createElement('a');
+  a.id = 'hubBtn'; a.className = 'btn'; a.href = '/'; a.title = 'Back to the AF hub';
+  a.textContent = '← Hub';
+  anchor.parentNode.insertBefore(a, anchor.parentNode.firstChild);
+  const st = document.createElement('style');
+  st.textContent = 'html.embed-mode #hubBtn{display:none!important}';
+  document.head.appendChild(st);
+}
+
 // Fetch the team's baseline snapshot before running initApp.
 // localStorage / Firebase still win when they're newer; this just supplies
 // the "fresh visitor" / "stale localStorage discarded" fallback.
 async function bootstrap() {
+  try { _injectHubButton(); } catch (e) { console.warn('hub button', e); }
   try {
     const res = await fetch('state.json', { cache: 'no-cache' });
     if (res.ok) {

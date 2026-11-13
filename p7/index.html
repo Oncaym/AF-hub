@@ -104,7 +104,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script src="firebase-config.js?v=20261016a"></script>
-<script src="project-config.js?v=20261112b"></script>
+<script src="project-config.js?v=20261113a"></script>
 <script src="../core/cloud-sync.js?v=20261006a"></script>
 
 
@@ -1191,6 +1191,57 @@
     max-width: 420px;
   }
   .modal h3 { margin-bottom: 16px; font-size: 16px; }
+  /* P7 (11-13): submittal log copied from AC3 */
+  /* Submittal modal carries the per-reviewer response matrix — wider + scrollable */
+  /* F-053 (Leo): the submittal editor is a working surface — dozens of rows, long Procore
+     responses. It gets the whole screen, and the fields lay out in two columns once there
+     is room, so the reviewer cards (the tall part) get the space instead of the date boxes. */
+  #submittalModal .modal {
+    max-width: min(1400px, 96vw);
+    width: 96vw;
+    max-height: 94vh;
+    overflow-y: auto;
+    padding: 20px 22px;
+  }
+  #submittalModal .sub-form-grid { display: grid; grid-template-columns: 1fr; gap: 0 18px; }
+  @media (min-width: 900px) {
+    #submittalModal .sub-form-grid { grid-template-columns: 1fr 1fr; }
+    /* Reviewer responses + the note span both columns — they are the tall fields. */
+    #submittalModal .sub-form-grid .span-2 { grid-column: 1 / -1; }
+  }
+  #submittalModal .modal-actions { position: sticky; bottom: -20px; background: var(--panel); padding: 12px 0 2px; margin-top: 4px; }
+  @media (max-width: 720px) {
+    #submittalModal .modal { width: 100%; max-width: 100%; max-height: 92vh; padding: 18px 16px; }
+  }
+  /* F-054: the log is a reading surface — dozens of rows, long Procore responses.
+     Taller viewport, sane column widths, and the note column gets real room instead of
+     being squeezed to a ribbon by the ball-in-court cell. */
+  #submittalsSection .table-wrap { max-height: 72vh; }
+  #submittalsSection table { table-layout: auto; }
+  #submittalsSection th:nth-child(3),                 /* TITLE */
+  #submittalsSection td:nth-child(3) { min-width: 190px; }
+  #submittalsSection th:nth-child(11),                /* NOTE */
+  #submittalsSection td:nth-child(11) { min-width: 260px; max-width: 420px; white-space: normal; }
+  #submittalsSection td { vertical-align: top; }
+  /* Long notes/responses stay 6 lines tall until you open the row — otherwise one wordy
+     Procore reply makes a row taller than the screen (that is what it looked like). */
+  #submittalsSection td:nth-child(11) > div,
+  #submittalsSection td:nth-child(10) .bic-reply {
+    display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  /* Drag handle for reordering submittal rows */
+  .drag-grip {
+    cursor: grab;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--text-dim);
+    padding: 3px 0;
+    border-radius: 4px;
+    user-select: none;
+  }
+  .drag-grip:hover { color: var(--text); background: var(--bg); }
+  .drag-grip:active { cursor: grabbing; }
   .form-row { margin-bottom: 14px; }
   .form-row label {
     display: block;
@@ -3091,6 +3142,34 @@ document.addEventListener('DOMContentLoaded', applyThemeUI);
     </section>
   </div>
 
+  <!-- P7 (11-13): Submittal Log, same as AC3 (core renderSubmittals) -->
+  <section class="section" id="submittalsSection">
+    <div class="section-header">
+      <div class="section-title">📋 Submittal Log</div>
+      <select id="submittalFilter" onchange="setSubmittalFilter(this.value)" style="font-size:12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 9px;margin:0 10px">
+        <option value="all">All statuses</option>
+        <option value="draft">Draft</option>
+        <option value="submitted">Submitted</option>
+        <option value="under-review">Under Review</option>
+        <option value="approved">Approved</option>
+        <option value="approved-as-noted">Approved as Noted</option>
+        <option value="revise-resubmit">Revise &amp; Resubmit</option>
+        <option value="rejected">Rejected</option>
+      </select>
+      <button class="btn" onclick="openAddSubmittal()" style="font-size:12px;padding:6px 10px">+ Add Submittal</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:36px"></th><th>#</th><th>Title</th><th>Spec</th><th>Scope</th><th>Submitted</th><th>Status</th><th>Rev</th><th>Returned</th><th>Ball in court</th><th>Note</th>
+          </tr>
+        </thead>
+        <tbody id="submittalsBody"></tbody>
+      </table>
+    </div>
+  </section>
+
   <p class="last-updated" data-om-id="17a02737:1298"><span data-i18n="footer_updated" data-om-id="17a02737:1299">Last updated</span>: <span id="lastUpdated" data-om-id="17a02737:1300">5/22/2026, 10:13:13 AM</span> · <span data-i18n="footer_autosave" data-om-id="17a02737:1301">Auto-saved in browser</span></p>
 </main>
 
@@ -3273,6 +3352,68 @@ document.addEventListener('DOMContentLoaded', applyThemeUI);
   </div>
 </div>
 
+<!-- Submittal add/edit modal -->
+<div class="modal-overlay" id="submittalModal">
+  <div class="modal">
+    <h3 id="submittalModalTitle">Add Submittal</h3>
+    <div class="sub-form-grid">
+    <div class="form-row">
+      <label>Number</label>
+      <input type="text" id="sub-number" placeholder="e.g. SUB-014">
+    </div>
+    <div class="form-row">
+      <label>Title</label>
+      <input type="text" id="sub-title" placeholder="e.g. Storefront shop drawings">
+    </div>
+    <div class="form-row">
+      <label>Spec section</label>
+      <input type="text" id="sub-spec" placeholder="e.g. 08 41 13">
+    </div>
+    <div class="form-row">
+      <label>Scope</label>
+      <input type="text" id="sub-scope" placeholder="e.g. Storefront / Curtain wall / Doors">
+    </div>
+    <div class="form-row">
+      <label>Submitted date</label>
+      <input type="date" id="sub-submitted">
+    </div>
+    <div class="form-row">
+      <label>Status</label>
+      <select id="sub-status">
+        <option value="draft">Draft</option>
+        <option value="submitted">Submitted</option>
+        <option value="under-review">Under Review</option>
+        <option value="approved">Approved</option>
+        <option value="approved-as-noted">Approved as Noted</option>
+        <option value="revise-resubmit">Revise &amp; Resubmit</option>
+        <option value="rejected">Rejected</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Revision</label>
+      <input type="text" id="sub-rev" placeholder="e.g. Rev0" onchange="onSubRevChange()">
+    </div>
+    <div class="form-row">
+      <label>Returned date</label>
+      <input type="date" id="sub-returned">
+    </div>
+    <div class="form-row span-2">
+      <label>Ball in court &amp; responses</label>
+      <div id="sub-reviews"></div>
+    </div>
+    <div class="form-row span-2">
+      <label>Note</label>
+      <textarea id="sub-note" rows="2"></textarea>
+    </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="submittalDeleteBtn" onclick="deleteSubmittalFromModal()" style="margin-right:auto;display:none">Delete</button>
+      <button class="btn" onclick="closeSubmittalModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSubmittal()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Photo gallery modal (viewing ISSUE photos) -->
 <div class="modal-overlay" id="photoGalleryModal">
   <div class="modal photo-gallery-modal">
@@ -3321,9 +3462,9 @@ document.addEventListener('DOMContentLoaded', applyThemeUI);
 
 <script type="application/json" id="__embedded_state"></script>
 <script src="../core/app-log.js?v=20261006a"></script>
-<script src="../core/app.js?v=20261016a"></script>
+<script src="../core/app.js?v=20261113a"></script>
 <script src="../core/fab.js?v=20261016a"></script>
-<script src="p7.js?v=20261112b"></script>
+<script src="p7.js?v=20261113a"></script>
 <script src="../core/tosend.js?v=20261019e"></script>
 <!-- boot handled inside app.js (core) -->
 <!-- F-059 (2026-09-17): loaded from the hub, NOT copied into this repo.

@@ -74,8 +74,18 @@ hdr=f'''/* ============================================================
    key is IMMUTABLE once cloud data exists — rename via id only.
    ============================================================ */
 '''
+# 2026-11-13: 535W / 536E got their top hatched panel as H1, so the old H1..H5 moved down one.
+RENUM=[]
+for el in ('535W','536E'):
+    for n in range(5,0,-1): RENUM.append([f'{el}-H{n}',f'{el}-H{n+1}'])
 body=f'''window.PROJECT = (() => {{
 const V1_KEYS = {J(V1)};
+/* old key -> new key, highest first so nothing is overwritten (see migration p7-v2.1-top-bands) */
+const RENUM = {J(RENUM)};
+const SEED = [
+{(','+chr(10)).join('  '+J(u) for u in seeds)}
+];
+const SEED_FIELDS = ['key','id','type','kind','zone','level','sub','sf','w','h','panelsTotal','frame','note','louver'];
 return {{
   name: 'MTA ADA Package 7',
   code: 'P7',
@@ -110,6 +120,28 @@ return {{
         s.units = (s.units || []).filter(u => V1_KEYS.indexOf(u.key) === -1);
         if (s.positions) V1_KEYS.forEach(k => {{ delete s.positions[k]; }});
         return 'removed ' + (before - s.units.length) + ' v1 markers';
+      }} }},
+    /* 11-13: the hatched top panel of 535W / 536E (KGS-A-421 / A-424) was missed. It is H1 now,
+       so whatever was recorded on the old H1..H5 moves to H2..H6 with the piece it belongs to. */
+    {{ id: 'p7-v2.1-top-bands', note: '535W / 536E top panel added as H1; old H1-H5 -> H2-H6',
+      apply(s) {{
+        const units = s.units || (s.units = []);
+        const by = k => units.find(u => u.key === k);
+        const seed = k => SEED.find(x => x.key === k);
+        const progress = u => {{ const o = {{}}; Object.keys(u).forEach(f => {{ if (SEED_FIELDS.indexOf(f) === -1) o[f] = u[f]; }}); return o; }};
+        let moved = 0;
+        RENUM.forEach(([from, to]) => {{
+          const src = by(from); if (!src) return;
+          let dst = by(to);
+          if (!dst) {{ const sd = seed(to); if (!sd) return; dst = JSON.parse(JSON.stringify(sd)); units.push(dst); }}
+          const p = progress(src);
+          if (p.stage || p.issue || (p.status && p.status !== 'pending')) moved++;
+          Object.assign(dst, JSON.parse(JSON.stringify(p)));
+          Object.keys(p).forEach(f => {{ delete src[f]; }});
+          const sd = seed(from) || {{}};
+          Object.keys(sd).forEach(f => {{ if (SEED_FIELDS.indexOf(f) === -1) src[f] = JSON.parse(JSON.stringify(sd[f])); }});
+        }});
+        return moved ? moved + ' bands carried their progress to the new number' : 'no progress on those bands yet';
       }} }}
   ],
 
@@ -131,9 +163,7 @@ return {{
 {(','+chr(10)).join('    '+J(k)+':'+J(v) for k,v in geo.items())}
   }},
 
-  seedUnits: [
-{(','+chr(10)).join('  '+J(u) for u in seeds)}
-  ],
+  seedUnits: SEED,
 
   seedLog: [],
   defaultPositions: {{}}

@@ -35,6 +35,13 @@
   .tab { background:var(--panel); border:1px solid var(--border); color:var(--text-dim); border-radius:999px;
     padding:6px 14px; font-size:13.5px; cursor:pointer; }
   .tab.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  /* 11-13 (Leo): project row on the left, Price | Material switch on the right */
+  .tabrow { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+  .tabrow .tabs { margin-bottom:0; }
+  .seg { display:inline-flex; border:1px solid var(--border); border-radius:999px; overflow:hidden; margin-left:auto; background:var(--panel); }
+  .seg button { background:transparent; border:0; color:var(--text-dim); padding:6px 16px; font-size:13.5px; cursor:pointer; font-family:inherit; }
+  .seg button.on { background:var(--accent); color:#fff; }
+  .blank { min-height:220px; display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:13.5px; }
   .card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
   h2 { font-size:16px; margin:0 0 4px; }
   .sub { color:var(--text-dim); font-size:13px; margin:0 0 12px; }
@@ -87,7 +94,7 @@
     </div>
   </header>
   <main>
-    <div class="tabs" id="tabs"></div>
+    <div class="tabrow"><div class="tabs" id="tabs"></div><div class="seg" id="seg"></div></div>
     <div id="view"></div>
   </main>
 </div>
@@ -163,7 +170,17 @@
     ]},
   };
 
-  const PROJDB = { ac3:'https://af-hub-8f188-ac3.firebaseio.com', cp2:'https://af-hub-8f188-cp2.firebaseio.com' };
+  // Every hub project with a database (same list as platform/projects.json — that folder is not
+  // deployed, so it is repeated here). Only the ones this account can open are shown.
+  const PROJECTS = [
+    { id:'ac3', label:'AC3', name:'Atlantic-Chestnut Building 3', db:'https://af-hub-8f188-ac3.firebaseio.com' },
+    { id:'cp2', label:'CP2', name:'Cooper Park 2',                db:'https://af-hub-8f188-cp2.firebaseio.com' },
+    { id:'lex', label:'LEX', name:'355 Lexington Avenue',         db:'https://af-hub-8f188-lex.firebaseio.com' },
+    { id:'p7',  label:'P7',  name:'MTA ADA Package 7',            db:'https://af-hub-8f188-p7.firebaseio.com' },
+  ];
+  const PROJDB = {}; PROJECTS.forEach(p => { PROJDB[p.id] = p.db; });
+  // Price data per project (bid vs order). A project without a schedule shows a blank page.
+  const PRICE = { ac3: { rows: PRICE_AC3, src: 'Jaesik’s AC3 price schedule (snapshot)' } };
 
   const cfg = window.AF_HUB_FIREBASE;
   if (!cfg || typeof firebase === 'undefined') { $('note').hidden = false; $('note').textContent = 'Could not load. Check the connection and reload.'; return; }
@@ -174,20 +191,20 @@
   let state  = {};     // proj -> { counts:{part:{used,counted,...}}, meta:{...} }
   let access = {};     // proj -> true if this account can read that project's DB
   let meEmail = '';
-  let tab = null;      // 'price' | 'ac3' | 'cp2'
+  let tab = null;      // project id
+  let view = 'price';  // 'price' | 'material'
+  try { const v = localStorage.getItem('af_material_view'); if (v === 'price' || v === 'material') view = v; } catch (e) {}
 
-  // ---- tabs ---------------------------------------------------------------
-  function tabList() {
-    const t = [];
-    if (access.ac3) { t.push(['price','Price · AC3']); t.push(['ac3','Material · AC3']); }
-    if (access.cp2) { t.push(['cp2','Material · CP2']); }
-    return t;
-  }
+  // ---- tabs: projects (left) × Price | Material (right) ------------------
+  function mine() { return PROJECTS.filter(p => access[p.id]); }
   function tabsBar() {
-    const t = tabList();
-    $('tabs').innerHTML = t.map(([k,l]) => '<button class="tab'+(k===tab?' on':'')+'" data-t="'+k+'">'+esc(l)+'</button>').join('');
-    $('tabs').querySelectorAll('.tab').forEach(b => b.onclick = () => { tab = b.dataset.t; render(); });
+    $('tabs').innerHTML = mine().map(p => '<button class="tab'+(p.id===tab?' on':'')+'" data-t="'+p.id+'" title="'+esc(p.name)+'">'+esc(p.label)+'</button>').join('');
+    $('tabs').querySelectorAll('.tab').forEach(b => b.onclick = () => { tab = b.dataset.t; try { localStorage.setItem('af_material_proj', tab); } catch (e) {} render(); });
+    $('seg').hidden = !tab;
+    $('seg').innerHTML = [['price','Price'],['material','Material']].map(([k,l]) => '<button class="'+(k===view?'on':'')+'" data-v="'+k+'">'+l+'</button>').join('');
+    $('seg').querySelectorAll('button').forEach(b => b.onclick = () => { view = b.dataset.v; try { localStorage.setItem('af_material_view', view); } catch (e) {} render(); });
   }
+  function blank() { $('view').innerHTML = '<div class="card blank"></div>'; }
 
   // ---- diverging bar chart (plain SVG, no deps) ---------------------------
   function divergeChart(data) {
@@ -215,8 +232,8 @@
   }
 
   // ---- Price tab ----------------------------------------------------------
-  function renderPrice() {
-    const rows = PRICE_AC3;
+  function renderPrice(proj) {
+    const rows = PRICE[proj].rows;
     const bidTotal = rows.reduce((a,r)=>a+r.bid,0);
     const ordTotal = rows.filter(r=>r.order!=null).reduce((a,r)=>a+r.order,0);
     const nOrd = rows.filter(r=>r.order!=null).length;
@@ -225,7 +242,7 @@
     const chartRows = rows.filter(r=>r.varD!=null).map(r=>({ scope:r.scope, v:r.varD, fmt:svar(r.varD) }));
     $('view').innerHTML =
       '<div class="card"><h2>Variance by scope — ordered to date</h2>'+
-        '<p class="sub">Order price minus bid. <span style="color:var(--red)">Red = over bid</span>, <span style="color:var(--green)">green = under</span>. Source: Jaesik’s AC3 price schedule (snapshot). Scopes not yet ordered are left out, so totals will move.</p>'+
+        '<p class="sub">Order price minus bid. <span style="color:var(--red)">Red = over bid</span>, <span style="color:var(--green)">green = under</span>. Source: '+esc(PRICE[proj].src)+'. Scopes not yet ordered are left out, so totals will move.</p>'+
         divergeChart(chartRows)+
       '</div>'+
       '<div class="kpis">'+
@@ -318,8 +335,8 @@
       $('view').innerHTML = '<div class="card"><h2>No project yet</h2><p class="sub">You’re signed in, but you’re not on any project’s team, so there’s nothing to show. Ask Leo or Jaesik to add you to a project and reload.</p></div>';
       return;
     }
-    if (tab === 'price') renderPrice();
-    else renderAccount(tab);
+    if (view === 'price') { if (PRICE[tab]) renderPrice(tab); else blank(); }
+    else { if (CATALOG[tab]) renderAccount(tab); else blank(); }
   }
 
   // ---- persist (per-project DB) ------------------------------------------
@@ -347,7 +364,7 @@
     return projDb(proj).ref('meta/project').once('value').then(()=>true).catch(()=>false);
   }
   function subscribe(proj) {
-    projDb(proj).ref('material').on('value', snap => { state[proj] = snap.val() || {}; if (tab===proj) render(); }, ()=>{});
+    projDb(proj).ref('material').on('value', snap => { state[proj] = snap.val() || {}; if (tab===proj && view==='material') render(); }, ()=>{});
   }
   auth.onAuthStateChanged(u => {
     if (!u || u.isAnonymous) { $('app').hidden = true; $('note').hidden = true; $('gate').hidden = false; return; }
@@ -362,11 +379,11 @@
     $('note').hidden = true;
     $('app').hidden = false;
     $('view').innerHTML = '<div class="card"><p class="sub">Loading your projects…</p></div>';
-    Promise.all([probe('ac3'), probe('cp2')]).then(res => {
-      access.ac3 = res[0]; access.cp2 = res[1];
-      if (access.ac3) subscribe('ac3');
-      if (access.cp2) subscribe('cp2');
-      tab = access.ac3 ? 'price' : (access.cp2 ? 'cp2' : null);
+    Promise.all(PROJECTS.map(p => probe(p.id))).then(res => {
+      PROJECTS.forEach((p, i) => { access[p.id] = res[i]; if (res[i] && CATALOG[p.id]) subscribe(p.id); });
+      let last = null; try { last = localStorage.getItem('af_material_proj'); } catch (e) {}
+      const m = mine();
+      tab = (last && access[last]) ? last : (m[0] ? m[0].id : null);
       render();
     });
   });

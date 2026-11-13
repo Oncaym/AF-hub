@@ -18,6 +18,9 @@
      cloud sync keep working: installed→installed, issue→issue, site→in-progress,
      everything earlier→pending.
    • Roofs: one piece per roof; you book how many panels went in that day.
+   11-13 (Leo): "More →" opens core's full unit editor (status there is mapped back
+   onto the stage), clickable summary cards, full-width piece list (Detail / Card,
+   filter by progress + material), Issues / Overall cards, roof hot spots per sheet.
 
    Geometry lives in PROJECT.p7geo (generated from the PDFs), NOT on the units,
    so the cloud state stays small and a corrected extraction reaches live data
@@ -25,7 +28,7 @@
    ========================================================================== */
 (function () {
   'use strict';
-  var BUILD = 'p7·2026-11-12b';
+  var BUILD = 'p7·2026-11-13a';
   var P = window.PROJECT || {};
   var NAV = P.p7nav || { stations: [] };
   var GEO = P.p7geo || {};
@@ -82,6 +85,18 @@
   // ------------------------------------------------- baseline + derived status
   var SEED_FIELDS = ['type', 'kind', 'zone', 'sub', 'sf', 'w', 'h', 'panelsTotal', 'corner', 'frame', 'note'];
   function stageFromStatus(st) { return st === 'installed' ? 'installed' : st === 'in-progress' ? 'site' : ''; }
+  function statusOf(u) { return u.issue ? 'issue' : u.stage === 'installed' ? 'installed' : u.stage === 'site' ? 'in-progress' : 'pending'; }
+  /* The core unit editor ("More →") and anything else in core only knows u.status. When the
+     status no longer matches what the stage says, the status wins and the stage follows. */
+  function reconcile(u) {
+    var want = statusOf(u); if (!u.status || u.status === want) return;
+    var sd = u.stageDates || (u.stageDates = {});
+    if (u.status === 'issue') { u.issue = true; return; }
+    u.issue = false;
+    if (u.status === 'installed') { u.stage = 'installed'; if (!sd.installed) sd.installed = u.date || today(); }
+    else if (u.status === 'in-progress') { u.stage = 'site'; if (!sd.site) sd.site = today(); delete sd.installed; }
+    else if (u.stage === 'installed' || u.stage === 'site') { u.stage = sd.shop ? 'shop' : sd.ordered ? 'ordered' : ''; delete sd.site; delete sd.installed; }
+  }
   function baselineSync() {
     var m = seedMap();
     units().forEach(function (u) {
@@ -90,6 +105,7 @@
       if (u.stage === undefined) u.stage = stageFromStatus(u.status);
       if (u.issue === undefined) u.issue = (u.status === 'issue');
       if (u.kind === 'roof' && typeof u.panelsDone !== 'number') u.panelsDone = 0;
+      reconcile(u);
     });
   }
   function derive(u) {
@@ -98,7 +114,7 @@
       if (tot > 0 && done >= tot) u.stage = 'installed';
       else if (done > 0 && STAGES.indexOf(u.stage) < 3) u.stage = 'site';
     }
-    u.status = u.issue ? 'issue' : u.stage === 'installed' ? 'installed' : u.stage === 'site' ? 'in-progress' : 'pending';
+    u.status = statusOf(u);
     if (u.stage === 'installed') { u.date = (u.stageDates && u.stageDates.installed) || u.date || today(); }
     else if (!u.issue) { u.date = ''; }
   }
@@ -251,16 +267,17 @@
       var g = st && st.groups.find(function (x) { return x.id === h.group; });
       if (!g) return;
       var n = { tot: 0, done: 0 };
-      g.floors.forEach(function (f) { var c = countFloor(f); n.tot += c.tot; n.done += c.done; });
-      html.push('<div class="p7-hot" style="left:' + h.x + '%;top:' + h.y + '%;width:' + h.w + '%;height:' + h.h + '%" data-hot="' + st.id + '|' + g.id + '">' +
-        '<span>' + esc(nm(g.name)) + ' · ' + n.done + '/' + n.tot + '</span></div>');
+      (h.floor ? [h.floor] : g.floors).forEach(function (f) { var c = countFloor(f); n.tot += c.tot; n.done += c.done; });
+      var lab = h.floor ? nm((floorMeta(h.floor) || {}).short) || nm(g.name) : nm(g.name);
+      html.push('<div class="p7-hot" style="left:' + h.x + '%;top:' + h.y + '%;width:' + h.w + '%;height:' + h.h + '%" data-hot="' + st.id + '|' + g.id + '|' + (h.floor || '') + '">' +
+        '<span>' + esc(lab) + ' · ' + n.done + '/' + n.tot + '</span></div>');
     });
     var on = units().filter(function (u) { return inBaseline(u) && (GEO[u.key] || []).some(function (x) { return x.f === k; }); });
     var order = { roof: 0, com: 1, band: 2, cp: 2, corner: 2, glass: 3, panel: 3, louver: 3, frame: 4, canopy: 5 };
     on.sort(function (a, b) { return (order[a.kind] || 3) - (order[b.kind] || 3); });
     var svgPolys = [];
     on.forEach(function (u) {
-      (GEO[u.key] || []).filter(function (x) { return x.f === k; }).forEach(function (g) {
+      (GEO[u.key] || []).filter(function (x) { return x.f === k; }).forEach(function (g, gi) {
         var box = 'left:' + g.x + '%;top:' + g.y + '%;width:' + g.w + '%;height:' + g.h + '%';
         var matBg = MAT[u.sub] || MAT[u.kind] || '#ddd';
         var st = view === 'material' ? ' style="' + box + ';--mat:' + matBg + '"' : ' style="' + box + '"';
@@ -270,7 +287,7 @@
         } else if (u.kind === 'roof' && g.poly) {
           svgPolys.push('<polygon class="' + cls + '" data-key="' + esc(u.key) + '" points="' + g.poly.map(function (p) { return p[0] + ',' + p[1]; }).join(' ') + '"' +
             (view === 'material' ? ' style="--mat:' + matBg + '"' : '') + '/>');
-          html.push('<div class="p7-roofl ' + pieceClass(u) + '" style="left:' + (g.x + g.w / 2) + '%;top:' + (g.y + g.h / 2) + '%" data-key="' + esc(u.key) + '">' +
+          if (!gi) html.push('<div class="p7-roofl ' + pieceClass(u) + '" style="left:' + (g.x + g.w / 2) + '%;top:' + (g.y + g.h / 2) + '%" data-key="' + esc(u.key) + '">' +
             esc(label(u)) + '<em>' + (u.panelsDone || 0) + '/' + (u.panelsTotal || 0) + '</em></div>');
         } else {
           html.push('<div class="' + cls + '"' + st + ' data-key="' + esc(u.key) + '" title="' + esc(u.id + ' · ' + (u.note || '') + ' · ' + SL(u.stage)) + '"><span>' + esc(label(u)) +
@@ -284,7 +301,7 @@
   }
   function onLayerClick(ev, t0) {
     var hot = t0 && t0.closest && t0.closest('[data-hot]');
-    if (hot) { ev.stopPropagation(); ev.preventDefault(); var hp = hot.getAttribute('data-hot').split('|'); goGroup(hp[0], hp[1]); return; }
+    if (hot) { ev.stopPropagation(); ev.preventDefault(); var hp = hot.getAttribute('data-hot').split('|'); goGroup(hp[0], hp[1]); if (hp[2]) goFloor(hp[2]); return; }
     var t = t0 && t0.closest && t0.closest('[data-key]');
     if (!t || !document.getElementById('p7Layer').contains(t)) return;
     var u = byKey(t.getAttribute('data-key')); if (!u) return;
@@ -338,7 +355,9 @@
     if (one && one.stageDates) {
       h += '<div class="p7-ed-hist">' + STAGES.filter(function (s) { return s && one.stageDates[s]; }).map(function (s) { return esc(SL(s)) + ' ' + esc(one.stageDates[s]); }).join(' · ') + '</div>';
     }
-    h += '<div class="p7-ed-foot">' + (ro ? '<span>' + (lang() === 'zh' ? '只读' : 'Read-only') + '</span>' :
+    h += '<div class="p7-ed-foot">' + (one ? '<button class="p7-ed-more" onclick="P7.more(\'' + esc(one.key) + '\')" title="' +
+         (lang() === 'zh' ? '完整编辑（日历 / Field Verify / Glass / RFI）' : 'Full editor (Calendar / Field Verify / Glass / RFI)') + '">' + (lang() === 'zh' ? '更多 →' : 'More →') + '</button>' : '') +
+         '<span class="p7-grow"></span>' + (ro ? '<span>' + (lang() === 'zh' ? '只读' : 'Read-only') + '</span>' :
          '<button class="btn btn-primary" onclick="P7.save()">' + (lang() === 'zh' ? '保存' : 'Save') + '</button>') + '</div>';
     e.innerHTML = h; e.style.display = 'block';
     e.dataset.pick = curStage == null ? '__keep' : curStage;
@@ -410,7 +429,11 @@
     editorEl().style.display = 'none'; sel = {};
     if (typeof render === 'function') render(); else { renderOverlay(); paintCards(); }
   }
-  window.P7 = { pick: pick, save: save, closeEd: closeEd, selectFrame: selectFrame, build: BUILD,
+  function more(k) {
+    editorEl().style.display = 'none'; sel = {}; renderOverlay();
+    if (typeof openUnit === 'function') openUnit(k);
+  }
+  window.P7 = { pick: pick, save: save, closeEd: closeEd, selectFrame: selectFrame, build: BUILD, more: more, openEditor: openEditor,
     setView: function (v) { view = v; paintNav(); renderOverlay(); }, renderOverlay: renderOverlay, refresh: refresh };
 
   // ----------------------------------------------------------------- cards
@@ -429,7 +452,18 @@
     var st = stationById(cur.station);
     var zones = {}; st.groups.forEach(function (g) { (g.zones || []).forEach(function (z) { zones[z] = 1; }); });
     var us = units().filter(function (u) { return inBaseline(u) && zones[u.zone]; });
-    var h = '<div class="p7-cards-head"><b>' + esc(st.name) + '</b> · ' + (lang() === 'zh' ? '按 Final-2 实际量（件数 / sf）' : 'Final-2 quantities (pieces / sf)') + '</div><div class="p7-cards">';
+    var h = '<div class="p7-cards-head"><b>' + esc(st.name) + '</b> · ' + (lang() === 'zh' ? '按 Final-2 实际量（件数 / sf）· 点卡片看安装详情' : 'Final-2 quantities (pieces / sf) · click a card for install details') + '</div><div class="p7-cards">';
+    // Overall + Issues (same board as CP2 / AC3: Things to Solve)
+    var allDone = us.filter(function (u) { return u.stage === 'installed'; }).length;
+    var flagged = us.filter(function (u) { return u.issue; }).length;
+    var openN = 0; try { openN = (typeof computeOpenItems === 'function') ? computeOpenItems().length : 0; } catch (e) {}
+    var pct = us.length ? Math.round(100 * allDone / us.length) : 0;
+    h += '<div class="kpi-card p7-card clickable" onclick="P7.cardDetail(\'all\')"><div class="kpi-label">' + (lang() === 'zh' ? '总进度' : 'Overall') + '</div>' +
+      '<div class="kpi-value">' + pct + '%</div><div class="kpi-sub">' + allDone + ' / ' + us.length + (lang() === 'zh' ? ' 件已安装' : ' pieces installed') + '</div>' +
+      '<div class="p7-bar"><i class="p7-st-installed" style="width:' + pct + '%"></i></div><div class="p7-mini"></div></div>';
+    h += '<div class="kpi-card p7-card red clickable" onclick="openItemsModal()" title="Things to Solve"><div class="kpi-label">' + (lang() === 'zh' ? '问题' : 'Issues') + '</div>' +
+      '<div class="kpi-value">' + openN + '</div><div class="kpi-sub">' + (lang() === 'zh' ? '问题板待解决' : 'open on the board') + '</div>' +
+      '<div class="p7-bar"></div><div class="p7-mini">' + (flagged ? flagged + (lang() === 'zh' ? ' 件标了 Issue' : ' pieces flagged') : '') + '</div></div>';
     CARD_LINES.forEach(function (c) {
       var list = us.filter(function (u) { return c.kinds.indexOf(u.kind) >= 0; });
       if (!list.length) return;
@@ -444,13 +478,231 @@
       var sub = c.k === 'roof' ? (lang() === 'zh' ? '屋顶 ' : 'roofs ') + done + '/' + tot + ' · ≈' + fmt(sfT) + ' sf' :
         fmt(sfI) + ' / ' + fmt(sfT) + ' sf';
       var bar = STAGES.slice(1).map(function (s) { return tot ? '<i class="p7-st-' + s + '" style="width:' + (100 * cnt[s] / tot) + '%"></i>' : ''; }).join('');
-      h += '<div class="kpi-card p7-card"><div class="kpi-label">' + esc(c.label) + (iss ? ' <span class="p7-iss">' + iss + ' issue</span>' : '') + '</div>' +
+      h += '<div class="kpi-card p7-card clickable" onclick="P7.cardDetail(\'' + c.k + '\')"><div class="kpi-label">' + esc(c.label) + (iss ? ' <span class="p7-iss">' + iss + ' issue</span>' : '') + '</div>' +
         '<div class="kpi-value">' + big + '</div><div class="kpi-sub">' + sub + '</div><div class="p7-bar">' + bar + '</div>' +
         '<div class="p7-mini">' + STAGES.slice(1, 4).map(function (s) { return cnt[s] ? esc(SL(s)) + ' ' + cnt[s] : ''; }).filter(Boolean).join(' · ') + '</div></div>';
     });
     h += '</div>';
     host.innerHTML = h;
   }
+
+  // ------------------------------------------------- shared lookups (list + details)
+  function zonesOf(stId) {
+    var z = {}; NAV.stations.forEach(function (st) { if (stId === 'all' || st.id === stId) st.groups.forEach(function (g) { (g.zones || []).forEach(function (x) { z[x] = st.id; }); }); });
+    return z;
+  }
+  function stationOfUnit(u) { return zonesOf('all')[u.zone] || ''; }
+  function where(u) { var f = floorMeta(u.level); return f ? nm(f.name) : (u.level || ''); }
+  function matLabel(u) { return (KIND_LABEL[u.kind] || u.type || '') + (u.kind === 'glass' && u.sub ? ' · ' + u.sub : ''); }
+  function lineOf(u) { var c = CARD_LINES.find(function (c) { return c.kinds.indexOf(u.kind) >= 0; }); return c ? c.k : ''; }
+  function lineLabel(k) { if (k === 'all') return lang() === 'zh' ? '全部' : 'All'; var c = CARD_LINES.find(function (c) { return c.k === k; }); return c ? c.label : k; }
+  function floorOrder() { var o = {}; (P.floors || []).forEach(function (f, i) { o[f.key] = i; }); return o; }
+  function badge(u) {
+    return '<span class="p7-badge p7-st-' + (u.stage || 'none') + (u.issue ? ' p7-issue' : '') + '">' + esc(SL(u.stage)) + '</span>';
+  }
+
+  // ------------------------------------------------------ card → install details
+  /* Re-uses core's KPI detail modal (#kpiDetailModal) so it looks like CP2 / AC3. */
+  function cardDetail(k) {
+    var modal = document.getElementById('kpiDetailModal'); if (!modal) return;
+    syncCurFromLevel();
+    var st = stationById(cur.station), zs = zonesOf(st.id), zh = lang() === 'zh';
+    var list = units().filter(function (u) { return inBaseline(u) && zs[u.zone] && (k === 'all' || lineOf(u) === k); });
+    var fo = floorOrder(), rows = {};
+    list.forEach(function (u) {
+      var r = rows[u.level] || (rows[u.level] = { f: u.level, n: {}, tot: 0, sfT: 0, sfI: 0, pT: 0, pD: 0 });
+      r.n[u.stage || ''] = (r.n[u.stage || ''] || 0) + 1; r.tot++;
+      var sf = Number(u.sf) || 0; r.sfT += sf; if (u.stage === 'installed') r.sfI += sf;
+      if (u.kind === 'roof') { r.pT += Number(u.panelsTotal) || 0; r.pD += Number(u.panelsDone) || 0; }
+    });
+    var R = Object.keys(rows).map(function (x) { return rows[x]; }).sort(function (a, b) { return (fo[a.f] || 0) - (fo[b.f] || 0); });
+    var roofs = k === 'roof';
+    var h = '<table class="kpi-detail-table p7-dt"><thead><tr><th>' + (zh ? '位置' : 'Where') + '</th>' +
+      STAGES.map(function (x) { return '<th>' + esc(SL(x)) + '</th>'; }).join('') + '<th>' + (zh ? '合计' : 'Total') + '</th><th>' +
+      (roofs ? (zh ? '板（装/总）' : 'Panels') : (k === 'all' ? '' : 'sf')) + '</th></tr></thead><tbody>';
+    var T = { n: {}, tot: 0, sfT: 0, sfI: 0, pT: 0, pD: 0 };
+    R.forEach(function (r) {
+      h += '<tr><td><a href="#" onclick="P7nav.goFloor(\'' + r.f + '\');closeKpiDetail();return false">' + esc(nm((floorMeta(r.f) || {}).name) || r.f) + '</a></td>' +
+        STAGES.map(function (x) { T.n[x] = (T.n[x] || 0) + (r.n[x] || 0); return '<td class="num">' + (r.n[x] || '') + '</td>'; }).join('') +
+        '<td class="num"><b>' + r.tot + '</b></td><td class="num">' + (roofs ? r.pD + ' / ' + r.pT : (k === 'all' ? '' : fmt(r.sfI) + ' / ' + fmt(r.sfT))) + '</td></tr>';
+      T.tot += r.tot; T.sfT += r.sfT; T.sfI += r.sfI; T.pT += r.pT; T.pD += r.pD;
+    });
+    h += '<tr class="p7-dt-tot"><td>' + (zh ? '合计' : 'Total') + '</td>' + STAGES.map(function (x) { return '<td class="num">' + (T.n[x] || '') + '</td>'; }).join('') +
+      '<td class="num"><b>' + T.tot + '</b></td><td class="num">' + (roofs ? T.pD + ' / ' + T.pT : (k === 'all' ? '' : fmt(T.sfI) + ' / ' + fmt(T.sfT))) + '</td></tr></tbody></table>';
+    var inst = list.filter(function (u) { return u.stage === 'installed' || (u.kind === 'roof' && u.panelsDone > 0); })
+      .sort(function (a, b) { var da = (a.stageDates && (a.stageDates.installed || a.stageDates.site)) || '', db = (b.stageDates && (b.stageDates.installed || b.stageDates.site)) || ''; return db < da ? -1 : db > da ? 1 : 0; });
+    h += '<h4 class="p7-dt-h">' + (zh ? '最近安装' : 'Latest installed') + ' <small>' + inst.length + '</small></h4>';
+    h += inst.length ? '<div class="p7-dt-list">' + inst.slice(0, 40).map(function (u) {
+      var d = (u.stageDates && (u.stageDates.installed || u.stageDates.site)) || '';
+      return '<div><span class="p7-dt-date">' + esc(d) + '</span><a href="#" onclick="closeKpiDetail();P7.openEditor([\'' + esc(u.key) + '\']);return false">' + esc(u.id) + '</a> <span class="p7-dt-dim">' + esc(where(u)) +
+        (u.kind === 'roof' ? ' · ' + u.panelsDone + '/' + u.panelsTotal + ' panels' : '') + '</span></div>';
+    }).join('') + '</div>' : '<div class="p7-dt-dim">' + (zh ? '还没有安装记录' : 'Nothing installed yet') + '</div>';
+    var iss = list.filter(function (u) { return u.issue; });
+    if (iss.length) h += '<h4 class="p7-dt-h">Issue <small>' + iss.length + '</small></h4><div class="p7-dt-list">' + iss.map(function (u) {
+      return '<div><a href="#" onclick="closeKpiDetail();P7.openEditor([\'' + esc(u.key) + '\']);return false">' + esc(u.id) + '</a> <span class="p7-dt-dim">' + esc(where(u)) + (u.p7note ? ' · ' + esc(u.p7note) : '') + '</span></div>';
+    }).join('') + '</div>';
+    h += '<div class="p7-dt-go"><button class="btn" onclick="closeKpiDetail();P7.listFor(\'' + st.id + '\',\'' + k + '\')">' + (zh ? '在列表里看这些 →' : 'Show these in the list →') + '</button></div>';
+    var titleEl = document.getElementById('kpiDetailTitle'), countEl = document.getElementById('kpiDetailCount'), body = document.getElementById('kpiDetailBody');
+    if (titleEl) { titleEl.removeAttribute('data-i18n'); titleEl.textContent = (k === 'all' ? (zh ? '全部' : 'All pieces') : lineLabel(k)) + ' · ' + st.name; }
+    if (countEl) countEl.textContent = String(list.length);
+    if (body) body.innerHTML = h;
+    modal.classList.add('show');
+  }
+
+  // ------------------------------------------- piece list (replaces core's table)
+  /* Leo 11-13: full width like the map, Detail / Card, filter by progress AND material. */
+  var LF = { station: 'all', where: 'all', stage: 'all', mat: 'all', glass: 'all', q: '', mode: 'detail', sort: '', dir: 1 };
+  try { var _lf = JSON.parse(localStorage.getItem('p7_list_v1') || 'null'); if (_lf) { LF.mode = _lf.mode || LF.mode; } } catch (e) {}
+  function saveLF() { try { localStorage.setItem('p7_list_v1', JSON.stringify({ mode: LF.mode })); } catch (e) {} }
+  function listHost() {
+    var h = document.getElementById('p7List');
+    if (!h) {
+      h = document.createElement('section'); h.id = 'p7List'; h.className = 'section';
+      h.innerHTML = '<div class="section-header"><div class="section-title" id="p7ListTitle"></div><div id="p7ListTools" class="p7-lt"></div></div>' +
+        '<div id="p7ListFilters"></div><div id="p7ListBody"></div>';
+      var plan = document.getElementById('planSection');
+      if (plan) plan.parentNode.insertBefore(h, plan.nextSibling);
+    }
+    return h;
+  }
+  function listUnits() {
+    var zs = zonesOf(LF.station), q = LF.q.trim().toLowerCase();
+    var out = units().filter(function (u) {
+      if (!inBaseline(u) || !zs[u.zone]) return false;
+      if (LF.where !== 'all') {
+        if (LF.where.indexOf('g:') === 0) { var gz = LF.where.slice(2); if (u.zone !== gz) return false; }
+        else if (!(GEO[u.key] || []).some(function (g) { return g.f === LF.where; })) return false;
+      }
+      if (LF.stage === 'issue') { if (!u.issue) return false; }
+      else if (LF.stage !== 'all' && (u.stage || '') !== (LF.stage === 'none' ? '' : LF.stage)) return false;
+      if (LF.mat !== 'all' && lineOf(u) !== LF.mat) return false;
+      if (LF.mat === 'glass' && LF.glass !== 'all' && u.sub !== LF.glass) return false;
+      if (q && (u.id + ' ' + (u.note || '') + ' ' + (u.p7note || '') + ' ' + where(u)).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+    var fo = floorOrder();
+    out.sort(function (a, b) { return ((fo[a.level] || 0) - (fo[b.level] || 0)) || natCmp(a.id, b.id); });
+    if (LF.sort) {
+      var key = {
+        id: function (u) { return u.id; }, mat: function (u) { return matLabel(u); }, where: function (u) { return ('000' + (fo[u.level] || 0)).slice(-3); },
+        sf: function (u) { return Number(u.sf) || 0; }, stage: function (u) { return STAGES.indexOf(u.stage || ''); },
+        date: function (u) { var d = u.stageDates || {}; return d.installed || d.site || d.shop || d.ordered || ''; }
+      }[LF.sort];
+      if (key) out.sort(function (a, b) { var x = key(a), y = key(b); return (x < y ? -1 : x > y ? 1 : 0) * LF.dir; });
+    }
+    return out;
+  }
+  function natCmp(a, b) {
+    var x = String(a).split(/(\d+)/), y = String(b).split(/(\d+)/);
+    for (var i = 0; i < Math.min(x.length, y.length); i++) {
+      if (x[i] === y[i]) continue;
+      var nx = /^\d+$/.test(x[i]), ny = /^\d+$/.test(y[i]);
+      if (nx && ny) return Number(x[i]) - Number(y[i]);
+      return x[i] < y[i] ? -1 : 1;
+    }
+    return x.length - y.length;
+  }
+  function chip(group, val, text, on, extra) {
+    return '<button class="p7-chip small' + (on ? ' on' : '') + (extra || '') + '" onclick="P7.lf(\'' + group + '\',\'' + val + '\')">' + text + '</button>';
+  }
+  function paintList() {
+    var host = listHost(); if (!host) return;
+    var zh = lang() === 'zh';
+    var zsc = zonesOf(LF.station);
+    var all = units().filter(function (u) { return inBaseline(u) && zsc[u.zone]; });   // counts + glass types follow the station
+    var list = listUnits();
+    document.getElementById('p7ListTitle').textContent = zh ? '构件清单 · 点一行改状态' : 'Pieces · click a row to update';
+    document.getElementById('p7ListTools').innerHTML =
+      '<span class="p7-view"><button class="' + (LF.mode === 'detail' ? 'on' : '') + '" onclick="P7.lf(\'mode\',\'detail\')">' + (zh ? '明细' : 'Detail') + '</button>' +
+      '<button class="' + (LF.mode === 'card' ? 'on' : '') + '" onclick="P7.lf(\'mode\',\'card\')">' + (zh ? '卡片' : 'Card') + '</button></span>' +
+      (noEdit() ? '' : '<button class="btn" onclick="P7.editShown()" ' + (list.length ? '' : 'disabled') + '>' + (zh ? '批量改这 ' + list.length + ' 件' : 'Edit these ' + list.length) + '</button>');
+    // filters
+    var f = '<div class="p7-fl"><span class="p7-fl-l">' + (zh ? '车站' : 'Station') + '</span>' + chip('station', 'all', zh ? '全部' : 'All', LF.station === 'all') +
+      NAV.stations.map(function (st) { return chip('station', st.id, esc(st.name), LF.station === st.id); }).join('');
+    var opts = '<option value="all">' + (zh ? '全部位置' : 'All locations') + '</option>';
+    NAV.stations.forEach(function (st) {
+      if (LF.station !== 'all' && LF.station !== st.id) return;
+      st.groups.forEach(function (g) {
+        var z = (g.zones || [])[0];
+        opts += '<optgroup label="' + esc(st.name + ' · ' + nm(g.name)) + '"><option value="g:' + esc(z) + '"' + (LF.where === 'g:' + z ? ' selected' : '') + '>' + esc(nm(g.name)) + (zh ? '（全部）' : ' (all)') + '</option>' +
+          g.floors.map(function (k) { var fm = floorMeta(k); return '<option value="' + k + '"' + (LF.where === k ? ' selected' : '') + '>' + esc(fm ? nm(fm.name) : k) + '</option>'; }).join('') + '</optgroup>';
+      });
+    });
+    f += '<select class="p7-sel" onchange="P7.lf(\'where\',this.value)">' + opts + '</select>' +
+      '<input class="p7-q" type="search" placeholder="' + (zh ? '搜编号 / 备注' : 'Search id / note') + '" value="' + esc(LF.q) + '" oninput="P7.lfq(this.value)"></div>';
+    var cntStage = function (s) { return all.filter(function (u) { return s === 'issue' ? u.issue : (u.stage || '') === s; }).length; };
+    f += '<div class="p7-fl"><span class="p7-fl-l">' + (zh ? '进度' : 'Progress') + '</span>' + chip('stage', 'all', zh ? '全部' : 'All', LF.stage === 'all') +
+      STAGES.map(function (x) { return chip('stage', x || 'none', '<i class="p7-dot p7-st-' + (x || 'none') + '"></i>' + esc(SL(x)) + ' <em>' + cntStage(x) + '</em>', LF.stage === (x || 'none')); }).join('') +
+      chip('stage', 'issue', '<i class="p7-dot p7-st-none p7-issue-sw"></i>Issue <em>' + cntStage('issue') + '</em>', LF.stage === 'issue') + '</div>';
+    f += '<div class="p7-fl"><span class="p7-fl-l">' + (zh ? '材料' : 'Material') + '</span>' + chip('mat', 'all', zh ? '全部' : 'All', LF.mat === 'all') +
+      CARD_LINES.map(function (c) { return chip('mat', c.k, '<i class="p7-dot" style="background:' + (MAT[c.kinds[0]] || '#ccc') + '"></i>' + esc(c.label), LF.mat === c.k); }).join('');
+    if (LF.mat === 'glass') {
+      var types = {}; all.forEach(function (u) { if (u.kind === 'glass' && u.sub) types[u.sub] = 1; });
+      f += '<span class="p7-fl-sep"></span>' + chip('glass', 'all', zh ? '全部型号' : 'All types', LF.glass === 'all') +
+        Object.keys(types).sort().map(function (t) { return chip('glass', t, '<i class="p7-dot" style="background:' + (MAT[t] || MAT.glass) + '"></i>' + esc(t), LF.glass === t); }).join('');
+    }
+    f += '</div>';
+    document.getElementById('p7ListFilters').innerHTML = f;
+    // body
+    var sfT = 0, sfI = 0; list.forEach(function (u) { var v = Number(u.sf) || 0; sfT += v; if (u.stage === 'installed') sfI += v; });
+    var sum = '<div class="p7-sum">' + list.length + (zh ? ' 件' : ' pieces') + ' · ' + list.filter(function (u) { return u.stage === 'installed'; }).length + (zh ? ' 已安装' : ' installed') +
+      (LF.mat !== 'all' && LF.mat !== 'frame' ? ' · ' + fmt(sfI) + ' / ' + fmt(sfT) + ' sf' : '') + '</div>';
+    var b;
+    if (!list.length) b = '<div class="p7-empty">' + (zh ? '没有符合条件的构件' : 'No pieces match these filters') + '</div>';
+    else if (LF.mode === 'card') {
+      var fo = floorOrder(), groups = {};
+      list.forEach(function (u) { (groups[u.level] = groups[u.level] || []).push(u); });
+      b = Object.keys(groups).sort(function (a, c) { return (fo[a] || 0) - (fo[c] || 0); }).map(function (k) {
+        var g = groups[k];
+        return '<div class="p7-cg"><div class="p7-cg-h"><a href="#" onclick="P7nav.goFloor(\'' + k + '\');document.getElementById(\'planSection\').scrollIntoView({behavior:\'smooth\'});return false">' +
+          esc(nm((floorMeta(k) || {}).name) || k) + '</a> <em>' + g.filter(function (u) { return u.stage === 'installed'; }).length + '/' + g.length + '</em></div><div class="p7-cg-grid">' +
+          g.map(function (u) {
+            return '<div class="p7-tile p7-st-' + (u.stage || 'none') + (u.issue ? ' p7-issue' : '') + '" onclick="P7.openEditor([\'' + esc(u.key) + '\'])" title="' + esc(u.id + ' · ' + matLabel(u) + ' · ' + SL(u.stage)) + '">' +
+              '<b>' + esc(u.id) + '</b><span>' + esc(u.kind === 'glass' ? (u.sub || 'Glass') : (KIND_LABEL[u.kind] || '')) + (u.kind === 'roof' ? ' · ' + (u.panelsDone || 0) + '/' + (u.panelsTotal || 0) : '') + '</span></div>';
+          }).join('') + '</div></div>';
+      }).join('');
+    } else {
+      var th = function (k, t) { return '<th class="p7-th" onclick="P7.lfsort(\'' + k + '\')">' + t + (LF.sort === k ? (LF.dir > 0 ? ' ▲' : ' ▼') : '') + '</th>'; };
+      b = '<div class="table-wrap p7-tw"><table class="p7-table"><thead><tr>' + th('id', zh ? '编号' : 'ID') + th('mat', zh ? '材料' : 'Material') + th('where', zh ? '位置' : 'Location') +
+        '<th>' + (zh ? '尺寸' : 'Size') + '</th>' + th('sf', 'sf') + th('stage', zh ? '状态' : 'Status') +
+        STAGES.slice(1).map(function (x) { return '<th class="p7-dcol">' + esc(SL(x)) + '</th>'; }).join('') + th('date', zh ? '最近' : 'Latest') + '<th>' + (zh ? '备注' : 'Note') + '</th><th></th></tr></thead><tbody>' +
+        list.map(function (u) {
+          var d = u.stageDates || {};
+          var latest = d.installed || d.site || d.shop || d.ordered || '';
+          return '<tr onclick="P7.openEditor([\'' + esc(u.key) + '\'])"><td class="p7-id">' + esc(u.id) + '</td><td><i class="p7-dot" style="background:' + (MAT[u.sub] || MAT[u.kind] || '#ccc') + '"></i>' + esc(matLabel(u)) + '</td>' +
+            '<td>' + esc(where(u)) + '</td><td class="num">' + (u.kind === 'roof' ? (u.panelsDone || 0) + '/' + (u.panelsTotal || 0) + ' pnl' : (u.w ? u.w + '" × ' + u.h + '"' : '')) + '</td>' +
+            '<td class="num">' + (u.sf ? fmt(Number(u.sf)) : '') + '</td><td>' + badge(u) + '</td>' +
+            STAGES.slice(1).map(function (x) { return '<td class="p7-dcol num">' + esc((d[x] || '').slice(5)) + '</td>'; }).join('') +
+            '<td class="num">' + esc(latest) + '</td><td class="p7-note">' + esc(u.p7note || '') + '</td>' +
+            '<td><button class="p7-loc" title="' + (zh ? '在立面上定位' : 'Show on the elevation') + '" onclick="event.stopPropagation();P7.locate(\'' + esc(u.key) + '\')">📍</button></td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+    document.getElementById('p7ListBody').innerHTML = sum + b;
+  }
+  var _qT = null;
+  function lfSet(k, v) {
+    LF[k] = v;
+    if (k === 'station') LF.where = 'all';
+    if (k === 'mat' && v !== 'glass') LF.glass = 'all';
+    if (k === 'mode') saveLF();
+    paintList();
+  }
+  function listFor(stId, k) {
+    LF.station = stId; LF.where = 'all'; LF.mat = (k === 'all' ? 'all' : k); LF.glass = 'all'; LF.stage = 'all'; LF.q = '';
+    paintList(); var h = document.getElementById('p7List'); if (h) h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function locate(k) {
+    var u = byKey(k); if (!u) return;
+    var f = ((GEO[k] || [])[0] || {}).f || u.level;
+    goFloor(f); sel = {}; sel[k] = 1; renderOverlay();
+    var ps = document.getElementById('planSection'); if (ps) ps.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    openEditor([k]);
+  }
+  window.P7.cardDetail = cardDetail; window.P7.listFor = listFor; window.P7.locate = locate; window.P7.paintList = paintList;
+  window.P7.lf = lfSet;
+  window.P7.lfq = function (v) { LF.q = v; clearTimeout(_qT); _qT = setTimeout(function () { paintList(); var i = document.querySelector('#p7List .p7-q'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 250); };
+  window.P7.lfsort = function (k) { if (LF.sort === k) LF.dir = -LF.dir; else { LF.sort = k; LF.dir = 1; } paintList(); };
+  window.P7.editShown = function () { var ks = listUnits().map(function (u) { return u.key; }); if (ks.length) { sel = {}; ks.forEach(function (k) { sel[k] = 1; }); renderOverlay(); openEditor(ks); } };
 
   // ------------------------------------------------------------------ css
   function injectCss() {
@@ -489,6 +741,50 @@
       'body.day-mode #p7Layer .p7-k-frame.p7-st-none .p7-tag{background:rgba(110,118,129,.45)!important;color:#24292f!important}',
       'body.day-mode .p7-st-site{box-shadow:inset 0 0 0 1px #d4a300}',
       '.p7-hide{display:none!important}',
+      '.p7-one-col{grid-template-columns:1fr!important}',
+      /* editor footer: More → on the left */
+      '.p7-ed-foot{align-items:center;gap:8px}', '.p7-ed-foot .p7-grow{flex:1}',
+      '.p7-ed-more{background:none;border:1px solid var(--border);color:var(--accent);border-radius:6px;padding:6px 10px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}',
+      '.p7-ed-more:hover{background:var(--panel-2)}',
+      /* clickable cards + detail modal */
+      '.p7-card.clickable{cursor:pointer}', '.p7-card.clickable:hover{border-color:var(--accent)}',
+      '.p7-dt td.num,.p7-dt th{text-align:center}', '.p7-dt td:first-child,.p7-dt th:first-child{text-align:left}',
+      '.p7-dt-tot td{font-weight:700;border-top:2px solid var(--border)}',
+      '.p7-dt-h{margin:16px 0 6px;font-size:13px}', '.p7-dt-h small{color:var(--text-dim);font-weight:600}',
+      '.p7-dt-list{max-height:220px;overflow:auto;font-size:12.5px;line-height:1.7}',
+      '.p7-dt-date{display:inline-block;width:86px;color:var(--text-dim);font-variant-numeric:tabular-nums}',
+      '.p7-dt-dim{color:var(--text-dim);font-size:12px}', '.p7-dt-go{margin-top:12px;text-align:right}',
+      '#kpiDetailModal .p7-dt a,#kpiDetailModal .p7-dt-list a{color:var(--accent);text-decoration:none}',
+      /* piece list */
+      '#p7List button{font-family:inherit;cursor:pointer}',
+      '#p7List .section-header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}',
+      '.p7-lt{display:flex;gap:8px;align-items:center;margin-left:auto}',
+      '.p7-fl{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:0 0 7px}',
+      '.p7-fl-l{font-size:11px;color:var(--text-dim);width:58px;text-transform:uppercase;letter-spacing:.4px}',
+      '.p7-fl-sep{width:10px}',
+      '.p7-chip em{font-style:normal;opacity:.65;font-size:11px}',
+      '.p7-dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px;border:1px solid rgba(127,127,127,.5)}',
+      '.p7-sel,.p7-q{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font:inherit;font-size:12.5px}',
+      '.p7-q{min-width:160px;flex:1;max-width:260px}',
+      '.p7-sum{font-size:12px;color:var(--text-dim);margin:4px 0 8px}',
+      '.p7-empty{padding:30px;text-align:center;color:var(--text-dim)}',
+      '.p7-tw{max-height:70vh;overflow:auto}',
+      '.p7-table{width:100%;border-collapse:collapse;font-size:12.5px}',
+      '.p7-table th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-dim);padding:7px 8px;border-bottom:1px solid var(--border);white-space:nowrap}',
+      '.p7-table td{padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap}',
+      '.p7-table tbody tr{cursor:pointer}', '.p7-table tbody tr:hover td{background:var(--panel-2)}',
+      '.p7-table .num{text-align:right;font-variant-numeric:tabular-nums}', '.p7-th{cursor:pointer;user-select:none}',
+      '.p7-id{font-weight:700}', '.p7-note{white-space:normal!important;max-width:280px;color:var(--text-dim)}',
+      '.p7-loc{background:none;border:0;padding:0 2px;font-size:13px}',
+      '.p7-badge{display:inline-block;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:700;border:1px solid rgba(127,127,127,.4)}',
+      '.p7-badge.p7-issue{outline:2px solid #f85149;outline-offset:-2px}',
+      '@media (max-width:900px){.p7-dcol{display:none}}',
+      '.p7-cg{margin-bottom:12px}', '.p7-cg-h{font-size:12.5px;font-weight:700;margin:4px 0 6px}', '.p7-cg-h a{color:var(--text);text-decoration:none}',
+      '.p7-cg-h em{font-style:normal;color:var(--text-dim);font-weight:600;margin-left:4px}',
+      '.p7-cg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:5px}',
+      '.p7-tile{border-radius:6px;padding:6px 7px;cursor:pointer;border:1px solid rgba(127,127,127,.35);line-height:1.25}',
+      '.p7-tile b{display:block;font-size:12px}', '.p7-tile span{font-size:10.5px;opacity:.85}',
+      '.p7-tile.p7-issue{outline:2.5px solid #f85149;outline-offset:-2px}',
       /* overlay */
       '#p7Layer{position:absolute;inset:0;z-index:5;pointer-events:none}',
       '#p7Layer .p7-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}',
@@ -555,6 +851,7 @@
   }
   wrap('renderKPIs', null, refresh);
   wrap('renderPlan', null, function () { fitWrap(); renderOverlay(); paintNav(); });
+  wrap('renderTable', null, paintList);
   /* core pans the plan with pointer capture on #planViewport, so the click that follows may be
      retargeted to the viewport — remember what was under the pointer at pointerdown instead,
      and ignore it if the pointer moved (that was a pan, not a click). */
@@ -583,8 +880,11 @@
   function hideCoreBits() {
     var g = document.getElementById('unitGrid'); if (g && g.closest('section')) g.closest('section').classList.add('p7-hide');
     var c = document.getElementById('glassDonutChart'); if (c && c.closest('.section')) c.closest('.section').classList.add('p7-hide');
+    // core's Unit Detail Table → replaced by the full-width piece list (paintList); the daily log beside it takes the row
+    var t = document.getElementById('tableBody'), ts = t && t.closest('section');
+    if (ts) { ts.classList.add('p7-hide'); if (ts.parentNode && ts.parentNode.classList.contains('grid-2')) ts.parentNode.classList.add('p7-one-col'); }
   }
-  function boot() { hideCoreBits(); bindImg(); injectCss(); document.body.classList.add('p7-on'); refresh(); fitWrap(); renderOverlay(); try { planZoomReset(); } catch (e) {} }
+  function boot() { hideCoreBits(); bindImg(); injectCss(); document.body.classList.add('p7-on'); refresh(); fitWrap(); renderOverlay(); paintList(); try { planZoomReset(); } catch (e) {} }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
   console.log('[p7] Package 7 module ' + BUILD + ' loaded');
 })();
