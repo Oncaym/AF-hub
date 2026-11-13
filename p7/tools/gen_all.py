@@ -23,7 +23,7 @@ def norm(clip,r):
 def normpoly(clip,pts):
     return [[round((x-clip.x0)/clip.width*100,3),round((y-clip.y0)/clip.height*100,3)] for x,y in pts]
 TYPE={'frame':'Frame','glass':'Glass','band':'Metal Panel','panel':'Metal Panel','louver':'Louver','cp':'Control Panel',
-      'com':'Composite Panel','canopy':'Glass Canopy','corner':'Corner Panel','roof':'Standing Seam Roof'}
+      'com':'Composite Panel','canopy':'Glass Canopy','corner':'Corner Panel','angle':'Steel Corner Angle','roof':'Standing Seam Roof'}
 def piece(pid,kind,zone,floor,geos,ppf,sub=None,extra=None):
     # geos: list of (floorkey, clip, rect)
     r0=geos[0][2]
@@ -35,6 +35,9 @@ def piece(pid,kind,zone,floor,geos,ppf,sub=None,extra=None):
     u['note']=' · '.join(x for x in [sub or TYPE[kind], sz, f'{sf} sf'] if x)
     if extra: u.update(extra)
     PIECES.append(u)
+def angle_extra(cn,ln_ft,h_in):
+    """steel corner angle: counted by length (lf), not area"""
+    return {'corner':cn,'lf':round(ln_ft,2),'sf':0,'note':f'Steel corner angle · {h_in}" long · {round(ln_ft,2)} lf'}
 # ---------------- KB elevations
 for el,pg,sheet in (('535',56,'KGS-A-421'),('536',59,'KGS-A-424')):
     page=KB[pg-1]; SP={}
@@ -47,7 +50,10 @@ for el,pg,sheet in (('535',56,'KGS-A-421'),('536',59,'KGS-A-424')):
             piece(p['id'],p['kind'],f'EL-{el}',fk,[(fk,clip,p['r'])],18.0,sub=p.get('sub'),extra={'frame':p.get('frame','')} if p.get('frame') else None)
     for c in corners(page,el,SP):
         geos=[(f"{el}{s}",R(KBCLIPS[s].x0,95,KBCLIPS[s].x1,1012),r) for s,r in c['geos']]
-        piece(c['id'],'corner',f'EL-{el}',geos[0][0],geos,18.0,extra={'corner':c['corner']})
+        if c['kind']=='angle':
+            piece(c['id'],'angle',f'EL-{el}',geos[0][0],geos,18.0,extra=angle_extra(c['corner'],c['len_ft'],round(c['len_ft']*12,1)))
+        else:
+            piece(c['id'],'corner',f'EL-{el}',geos[0][0],geos,18.0,extra={'corner':c['corner']})
 # ---------------- 167 elevations (manual grid from vector lines, 3/4" = 54 pt/ft)
 P54=54.0
 def grid167(fk,clip,el,face,spec):
@@ -112,11 +118,16 @@ for el,fx,frontspec in (('533',(420,40,1030,1012),dict(xs=[(478,566),(568,724),(
     for face in 'NSEW':
         fk=f"{el}{face}"; (l,r_,clip)=CORN167[fk]
         cg.setdefault(LR[face][0],[]).append((fk,clip,l)); cg.setdefault(LR[face][1],[]).append((fk,clip,r_))
-    y0,y1=220,1000; seg=8*P54; n=math.ceil((y1-y0)/seg-0.05)
+    # corner panel from the roof fascia (220) down to the stone base (811); below it, to grade
+    # (1000), is a steel corner angle — 167-A-201/202 draw the strip lines 220-811 and 811-1000
+    # separately (Leo 11-13: the 8' V2 used to run through the stone)
+    y0,y1,yg=220,811,1000; seg=8*P54; n=math.ceil((y1-y0)/seg-0.05)
     for cn,gs in cg.items():
         for k in range(n):
             a=y0+k*seg; b=min(y1,a+seg)
             piece(f"{el}-{cn}-V{k+1}",'corner',f'EL-{el}',gs[0][0],[(fk,clip,R(x[0],a,x[1],b)) for fk,clip,x in gs],P54,extra={'corner':cn})
+        ln=(yg-y1)/P54
+        piece(f"{el}-{cn}-SA",'angle',f'EL-{el}',gs[0][0],[(fk,clip,R(x[0],y1,x[1],yg)) for fk,clip,x in gs],P54,extra=angle_extra(cn,ln,round(ln*12,1)))
 # platform level 167 (A-415 EL534 p43, A-416 EL533 p44) — lites from the frame lines
 PLAT={'534':(43,R(950,440,1990,1060),'167-A-415',
         [ [(1462,504,1620,771),(1624,504,1783,771),(1786,504,1945,771),(1462,777,1620,982),(1624,777,1783,982),(1786,777,1945,982)],

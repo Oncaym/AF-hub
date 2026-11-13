@@ -5,6 +5,8 @@ R=pymupdf.Rect
 S=18.0
 def I(v): return round(v/S*12,1)
 CLIPS={'E':R(380,100,640,1090),'S':R(860,100,1240,1090),'W':R(1400,100,1720,1090),'N':R(1900,100,2260,1090)}
+KB_GRANITE=947.0  # granite base on KGS-A-421 / A-424: top line y 947 ...
+KB_GRADE=1010.0   # ... grade line y 1010  (63 pt = 3'-6")
 CORNER={'E':('SE','NE'),'S':('SW','SE'),'W':('NW','SW'),'N':('NE','NW')}
 # manual zones: (zone rect) -> list of (suffix, kind, sub, rect).  Auto pieces whose centre falls in a zone are dropped.
 OVR={
@@ -108,6 +110,10 @@ def corners(page, el, sides_pieces):
             a=y0+k*seg; b=min(y1,a+seg)
             res.append(dict(id=f"{el}-{cn}-V{k+1}",kind='corner',corner=cn,
                             geos=[(side,R(r.x0,a,r.x1,b)) for side,r in geos], len_ft=round((b-a)/S,2), width_in=I(geos[0][1].width)))
+        # steel corner angle at the granite base (Leo 11-13): the corner panel lines stop at the
+        # granite top (y 947); the angle runs from there to grade (y 1010) = 3'-6", one per corner
+        res.append(dict(id=f"{el}-{cn}-SA",kind='angle',corner=cn,
+                        geos=[(side,R(r.x0,KB_GRANITE,r.x1,KB_GRADE)) for side,r in geos], len_ft=round((KB_GRADE-KB_GRANITE)/S,2), width_in=I(geos[0][1].width)))
     return res
 if __name__=='__main__':
     d=pymupdf.open(__import__('os').environ.get('P7_KB_PDF','KB.pdf')); ALL={}

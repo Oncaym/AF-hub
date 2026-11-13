@@ -28,7 +28,7 @@
    ========================================================================== */
 (function () {
   'use strict';
-  var BUILD = 'p7·2026-11-13a';
+  var BUILD = 'p7·2026-11-13b';
   var P = window.PROJECT || {};
   var NAV = P.p7nav || { stations: [] };
   var GEO = P.p7geo || {};
@@ -42,14 +42,14 @@
   var KIND_LABEL = {
     frame: 'Frame', glass: 'Glass', band: 'Metal panel (band)', panel: 'Metal panel', louver: 'Louver',
     cp: 'St. Stl. control panel', com: 'Composite metal panel', canopy: 'Glass canopy',
-    corner: 'Corner panel', roof: 'Standing seam roof'
+    corner: 'Corner panel', angle: 'Steel corner angle', roof: 'Standing seam roof'
   };
   /* proposal legend colours (Proposal Ver #4, p.8) — material view */
   var MAT = {   /* frame / canopy are outlines only — never filled */
     glass: '#bfe6ee', 'GL-2': '#bfe6ee', 'GL-02': '#bfe6ee', 'GL-3': '#8fa4e8', 'GL-03': '#8fa4e8',
     'GL-04': '#a8e0b8', 'GL-05': '#c7a6ec',
     band: '#dccbe8', panel: '#dccbe8', cp: '#cfc3e6', com: '#f6c3cf', louver: '#f4b8b8',
-    corner: '#f8dca0', canopy: '#a9a5e0', roof: '#d9d9d9', frame: '#d33'
+    corner: '#f8dca0', angle: '#97a3af', canopy: '#a9a5e0', roof: '#d9d9d9', frame: '#d33'
   };
   var CARD_LINES = [
     { k: 'glass',  label: 'Glazing',               kinds: ['glass'] },
@@ -57,6 +57,7 @@
     { k: 'metal',  label: 'Metal panel',           kinds: ['band', 'panel'] },
     { k: 'com',    label: 'Composite metal panel', kinds: ['com'] },
     { k: 'corner', label: 'Corner metal panel',    kinds: ['corner'] },
+    { k: 'angle',  label: 'Steel corner angle',    kinds: ['angle'], unit: 'lf' },   /* granite / stone base, Leo 11-13 */
     { k: 'louver', label: 'Louver',                kinds: ['louver'] },
     { k: 'cp',     label: 'St. Stl. control panel',kinds: ['cp'] },
     { k: 'canopy', label: 'Glass canopy',          kinds: ['canopy'] },
@@ -64,6 +65,9 @@
   ];
 
   // ------------------------------------------------------------------ helpers
+  /* how much a piece counts for: steel corner angle by length (lf), the rest by area (sf) */
+  function qty(u) { return u.kind === 'angle' ? (Number(u.lf) || 0) : (Number(u.sf) || 0); }
+  function qtyUnit(k) { var c = CARD_LINES.find(function (c) { return c.k === k; }); return (c && c.unit) || 'sf'; }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function lang() { return (typeof currentLang !== 'undefined' && currentLang === 'zh') ? 'zh' : 'en'; }
   function SL(s) { return (STAGE_LABEL[lang()] || STAGE_LABEL.en)[s || ''] || s; }
@@ -83,7 +87,7 @@
   function fmt(n) { return (Math.round(n * 10) / 10).toLocaleString('en-US'); }
 
   // ------------------------------------------------- baseline + derived status
-  var SEED_FIELDS = ['type', 'kind', 'zone', 'sub', 'sf', 'w', 'h', 'panelsTotal', 'corner', 'frame', 'note'];
+  var SEED_FIELDS = ['type', 'kind', 'zone', 'sub', 'sf', 'lf', 'w', 'h', 'panelsTotal', 'corner', 'frame', 'note'];
   function stageFromStatus(st) { return st === 'installed' ? 'installed' : st === 'in-progress' ? 'site' : ''; }
   function statusOf(u) { return u.issue ? 'issue' : u.stage === 'installed' ? 'installed' : u.stage === 'site' ? 'in-progress' : 'pending'; }
   /* The core unit editor ("More →") and anything else in core only knows u.status. When the
@@ -199,7 +203,7 @@
       var st = stationById(cur.station), zs = {}, gl = {};
       st.groups.forEach(function (g) { (g.zones || []).forEach(function (z) { zs[z] = 1; }); });
       units().forEach(function (u) { if (u.kind === 'glass' && zs[u.zone] && u.sub) gl[u.sub] = 1; });
-      return Object.keys(gl).sort().map(function (t) { return [t, 'Glass ' + t]; }).concat([['band', 'Metal panel'], ['com', 'Composite'], ['corner', 'Corner panel'],
+      return Object.keys(gl).sort().map(function (t) { return [t, 'Glass ' + t]; }).concat([['band', 'Metal panel'], ['com', 'Composite'], ['corner', 'Corner panel'], ['angle', 'Steel corner angle'],
               ['louver', 'Louver'], ['cp', 'Control panel'], ['canopy', 'Glass canopy'], ['roof', 'Roof']]).map(function (x) {
         return '<span class="p7-lg"><i style="background:' + MAT[x[0]] + '"></i>' + esc(x[1]) + '</span>';
       }).join('');
@@ -253,7 +257,7 @@
     var id = u.id || u.key;
     if (u.kind === 'roof') return id;
     if (u.kind === 'frame') return id;
-    if (u.kind === 'corner') return id.replace(/^\d+-/, '');
+    if (u.kind === 'corner' || u.kind === 'angle') return id.replace(/^\d+-/, '');
     return id.replace(/^\d+[A-Z]-(\d+-)?/, '');
   }
   function renderOverlay() {
@@ -273,7 +277,7 @@
         '<span>' + esc(lab) + ' · ' + n.done + '/' + n.tot + '</span></div>');
     });
     var on = units().filter(function (u) { return inBaseline(u) && (GEO[u.key] || []).some(function (x) { return x.f === k; }); });
-    var order = { roof: 0, com: 1, band: 2, cp: 2, corner: 2, glass: 3, panel: 3, louver: 3, frame: 4, canopy: 5 };
+    var order = { roof: 0, com: 1, band: 2, cp: 2, corner: 2, angle: 2, glass: 3, panel: 3, louver: 3, frame: 4, canopy: 5 };
     on.sort(function (a, b) { return (order[a.kind] || 3) - (order[b.kind] || 3); });
     var svgPolys = [];
     on.forEach(function (u) {
@@ -470,13 +474,13 @@
       var cnt = {}; STAGES.forEach(function (s) { cnt[s] = 0; });
       var sfT = 0, sfI = 0, pT = 0, pD = 0, iss = 0;
       list.forEach(function (u) {
-        cnt[u.stage || '']++; var sf = Number(u.sf) || 0; sfT += sf; if (u.stage === 'installed') sfI += sf; if (u.issue) iss++;
+        cnt[u.stage || '']++; var sf = qty(u); sfT += sf; if (u.stage === 'installed') sfI += sf; if (u.issue) iss++;
         if (u.kind === 'roof') { pT += Number(u.panelsTotal) || 0; pD += Number(u.panelsDone) || 0; }
       });
       var done = cnt.installed, tot = list.length;
       var big = c.k === 'roof' ? pD + '/' + pT + ' <small>panels</small>' : done + '/' + tot;
       var sub = c.k === 'roof' ? (lang() === 'zh' ? '屋顶 ' : 'roofs ') + done + '/' + tot + ' · ≈' + fmt(sfT) + ' sf' :
-        fmt(sfI) + ' / ' + fmt(sfT) + ' sf';
+        fmt(sfI) + ' / ' + fmt(sfT) + ' ' + (c.unit || 'sf');
       var bar = STAGES.slice(1).map(function (s) { return tot ? '<i class="p7-st-' + s + '" style="width:' + (100 * cnt[s] / tot) + '%"></i>' : ''; }).join('');
       h += '<div class="kpi-card p7-card clickable" onclick="P7.cardDetail(\'' + c.k + '\')"><div class="kpi-label">' + esc(c.label) + (iss ? ' <span class="p7-iss">' + iss + ' issue</span>' : '') + '</div>' +
         '<div class="kpi-value">' + big + '</div><div class="kpi-sub">' + sub + '</div><div class="p7-bar">' + bar + '</div>' +
@@ -512,14 +516,14 @@
     list.forEach(function (u) {
       var r = rows[u.level] || (rows[u.level] = { f: u.level, n: {}, tot: 0, sfT: 0, sfI: 0, pT: 0, pD: 0 });
       r.n[u.stage || ''] = (r.n[u.stage || ''] || 0) + 1; r.tot++;
-      var sf = Number(u.sf) || 0; r.sfT += sf; if (u.stage === 'installed') r.sfI += sf;
+      var sf = qty(u); r.sfT += sf; if (u.stage === 'installed') r.sfI += sf;
       if (u.kind === 'roof') { r.pT += Number(u.panelsTotal) || 0; r.pD += Number(u.panelsDone) || 0; }
     });
     var R = Object.keys(rows).map(function (x) { return rows[x]; }).sort(function (a, b) { return (fo[a.f] || 0) - (fo[b.f] || 0); });
     var roofs = k === 'roof';
     var h = '<table class="kpi-detail-table p7-dt"><thead><tr><th>' + (zh ? '位置' : 'Where') + '</th>' +
       STAGES.map(function (x) { return '<th>' + esc(SL(x)) + '</th>'; }).join('') + '<th>' + (zh ? '合计' : 'Total') + '</th><th>' +
-      (roofs ? (zh ? '板（装/总）' : 'Panels') : (k === 'all' ? '' : 'sf')) + '</th></tr></thead><tbody>';
+      (roofs ? (zh ? '板（装/总）' : 'Panels') : (k === 'all' ? '' : qtyUnit(k))) + '</th></tr></thead><tbody>';
     var T = { n: {}, tot: 0, sfT: 0, sfI: 0, pT: 0, pD: 0 };
     R.forEach(function (r) {
       h += '<tr><td><a href="#" onclick="P7nav.goFloor(\'' + r.f + '\');closeKpiDetail();return false">' + esc(nm((floorMeta(r.f) || {}).name) || r.f) + '</a></td>' +
@@ -644,9 +648,9 @@
     f += '</div>';
     document.getElementById('p7ListFilters').innerHTML = f;
     // body
-    var sfT = 0, sfI = 0; list.forEach(function (u) { var v = Number(u.sf) || 0; sfT += v; if (u.stage === 'installed') sfI += v; });
+    var sfT = 0, sfI = 0; list.forEach(function (u) { var v = qty(u); sfT += v; if (u.stage === 'installed') sfI += v; });
     var sum = '<div class="p7-sum">' + list.length + (zh ? ' 件' : ' pieces') + ' · ' + list.filter(function (u) { return u.stage === 'installed'; }).length + (zh ? ' 已安装' : ' installed') +
-      (LF.mat !== 'all' && LF.mat !== 'frame' ? ' · ' + fmt(sfI) + ' / ' + fmt(sfT) + ' sf' : '') + '</div>';
+      (LF.mat !== 'all' && LF.mat !== 'frame' ? ' · ' + fmt(sfI) + ' / ' + fmt(sfT) + ' ' + qtyUnit(LF.mat) : '') + '</div>';
     var b;
     if (!list.length) b = '<div class="p7-empty">' + (zh ? '没有符合条件的构件' : 'No pieces match these filters') + '</div>';
     else if (LF.mode === 'card') {
@@ -671,7 +675,7 @@
           var latest = d.installed || d.site || d.shop || d.ordered || '';
           return '<tr onclick="P7.openEditor([\'' + esc(u.key) + '\'])"><td class="p7-id">' + esc(u.id) + '</td><td><i class="p7-dot" style="background:' + (MAT[u.sub] || MAT[u.kind] || '#ccc') + '"></i>' + esc(matLabel(u)) + '</td>' +
             '<td>' + esc(where(u)) + '</td><td class="num">' + (u.kind === 'roof' ? (u.panelsDone || 0) + '/' + (u.panelsTotal || 0) + ' pnl' : (u.w ? u.w + '" × ' + u.h + '"' : '')) + '</td>' +
-            '<td class="num">' + (u.sf ? fmt(Number(u.sf)) : '') + '</td><td>' + badge(u) + '</td>' +
+            '<td class="num">' + (u.kind === 'angle' ? (u.lf ? fmt(Number(u.lf)) + ' lf' : '') : (u.sf ? fmt(Number(u.sf)) : '')) + '</td><td>' + badge(u) + '</td>' +
             STAGES.slice(1).map(function (x) { return '<td class="p7-dcol num">' + esc((d[x] || '').slice(5)) + '</td>'; }).join('') +
             '<td class="num">' + esc(latest) + '</td><td class="p7-note">' + esc(u.p7note || '') + '</td>' +
             '<td><button class="p7-loc" title="' + (zh ? '在立面上定位' : 'Show on the elevation') + '" onclick="event.stopPropagation();P7.locate(\'' + esc(u.key) + '\')">📍</button></td></tr>';
