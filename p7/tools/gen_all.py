@@ -234,33 +234,47 @@ for fk,(doc,pg,clip,sheet,nm,hs) in KEYS.items():
     add_floor(fk,nm,doc,pg,clip,sheet,dpi=110)
     # (group, rect[, floor]) — a floor sends the hot spot straight to that sheet (roofs E / W)
     HOT[fk]=[dict(group=h[0],**norm(clip,h[1]),**({'floor':h[2]} if len(h)>2 else {})) for h in hs]
-# ---------------- KB plans, coloured by scope like the proposal's "Overall Item View" (Leo 11-13)
-# Colour only — no pieces, no numbers; status is still kept on the elevations.
-#   enc = elevator hoistway enclosure (filled)          mp = EMR exterior metal panel (KGS-A-601/602)
-#   ws  = control area windscreen / porcelain enamel exterior wall (note 9 on A-139/A-140; A-545 det. 3/4)
-# Points are PDF pt on the Final-2 sheets (1/8" = 1'-0"), read off the wall lines by hand.
+# ---------------- KB plans, coloured by scope like the proposal's "Overall Item View" (Leo 11-13/11-17)
+# Colour only — no pieces, no numbers; status is still kept on the elevations. Everything is a band
+# along the wall (a plan only has material where the wall is), like the proposal pp. 6-7.
+#   enc = elevator hoistway enclosure (closed band)     mp = EMR exterior metal panel (KGS-A-601/602)
+#   ws  = windscreen with porcelain enamel panels on BOTH control-area long walls (A-402 / A-404 note 9)
+#         + porcelain enamel wall panels around the control-area rooms (A-402 note 13, A-404 note 14)
+# Points are PDF pt on the Final-2 sheets (1/8" = 1'-0"), taken off the wall vectors.
+# (k, pts[, 'closed']) — ws is an open line unless marked closed; enc / mp are always closed.
 PLANS={
  'P134':(28,R(1150,620,1600,1150),'KGS-A-134',{'en':'EL-536 Mezzanine plan (A-134)','zh':'EL-536 夹层平面 (A-134)'},
         [('enc',[(1263.8,786.3),(1354.4,761.3),(1393.8,871.9),(1300.0,901.3)]),
          ('mp', [(1298.8,903.1),(1393.8,873.8),(1445.6,1025.0),(1351.3,1055.0)])]),
  'P139':(33,R(1150,650,1700,1300),'KGS-A-139',{'en':'EL-536 Control Area R290B plan (A-139)','zh':'EL-536 控制区 R290B 平面 (A-139)'},
         [('enc',[(1206.7,748.7),(1291.3,726.7),(1318.0,822.0),(1235.3,848.7)]),
-         ('ws', [(1318.0,824.7),(1423.3,1083.3)])]),
+         ('ws', [(1168.1,869.4),(1263.4,1162.7)]),                     # long wall = A-402 elev. 1 'South' (34'-2½")
+         ('ws', [(1323.4,818.0),(1408.1,1078.0)]),                     # long wall = A-402 elev. 3 'North' (30'-10½")
+         ('ws', [(1421.8,1084.2),(1568.0,1081.8),(1568.0,1164.5),(1448.6,1166.7)],'closed')]),  # EPR 024 + cleaner's 025
  'P135':(29,R(650,430,1050,950),'KGS-A-135',{'en':'EL-535 Mezzanine plan (A-135)','zh':'EL-535 夹层平面 (A-135)'},
         [('enc',[(811.0,611.0),(907.5,611.0),(907.5,720.6),(811.0,720.6)]),
          ('mp', [(795.0,724.0),(906.0,724.0),(906.0,875.0),(795.0,875.0)])]),
  'P140':(34,R(650,200,1250,750),'KGS-A-140',{'en':'EL-535 Control Area R290A plan (A-140)','zh':'EL-535 控制区 R290A 平面 (A-140)'},
         [('enc',[(803.6,591.4),(896.4,591.4),(896.4,697.9),(803.6,697.9)]),
-         ('ws', [(957.1,439.3),(957.1,589.3)])]),
+         ('ws', [(711.7,329.0),(711.7,443.0),(789.0,443.0),(789.0,592.0)]),     # cleaner's 021 + west wall
+         ('ws', [(1036.7,329.0),(1036.7,443.0),(959.5,443.0),(959.5,592.0)])]), # room + east wall
 }
 PLAN={}
 for fk,(pg,clip,sheet,nm,shapes) in PLANS.items():
     add_floor(fk,nm,KB,pg,clip,sheet,dpi=150)
-    PLAN[fk]=[dict(k=k,pts=normpoly(clip,pts),open=(k=='ws')) for k,pts in shapes]
-# Control-area windscreen size off KGS-A-545 (3/8" = 1'-0", 27 pt/ft): outer frame verticals x height 9'-6"
-WSA={'P140':dict(w_ft=round((786.9-374.0)/27,2),h_ft=9.5,src='KGS-A-545 det. 3 (East Control Area)'),
-     'P139':dict(w_ft=round((1436.5-1158.6)/27,2),h_ft=9.5,src='KGS-A-545 det. 4 (West Control Area)')}
-for k,v in WSA.items(): v['sf']=round(v['w_ft']*v['h_ft'],1)
+    PLAN[fk]=[dict(k=s[0],pts=normpoly(clip,s[1]),open=(s[0]=='ws' and len(s)<3)) for s in shapes]
+# Control-area windscreen sf, both long walls: length x 9'-6" (gross; height dimensioned on A-402 elev. 3
+# and A-404 elev. 4). 290B lengths are dimensioned; 290A has no dimension, so grid 23-26 is scaled
+# off A-404 (1/4" = 1'-0", 18 pt/ft). Room wall panels (notes 13/14) are coloured but not measured yet.
+WSA={'P139':dict(src='KGS-A-402',rows=[
+        dict(en='South wall',zh='南墙',w_ft=round(3+4/12+3*(10+3.5/12),2),h_ft=9.5,ref="elev. 1 · 3'-4\" + 3 × 10'-3½\""),
+        dict(en='North wall',zh='北墙',w_ft=round(3*(10+3.5/12),2),h_ft=9.5,ref="elev. 3 · 3 × 10'-3½\"")]),
+     'P140':dict(src='KGS-A-404',rows=[
+        dict(en='North wall',zh='北墙',w_ft=round((1422.3-1142.6)/18,2),h_ft=9.5,ref='elev. 2 · grid 23–26, scaled'),
+        dict(en='South wall',zh='南墙',w_ft=round((589.7-309.9)/18,2),h_ft=9.5,ref='elev. 4 · grid 26–23, scaled')])}
+for v in WSA.values():
+    for r in v['rows']: r['sf']=round(r['w_ft']*r['h_ft'],1)
+    v['sf']=round(sum(r['sf'] for r in v['rows']),1)
 json.dump(dict(floors=FLOORS,pieces=PIECES,hot=HOT,plans=PLAN,ws=WSA),open(f'{OUT}/p7data.json','w'),ensure_ascii=False)
 import collections
 print(len(FLOORS),'floors',len(PIECES),'pieces')

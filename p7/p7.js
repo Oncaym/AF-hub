@@ -28,7 +28,7 @@
    ========================================================================== */
 (function () {
   'use strict';
-  var BUILD = 'p7·2026-11-13c';
+  var BUILD = 'p7·2026-11-17a';
   var P = window.PROJECT || {};
   var NAV = P.p7nav || { stations: [] };
   var GEO = P.p7geo || {};
@@ -39,7 +39,7 @@
   var PLAN_LG = {
     enc: { c: '#5ab4dc', en: 'Elevator enclosure', zh: '电梯围护' },
     mp:  { c: '#a078dc', en: 'EMR exterior metal panel', zh: 'EMR 外墙金属板' },
-    ws:  { c: '#f05a82', en: 'Control area windscreen / porcelain wall', zh: '控制区 windscreen / 搪瓷墙板' }
+    ws:  { c: '#f05a82', en: 'Windscreen / porcelain enamel wall panel', zh: 'Windscreen / 搪瓷墙板' }
   };
 
   var STAGES = ['', 'ordered', 'shop', 'site', 'installed'];
@@ -249,9 +249,14 @@
         var g = st.groups.find(function (x) { return x.floors.indexOf(k) >= 0; });
         var gl = g ? all.filter(function (u) { return (g.zones || []).indexOf(u.zone) >= 0; }) : [];
         h += '<div class="p7-sf-t">' + esc(g ? nm(g.name) : '') + (zh ? '（全部立面）' : ' (all elevations)') + '</div><table>' + sfRows(sumBy(gl));
-        if (WS[k]) h += '<tr class="p7-sf-x"><td><i class="p7-dot" style="background:' + PLAN_LG.ws.c + '"></i>' + (zh ? '控制区 windscreen' : 'Control area windscreen') + '</td><td class="num">≈ ' + fmt(WS[k].sf) + ' sf</td></tr>' +
-          '<tr class="p7-sf-src"><td colspan="2">' + esc(WS[k].src) + ' · ' + fmt(WS[k].w_ft) + "' × " + fmt(WS[k].h_ft) + "' · " + (zh ? '不按件跟踪' : 'not tracked as pieces') + '</td></tr>';
-        if (PLAN[k].some(function (s) { return s.k === 'mp'; })) h += '<tr class="p7-sf-x"><td><i class="p7-dot" style="background:' + PLAN_LG.mp.c + '"></i>' + (zh ? 'EMR 外墙金属板' : 'EMR exterior metal panel') + '</td><td class="num">' + (zh ? '待量' : 'TBD') + '</td></tr>';
+        if (WS[k]) {
+          h += '<tr class="p7-sf-x"><td><i class="p7-dot" style="background:' + PLAN_LG.ws.c + '"></i>' + (zh ? 'Windscreen（两面）' : 'Windscreen (2 walls)') + '</td><td class="num">≈ ' + fmt(WS[k].sf) + ' sf</td></tr>';
+          WS[k].rows.forEach(function (r) {
+            h += '<tr class="p7-sf-src"><td>' + esc(r[lang()] || r.en) + ' · ' + esc(WS[k].src + ' ' + r.ref) + ' · ' + fmt(r.w_ft) + "' × " + fmt(r.h_ft) + "'</td><td class=\"num\">" + fmt(r.sf) + '</td></tr>';
+          });
+          h += '<tr class="p7-sf-x"><td><i class="p7-dot" style="background:' + PLAN_LG.ws.c + '"></i>' + (zh ? '房间搪瓷墙板' : 'Room wall panels') + '</td><td class="num">' + (zh ? '待量' : 'TBD') + '</td></tr>';
+        }
+        if (PLAN[k].some(function (s) { return s.k === 'mp'; })) h += '<tr class="p7-sf-x"><td><i class="p7-dot" style="background:' + PLAN_LG.mp.c + '"></i>' + (zh ? 'EMR 金属板' : 'EMR metal panel') + '</td><td class="num">' + (zh ? '待量' : 'TBD') + '</td></tr>';
         h += '</table>';
       } else if (!isKey) {
         var on = units().filter(function (u) { return inBaseline(u) && (GEO[u.key] || []).some(function (x) { return x.f === k; }); });
@@ -823,9 +828,9 @@
       '.p7-hide{display:none!important}',
       /* plan scope colours */
       '#p7Layer .p7-svg .p7-plan{pointer-events:none;cursor:default;opacity:1}',
-      '#p7Layer .p7-svg .p7-plan-enc{fill:rgba(90,180,220,.42);stroke:#5ab4dc;stroke-width:2}',
+      '#p7Layer .p7-svg .p7-plan-enc{fill:none;stroke:rgba(90,180,220,.7);stroke-width:12;stroke-linejoin:round}',
       '#p7Layer .p7-svg .p7-plan-mp{fill:none;stroke:rgba(160,120,220,.72);stroke-width:12;stroke-linejoin:round}',
-      '#p7Layer .p7-svg .p7-plan-ws{fill:none;stroke:rgba(240,90,130,.72);stroke-width:12;stroke-linecap:round}',
+      '#p7Layer .p7-svg .p7-plan-ws{fill:none;stroke:rgba(240,90,130,.72);stroke-width:12;stroke-linecap:round;stroke-linejoin:round}',
       /* sf window */
       '#p7Sf{position:absolute;z-index:31;width:300px;max-width:calc(100% - 24px);background:var(--panel,#161b22);color:var(--text);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.35);padding:8px 10px;font-size:11.5px;opacity:.96}',
       '#p7Sf .p7-sf-h{display:flex;align-items:center;gap:6px}', '#p7Sf .p7-sf-h b{font-size:12px}',
