@@ -28,11 +28,19 @@
    ========================================================================== */
 (function () {
   'use strict';
-  var BUILD = 'p7·2026-11-13b';
+  var BUILD = 'p7·2026-11-13c';
   var P = window.PROJECT || {};
   var NAV = P.p7nav || { stations: [] };
   var GEO = P.p7geo || {};
   var HOT = P.p7hot || {};
+  /* KB plans coloured by scope (Leo 11-13): colour only, status stays on the elevations */
+  var PLAN = P.p7plan || {};
+  var WS = P.p7ws || {};
+  var PLAN_LG = {
+    enc: { c: '#5ab4dc', en: 'Elevator enclosure', zh: '电梯围护' },
+    mp:  { c: '#a078dc', en: 'EMR exterior metal panel', zh: 'EMR 外墙金属板' },
+    ws:  { c: '#f05a82', en: 'Control area windscreen / porcelain wall', zh: '控制区 windscreen / 搪瓷墙板' }
+  };
 
   var STAGES = ['', 'ordered', 'shop', 'site', 'installed'];
   var STAGE_LABEL = {
@@ -189,7 +197,7 @@
         var f = floorMeta(k); var fname = f ? (nm(f.short) || nm(f.name) || k) : k;
         var n = countFloor(k);
         h += '<button class="p7-chip small' + (k === lvl() ? ' on' : '') + '" onclick="P7nav.goFloor(\'' + k + '\')">' + esc(fname) +
-             ' <em>' + n.done + '/' + n.tot + '</em></button>';
+             (PLAN[k] ? '' : ' <em>' + n.done + '/' + n.tot + '</em>') + '</button>';
       });
       var fm = floorMeta(lvl());
       if (fm && fm.sheet) h += '<span class="p7-sheet">' + esc(fm.sheet) + '</span>';
@@ -197,8 +205,70 @@
     }
     h += '<div class="p7-row p7-legend">' + legendHtml() + '<span class="p7-grow"></span><span class="p7-build">' + BUILD + '</span></div>';
     host.innerHTML = h;
+    paintSf();
+  }
+
+  /* ------------------------------------------------ sf window (Leo 11-13)
+     Corner panel over the sheet: this sheet by material (installed / total) + the station total.
+     Quantities are the Final-2 pieces (sf; steel corner angle in lf). Frames are left out — their
+     outline area overlaps the glass and panels inside them. */
+  var sfOpen = true;
+  try { sfOpen = localStorage.getItem('p7_sf_open') !== '0'; } catch (e) {}
+  function sumBy(list) {
+    var rows = [];
+    CARD_LINES.forEach(function (c) {
+      if (c.k === 'frame') return;
+      var l = list.filter(function (u) { return c.kinds.indexOf(u.kind) >= 0; }); if (!l.length) return;
+      var t = 0, i = 0, pT = 0, pD = 0;
+      l.forEach(function (u) { var q = qty(u); t += q; if (u.stage === 'installed') i += q; if (u.kind === 'roof') { pT += Number(u.panelsTotal) || 0; pD += Number(u.panelsDone) || 0; } });
+      rows.push({ k: c.k, label: c.label, unit: c.unit || 'sf', t: t, i: i, n: l.length, pT: pT, pD: pD });
+    });
+    return rows;
+  }
+  function sfRows(rows) {
+    return rows.map(function (r) {
+      return '<tr><td><i class="p7-dot" style="background:' + (MAT[(CARD_LINES.find(function (c) { return c.k === r.k; }) || { kinds: [''] }).kinds[0]] || '#ccc') + '"></i>' + esc(r.label) + '</td>' +
+        '<td class="num"' + (r.k === 'roof' ? ' title="' + r.pD + ' / ' + r.pT + ' panels"' : '') + '>' + fmt(r.i) + ' / ' + fmt(r.t) + ' ' + r.unit + '</td></tr>';
+    }).join('');
+  }
+  function paintSf() {
+    var sec = document.getElementById('planSection'), vp = document.getElementById('planViewport');
+    if (!sec || !vp) return;
+    var el = document.getElementById('p7Sf');
+    if (!el) { el = document.createElement('div'); el.id = 'p7Sf'; sec.appendChild(el); }
+    if (getComputedStyle(sec).position === 'static') sec.style.position = 'relative';
+    el.style.top = (vp.offsetTop + 8) + 'px'; el.style.left = (vp.offsetLeft + 8) + 'px';
+    var zh = lang() === 'zh', k = lvl(), f = floorMeta(k);
+    syncCurFromLevel();
+    var st = stationById(cur.station), zs = zonesOf(st.id);
+    var all = units().filter(function (u) { return inBaseline(u) && zs[u.zone]; });
+    var h = '<div class="p7-sf-h"><b>' + (zh ? '面积' : 'Square footage') + '</b><span class="p7-grow"></span><button onclick="P7.sfToggle()" title="' + (zh ? '收起 / 展开' : 'Collapse / expand') + '">' + (sfOpen ? '–' : '+') + '</button></div>';
+    if (sfOpen) {
+      var isKey = NAV.stations.some(function (s) { return s.key === k; });
+      if (PLAN[k]) {
+        var g = st.groups.find(function (x) { return x.floors.indexOf(k) >= 0; });
+        var gl = g ? all.filter(function (u) { return (g.zones || []).indexOf(u.zone) >= 0; }) : [];
+        h += '<div class="p7-sf-t">' + esc(g ? nm(g.name) : '') + (zh ? '（全部立面）' : ' (all elevations)') + '</div><table>' + sfRows(sumBy(gl));
+        if (WS[k]) h += '<tr class="p7-sf-x"><td><i class="p7-dot" style="background:' + PLAN_LG.ws.c + '"></i>' + (zh ? '控制区 windscreen' : 'Control area windscreen') + '</td><td class="num">≈ ' + fmt(WS[k].sf) + ' sf</td></tr>' +
+          '<tr class="p7-sf-src"><td colspan="2">' + esc(WS[k].src) + ' · ' + fmt(WS[k].w_ft) + "' × " + fmt(WS[k].h_ft) + "' · " + (zh ? '不按件跟踪' : 'not tracked as pieces') + '</td></tr>';
+        if (PLAN[k].some(function (s) { return s.k === 'mp'; })) h += '<tr class="p7-sf-x"><td><i class="p7-dot" style="background:' + PLAN_LG.mp.c + '"></i>' + (zh ? 'EMR 外墙金属板' : 'EMR exterior metal panel') + '</td><td class="num">' + (zh ? '待量' : 'TBD') + '</td></tr>';
+        h += '</table>';
+      } else if (!isKey) {
+        var on = units().filter(function (u) { return inBaseline(u) && (GEO[u.key] || []).some(function (x) { return x.f === k; }); });
+        h += '<div class="p7-sf-t">' + esc(f ? nm(f.name) : k) + (f && f.sheet ? ' · ' + esc(f.sheet) : '') + '</div><table>' + sfRows(sumBy(on)) + '</table>';
+      }
+      h += '<div class="p7-sf-t">' + esc(st.name) + (zh ? ' 合计' : ' total') + '</div><table>' + sfRows(sumBy(all)) + '</table>' +
+        '<div class="p7-sf-note">' + (zh ? '已装 / 总量 · 按 Final-2 · 框不计（与玻璃重叠）' : 'installed / total · Final-2 · frames excluded (overlap glass)') + '</div>';
+    }
+    el.innerHTML = h;
   }
   function legendHtml() {
+    if (PLAN[lvl()]) {
+      var ks = {}; PLAN[lvl()].forEach(function (s) { ks[s.k] = 1; });
+      return Object.keys(PLAN_LG).filter(function (k) { return ks[k]; }).map(function (k) {
+        return '<span class="p7-lg"><i style="background:' + PLAN_LG[k].c + ';opacity:.75"></i>' + esc(PLAN_LG[k][lang()] || PLAN_LG[k].en) + '</span>';
+      }).join('') + '<span class="p7-hint">' + (lang() === 'zh' ? '颜色只表示范围（照 proposal 的 Overall Item View），状态在立面上改' : 'Colour shows scope only (like the proposal\'s Overall Item View) — update status on the elevations') + '</span>';
+    }
     if (view === 'material') {
       var st = stationById(cur.station), zs = {}, gl = {};
       st.groups.forEach(function (g) { (g.zones || []).forEach(function (z) { zs[z] = 1; }); });
@@ -298,6 +368,11 @@
             (u.kind === 'roof' ? '<em>' + (u.panelsDone || 0) + '/' + (u.panelsTotal || 0) + '</em>' : '') + '</span></div>');
         }
       });
+    });
+    (PLAN[k] || []).forEach(function (sh) {
+      var pts = sh.pts.map(function (q) { return q[0] + ',' + q[1]; }).join(' ');
+      var tag = sh.open ? 'polyline' : 'polygon';
+      svgPolys.unshift('<' + tag + ' class="p7-plan p7-plan-' + sh.k + '" vector-effect="non-scaling-stroke" points="' + pts + '"/>');
     });
     var svg = svgPolys.length ? '<svg class="p7-svg" viewBox="0 0 100 100" preserveAspectRatio="none">' + svgPolys.join('') + '</svg>' : '';
     L.innerHTML = svg + html.join('');
@@ -433,11 +508,12 @@
     editorEl().style.display = 'none'; sel = {};
     if (typeof render === 'function') render(); else { renderOverlay(); paintCards(); }
   }
+  function sfToggle() { sfOpen = !sfOpen; try { localStorage.setItem('p7_sf_open', sfOpen ? '1' : '0'); } catch (e) {} paintSf(); }
   function more(k) {
     editorEl().style.display = 'none'; sel = {}; renderOverlay();
     if (typeof openUnit === 'function') openUnit(k);
   }
-  window.P7 = { pick: pick, save: save, closeEd: closeEd, selectFrame: selectFrame, build: BUILD, more: more, openEditor: openEditor,
+  window.P7 = { pick: pick, save: save, closeEd: closeEd, selectFrame: selectFrame, build: BUILD, more: more, openEditor: openEditor, sfToggle: sfToggle,
     setView: function (v) { view = v; paintNav(); renderOverlay(); }, renderOverlay: renderOverlay, refresh: refresh };
 
   // ----------------------------------------------------------------- cards
@@ -745,6 +821,21 @@
       'body.day-mode #p7Layer .p7-k-frame.p7-st-none .p7-tag{background:rgba(110,118,129,.45)!important;color:#24292f!important}',
       'body.day-mode .p7-st-site{box-shadow:inset 0 0 0 1px #d4a300}',
       '.p7-hide{display:none!important}',
+      /* plan scope colours */
+      '#p7Layer .p7-svg .p7-plan{pointer-events:none;cursor:default;opacity:1}',
+      '#p7Layer .p7-svg .p7-plan-enc{fill:rgba(90,180,220,.42);stroke:#5ab4dc;stroke-width:2}',
+      '#p7Layer .p7-svg .p7-plan-mp{fill:none;stroke:rgba(160,120,220,.72);stroke-width:12;stroke-linejoin:round}',
+      '#p7Layer .p7-svg .p7-plan-ws{fill:none;stroke:rgba(240,90,130,.72);stroke-width:12;stroke-linecap:round}',
+      /* sf window */
+      '#p7Sf{position:absolute;z-index:31;width:300px;max-width:calc(100% - 24px);background:var(--panel,#161b22);color:var(--text);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.35);padding:8px 10px;font-size:11.5px;opacity:.96}',
+      '#p7Sf .p7-sf-h{display:flex;align-items:center;gap:6px}', '#p7Sf .p7-sf-h b{font-size:12px}',
+      '#p7Sf .p7-sf-h button{background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:5px;width:22px;height:20px;cursor:pointer;font:inherit;line-height:1}',
+      '#p7Sf .p7-sf-t{margin:7px 0 3px;font-weight:700;color:var(--text-dim);font-size:11px}',
+      '#p7Sf table{width:100%;border-collapse:collapse;table-layout:fixed}', '#p7Sf td{padding:2px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}', '#p7Sf td.num{width:118px}',
+      '#p7Sf td.num{text-align:right;font-variant-numeric:tabular-nums;padding-left:8px}',
+      '#p7Sf .p7-sf-src td{white-space:normal;color:var(--text-dim);font-size:10.5px;padding-bottom:3px}',
+      '#p7Sf .p7-sf-note{margin-top:6px;color:var(--text-dim);font-size:10px}',
+      '@media (max-width:700px){#p7Sf{width:220px;font-size:10.5px}}',
       '.p7-one-col{grid-template-columns:1fr!important}',
       /* editor footer: More → on the left */
       '.p7-ed-foot{align-items:center;gap:8px}', '.p7-ed-foot .p7-grow{flex:1}',

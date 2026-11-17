@@ -234,7 +234,34 @@ for fk,(doc,pg,clip,sheet,nm,hs) in KEYS.items():
     add_floor(fk,nm,doc,pg,clip,sheet,dpi=110)
     # (group, rect[, floor]) — a floor sends the hot spot straight to that sheet (roofs E / W)
     HOT[fk]=[dict(group=h[0],**norm(clip,h[1]),**({'floor':h[2]} if len(h)>2 else {})) for h in hs]
-json.dump(dict(floors=FLOORS,pieces=PIECES,hot=HOT),open(f'{OUT}/p7data.json','w'),ensure_ascii=False)
+# ---------------- KB plans, coloured by scope like the proposal's "Overall Item View" (Leo 11-13)
+# Colour only — no pieces, no numbers; status is still kept on the elevations.
+#   enc = elevator hoistway enclosure (filled)          mp = EMR exterior metal panel (KGS-A-601/602)
+#   ws  = control area windscreen / porcelain enamel exterior wall (note 9 on A-139/A-140; A-545 det. 3/4)
+# Points are PDF pt on the Final-2 sheets (1/8" = 1'-0"), read off the wall lines by hand.
+PLANS={
+ 'P134':(28,R(1150,620,1600,1150),'KGS-A-134',{'en':'EL-536 Mezzanine plan (A-134)','zh':'EL-536 夹层平面 (A-134)'},
+        [('enc',[(1263.8,786.3),(1354.4,761.3),(1393.8,871.9),(1300.0,901.3)]),
+         ('mp', [(1298.8,903.1),(1393.8,873.8),(1445.6,1025.0),(1351.3,1055.0)])]),
+ 'P139':(33,R(1150,650,1700,1300),'KGS-A-139',{'en':'EL-536 Control Area R290B plan (A-139)','zh':'EL-536 控制区 R290B 平面 (A-139)'},
+        [('enc',[(1206.7,748.7),(1291.3,726.7),(1318.0,822.0),(1235.3,848.7)]),
+         ('ws', [(1318.0,824.7),(1423.3,1083.3)])]),
+ 'P135':(29,R(650,430,1050,950),'KGS-A-135',{'en':'EL-535 Mezzanine plan (A-135)','zh':'EL-535 夹层平面 (A-135)'},
+        [('enc',[(811.0,611.0),(907.5,611.0),(907.5,720.6),(811.0,720.6)]),
+         ('mp', [(795.0,724.0),(906.0,724.0),(906.0,875.0),(795.0,875.0)])]),
+ 'P140':(34,R(650,200,1250,750),'KGS-A-140',{'en':'EL-535 Control Area R290A plan (A-140)','zh':'EL-535 控制区 R290A 平面 (A-140)'},
+        [('enc',[(803.6,591.4),(896.4,591.4),(896.4,697.9),(803.6,697.9)]),
+         ('ws', [(957.1,439.3),(957.1,589.3)])]),
+}
+PLAN={}
+for fk,(pg,clip,sheet,nm,shapes) in PLANS.items():
+    add_floor(fk,nm,KB,pg,clip,sheet,dpi=150)
+    PLAN[fk]=[dict(k=k,pts=normpoly(clip,pts),open=(k=='ws')) for k,pts in shapes]
+# Control-area windscreen size off KGS-A-545 (3/8" = 1'-0", 27 pt/ft): outer frame verticals x height 9'-6"
+WSA={'P140':dict(w_ft=round((786.9-374.0)/27,2),h_ft=9.5,src='KGS-A-545 det. 3 (East Control Area)'),
+     'P139':dict(w_ft=round((1436.5-1158.6)/27,2),h_ft=9.5,src='KGS-A-545 det. 4 (West Control Area)')}
+for k,v in WSA.items(): v['sf']=round(v['w_ft']*v['h_ft'],1)
+json.dump(dict(floors=FLOORS,pieces=PIECES,hot=HOT,plans=PLAN,ws=WSA),open(f'{OUT}/p7data.json','w'),ensure_ascii=False)
 import collections
 print(len(FLOORS),'floors',len(PIECES),'pieces')
 print(collections.Counter(p['kind'] for p in PIECES))

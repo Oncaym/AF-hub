@@ -9,8 +9,10 @@ def short(k):
     if k[:3].isdigit() and k[3:] in SIDE: return {'en':SIDE[k[3:]][0],'zh':SIDE[k[3:]][1]}
     return {'KBRE':{'en':'East roofs (A-151)','zh':'东侧屋面 (A-151)'},'KBRW':{'en':'West roofs (A-150)','zh':'西侧屋面 (A-150)'},
             'R533':{'en':'EL-533 roof','zh':'EL-533 屋面'},'R534':{'en':'EL-534 roof','zh':'EL-534 屋面'},
-            'KBKEY':{'en':'Key plan','zh':'总平面'},'167KEY':{'en':'Key plan','zh':'总平面'}}[k]
-ORDER=['KBKEY','535E','535S','535W','535N','536E','536S','536W','536N','KBRE','KBRW',
+            'KBKEY':{'en':'Key plan','zh':'总平面'},'167KEY':{'en':'Key plan','zh':'总平面'},
+            'P134':{'en':'Plan · Mezzanine','zh':'平面 · 夹层'},'P139':{'en':'Plan · Control Area','zh':'平面 · 控制区'},
+            'P135':{'en':'Plan · Mezzanine','zh':'平面 · 夹层'},'P140':{'en':'Plan · Control Area','zh':'平面 · 控制区'}}[k]
+ORDER=['KBKEY','535E','535S','535W','535N','P135','P140','536E','536S','536W','536N','P134','P139','KBRE','KBRW',
        '167KEY','533N','533E','533W','533S','533P','534N','534E','534W','534S','534P','R533','R534']
 assert set(ORDER)==set(F), set(F)^set(ORDER)
 for k in F:
@@ -23,8 +25,8 @@ for k in ORDER:
     floors.append(dict(key=k,name=nm,short=short(k),img='img/'+f['img'],imgDark='img/'+f['imgDark'],sheet=f['sheet'],size=f['size']))
 nav={'stations':[
   {'id':'KB','key':'KBKEY','name':'Kingsbridge Rd','groups':[
-     {'id':'EL535','name':{'en':'EL-535','zh':'EL-535'},'zones':['EL-535'],'floors':['535E','535S','535W','535N']},
-     {'id':'EL536','name':{'en':'EL-536','zh':'EL-536'},'zones':['EL-536'],'floors':['536E','536S','536W','536N']},
+     {'id':'EL535','name':{'en':'EL-535','zh':'EL-535'},'zones':['EL-535'],'floors':['535E','535S','535W','535N','P135','P140']},
+     {'id':'EL536','name':{'en':'EL-536','zh':'EL-536'},'zones':['EL-536'],'floors':['536E','536S','536W','536N','P134','P139']},
      {'id':'KBR','name':{'en':'Roofs','zh':'屋面'},'zones':['KB Roofs'],'floors':['KBRE','KBRW']}]},
   {'id':'S167','key':'167KEY','name':'167th St','groups':[
      {'id':'EL533','name':{'en':'EL-533','zh':'EL-533'},'zones':['EL-533'],'floors':['533N','533E','533W','533S','533P']},
@@ -174,6 +176,11 @@ return {{
   p7nav: {J(nav)},
   /* key-plan hot spots (percent of the key-plan sheet) → group id */
   p7hot: {J(d['hot'])},
+  /* KB plans coloured by scope (no pieces): enc = elevator enclosure, mp = EMR exterior metal panel,
+     ws = control-area windscreen / porcelain wall; pts in percent of the sheet */
+  p7plan: {J(d.get('plans',{}))},
+  /* control-area windscreen sf off KGS-A-545 (not tracked as pieces) */
+  p7ws: {J(d.get('ws',{}))},
   /* piece geometry, percent of the sheet: [{{f: floorKey, x, y, w, h, poly?}}] */
   p7geo: {{
 {(','+chr(10)).join('    '+J(k)+':'+J(v) for k,v in geo.items())}
