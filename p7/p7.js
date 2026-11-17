@@ -28,7 +28,7 @@
    ========================================================================== */
 (function () {
   'use strict';
-  var BUILD = 'p7·2026-11-17a';
+  var BUILD = 'p7·2026-11-17b';
   var P = window.PROJECT || {};
   var NAV = P.p7nav || { stations: [] };
   var GEO = P.p7geo || {};
@@ -250,9 +250,9 @@
         var gl = g ? all.filter(function (u) { return (g.zones || []).indexOf(u.zone) >= 0; }) : [];
         h += '<div class="p7-sf-t">' + esc(g ? nm(g.name) : '') + (zh ? '（全部立面）' : ' (all elevations)') + '</div><table>' + sfRows(sumBy(gl));
         if (WS[k]) {
-          h += '<tr class="p7-sf-x"><td><i class="p7-dot" style="background:' + PLAN_LG.ws.c + '"></i>' + (zh ? 'Windscreen（两面）' : 'Windscreen (2 walls)') + '</td><td class="num">≈ ' + fmt(WS[k].sf) + ' sf</td></tr>';
+          h += '<tr class="p7-sf-x"><td><i class="p7-dot" style="background:' + PLAN_LG.ws.c + '"></i>' + 'Windscreen' + '</td><td class="num">≈ ' + fmt(WS[k].sf) + ' sf</td></tr>';
           WS[k].rows.forEach(function (r) {
-            h += '<tr class="p7-sf-src"><td>' + esc(r[lang()] || r.en) + ' · ' + esc(WS[k].src + ' ' + r.ref) + ' · ' + fmt(r.w_ft) + "' × " + fmt(r.h_ft) + "'</td><td class=\"num\">" + fmt(r.sf) + '</td></tr>';
+            h += '<tr class="p7-sf-src"><td>' + esc(r[lang()] || r.en) + ' · ' + esc(r.ref) + ' · ' + fmt(r.w_ft) + "' × " + fmt(r.h_ft) + "'</td><td class=\"num\">" + fmt(r.sf) + '</td></tr>';
           });
           h += '<tr class="p7-sf-x"><td><i class="p7-dot" style="background:' + PLAN_LG.ws.c + '"></i>' + (zh ? '房间搪瓷墙板' : 'Room wall panels') + '</td><td class="num">' + (zh ? '待量' : 'TBD') + '</td></tr>';
         }

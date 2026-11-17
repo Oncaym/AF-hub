@@ -250,14 +250,18 @@ PLANS={
         [('enc',[(1206.7,748.7),(1291.3,726.7),(1318.0,822.0),(1235.3,848.7)]),
          ('ws', [(1168.1,869.4),(1263.4,1162.7)]),                     # long wall = A-402 elev. 1 'South' (34'-2½")
          ('ws', [(1323.4,818.0),(1408.1,1078.0)]),                     # long wall = A-402 elev. 3 'North' (30'-10½")
-         ('ws', [(1421.8,1084.2),(1568.0,1081.8),(1568.0,1164.5),(1448.6,1166.7)],'closed')]),  # EPR 024 + cleaner's 025
+         ('ws', [(1421.8,1084.2),(1568.0,1081.8),(1568.0,1164.5),(1448.6,1166.7)],'closed'),  # EPR 024 + cleaner's 025
+         # new pieces tying into the existing windscreen at the edge (black on A-139, grey = existing);
+         # the proposal colours them too, and everything in the proposal is current scope (Leo 11-17)
+         ('ws', [(1232.2,1189.0),(1272.0,1189.0)]),
+         ('ws', [(1561.8,1189.0),(1601.6,1189.0)])]),
  'P135':(29,R(650,430,1050,950),'KGS-A-135',{'en':'EL-535 Mezzanine plan (A-135)','zh':'EL-535 夹层平面 (A-135)'},
         [('enc',[(811.0,611.0),(907.5,611.0),(907.5,720.6),(811.0,720.6)]),
          ('mp', [(795.0,724.0),(906.0,724.0),(906.0,875.0),(795.0,875.0)])]),
  'P140':(34,R(650,200,1250,750),'KGS-A-140',{'en':'EL-535 Control Area R290A plan (A-140)','zh':'EL-535 控制区 R290A 平面 (A-140)'},
         [('enc',[(803.6,591.4),(896.4,591.4),(896.4,697.9),(803.6,697.9)]),
-         ('ws', [(711.7,329.0),(711.7,443.0),(789.0,443.0),(789.0,592.0)]),     # cleaner's 021 + west wall
-         ('ws', [(1036.7,329.0),(1036.7,443.0),(959.5,443.0),(959.5,592.0)])]), # room + east wall
+         ('ws', [(712.0,313.5),(712.0,443.0),(789.0,443.0),(789.0,592.0)]),     # cleaner's 021 + west wall (up to the edge)
+         ('ws', [(1037.5,313.5),(1037.5,443.0),(959.5,443.0),(959.5,592.0)])]), # refuse 023 / elec. 022 + east wall
 }
 PLAN={}
 for fk,(pg,clip,sheet,nm,shapes) in PLANS.items():
@@ -267,11 +271,12 @@ for fk,(pg,clip,sheet,nm,shapes) in PLANS.items():
 # and A-404 elev. 4). 290B lengths are dimensioned; 290A has no dimension, so grid 23-26 is scaled
 # off A-404 (1/4" = 1'-0", 18 pt/ft). Room wall panels (notes 13/14) are coloured but not measured yet.
 WSA={'P139':dict(src='KGS-A-402',rows=[
-        dict(en='South wall',zh='南墙',w_ft=round(3+4/12+3*(10+3.5/12),2),h_ft=9.5,ref="elev. 1 · 3'-4\" + 3 × 10'-3½\""),
-        dict(en='North wall',zh='北墙',w_ft=round(3*(10+3.5/12),2),h_ft=9.5,ref="elev. 3 · 3 × 10'-3½\"")]),
+        dict(en='South wall',zh='南墙',w_ft=round(3+4/12+3*(10+3.5/12),2),h_ft=9.5,ref="KGS-A-402 elev. 1 · 3'-4\" + 3 × 10'-3½\""),
+        dict(en='North wall',zh='北墙',w_ft=round(3*(10+3.5/12),2),h_ft=9.5,ref="KGS-A-402 elev. 3 · 3 × 10'-3½\""),
+        dict(en='2 tie-ins to existing',zh='接现有 2 段',w_ft=round((1272.0-1232.2+1601.6-1561.8)/9,2),h_ft=9.5,ref="KGS-A-139 scaled 1/8\" · height assumed 9'-6\"")]),
      'P140':dict(src='KGS-A-404',rows=[
-        dict(en='North wall',zh='北墙',w_ft=round((1422.3-1142.6)/18,2),h_ft=9.5,ref='elev. 2 · grid 23–26, scaled'),
-        dict(en='South wall',zh='南墙',w_ft=round((589.7-309.9)/18,2),h_ft=9.5,ref='elev. 4 · grid 26–23, scaled')])}
+        dict(en='North wall',zh='北墙',w_ft=round((1422.3-1142.6)/18,2),h_ft=9.5,ref='KGS-A-404 elev. 2 · grid 23–26, scaled'),
+        dict(en='South wall',zh='南墙',w_ft=round((589.7-309.9)/18,2),h_ft=9.5,ref='KGS-A-404 elev. 4 · grid 26–23, scaled')])}
 for v in WSA.values():
     for r in v['rows']: r['sf']=round(r['w_ft']*r['h_ft'],1)
     v['sf']=round(sum(r['sf'] for r in v['rows']),1)
