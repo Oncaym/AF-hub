@@ -55,6 +55,8 @@ function build(boardId, info, issuesObj, drawingsObj, now, opts) {
   const day = dayOf(now);
   const lines = [`**${(info && info.name) || boardId} · review comments** — ${day}`];
   const notice = noticeFor(opts && opts.notice, boardId, now);
+  /* "alone": the notice is posted by itself, no counts (Leo 11-18: a one-time message) */
+  if (notice && opts.notice.alone) return notice + '\n' + `${SITE}/design/#b=${boardId}`;
   if (!open.length && !ask.length && !fixed.length && !fresh && !closed) {
     lines.push(issues.length
       ? '✅ Nothing open on the board. New review comments go on the board too, one per change, so none get lost.'
@@ -132,6 +134,8 @@ async function main() {
   for (const [board, channel] of Object.entries(channels)) {
     const [info, issues, drawings] = await Promise.all(['boardInfo/' + board, 'boards/' + board + '/issues', 'boards/' + board + '/drawings'].map(p => db.ref(p).once('value').then(s => s.val())));
     if (!info) { console.log(`- ${board}: no such board, skipped`); continue; }
+    // a stand-alone notice is a one-time message: boards it is not for get nothing this run
+    if (notice && notice.alone && !noticeFor(notice, board, now)) { console.log(`- ${board}: stand-alone notice is not for this board, skipped`); continue; }
     const msg = build(board, info, issues, drawings, now, { notice });
     // The log is public: print the redacted copy; Discord gets the full message.
     console.log(`--- ${board}${dry ? ' (dry run, not posted)' : ''}\n${build(board, info, issues, drawings, now, { pub: true, notice })}\n`);

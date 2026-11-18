@@ -32,6 +32,10 @@ ok(/\n\nQ1\?\nQ2\?\nhttps:/.test(build('ac3', { name: 'AC3' }, null, {}, NOW, { 
 ok(!/Q1/.test(build('ac3', { name: 'AC3' }, null, {}, NOW + 2 * D, { notice })), 'not after its date');
 ok(!/Q1/.test(build('hillview', { name: 'H' }, null, {}, NOW, { notice })), 'not on other boards');
 ok(/Q1/.test(build('hillview', { name: 'H' }, null, {}, NOW, { notice: { text: 'Q1', until: '2026-10-30' } })), 'every board when it names none');
+// a stand-alone notice is the whole message (no counts), still only on its boards and dates
+const alone = { text: 'Hi team', until: '2026-10-17', boards: ['ac3'], alone: true };
+ok(/^Hi team\nhttps:\/\/[^\n]*#b=ac3$/.test(build('ac3', { name: 'AC3' }, issues, dw, NOW, { notice: alone })), 'alone: just the notice and the link');
+ok(/To fix/.test(build('ac3', { name: 'AC3' }, issues, dw, NOW + 2 * D, { notice: alone })), 'alone: after its date the normal digest');
 // the second scheduled run does not post the same day twice
 const { alreadyPosted } = require('../../report/discord-digest.js');
 const bot = '42', mine = c => ({ author: { id: bot }, content: c });

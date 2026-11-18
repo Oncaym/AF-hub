@@ -1,8 +1,9 @@
 {
-  "_about": "Added under the daily Discord digest (report/discord-digest.js) until 'until' (New York date). 2026-11-18 (Leo): one-time post, AC3 SF shop drawings returned AAN — which sheets to revise. Empty text or a past date = nothing added.",
+  "_about": "Added under the daily Discord digest (report/discord-digest.js) until 'until' (New York date). \"alone\": true posts the notice by itself instead of the digest, only on its boards. 2026-11-18 (Leo): one-time AC3 message, SF shop drawings returned AAN. Empty text or a past date = nothing added.",
   "until": "2026-11-18",
   "boards": [
     "ac3"
   ],
-  "text": "📐 **SF shop drawings came back Approved as Noted** (Dattner + Monadnock markups). **12 sheets need changes:**\nAC3-010 · 011 · 100 · 103A · 108 · 112 · 116 · 117A · 119 · 120 · 516 · 520\nEach change is one card on the board, in the reviewer's own words, with the PDF page. Put your name on the cards you take. The other 66 sheets are marked Approved.\nMarkup PDF: 3. Submittal \\ 1. Transmittal \\ 1. In \\ 2. Approved \\ 1. Shop Drawing \\ 2. SF bulletin 2"
+  "alone": true,
+  "text": "Hi team 👋 The SF shop drawings came back **Approved as Noted**, thanks for all the work on this set! Dattner and Monadnock left a few markups on **12 sheets**:\nAC3-010 · 011 · 100 · 103A · 108 · 112 · 116 · 117A · 119 · 120 · 516 · 520\n\n📂 Marked-up PDF: 3. Submittal \\ 1. Transmittal \\ 1. In \\ 2. Approved \\ 1. Shop Drawing \\ 2. SF bulletin 2\n📋 Same comments on the board:"
 }
