@@ -359,8 +359,22 @@
       applyPlanTransform();
     });
   }
+  // The tracker's own wording names the company in a few dialogs; the public demo stays anonymous.
+  const NEUTRAL = [[/(?:the )?Advanced Facade/g, 'the contractor'], [/@advfacade\.com/g, '@example.com'], [/\bAF [Hh]ub\b/g, 'the hub']];
+  function neutral(root) {
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) {
+      let v = n.nodeValue; if (!/Advanced Facade|advfacade|AF [Hh]ub/.test(v)) continue;
+      NEUTRAL.forEach(([re, to]) => { v = v.replace(re, to); }); n.nodeValue = v;
+    }
+    root.querySelectorAll && root.querySelectorAll('[placeholder],[title]').forEach(el => {
+      ['placeholder', 'title'].forEach(a => { const v = el.getAttribute(a); if (v && /Advanced Facade|advfacade|AF [Hh]ub/.test(v)) { let x = v; NEUTRAL.forEach(([re, to]) => { x = x.replace(re, to); }); el.setAttribute(a, x); } });
+    });
+  }
   function boot() {
     bar();
+    neutral(document.body);
+    new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) neutral(n); else if (n.nodeType === 3 && /Advanced Facade|advfacade|AF [Hh]ub/.test(n.nodeValue)) neutral(n.parentNode); }))).observe(document.body, { childList: true, subtree: true });
     // the demo signs every visitor in: the hub's back link and sign-in form have no job here
     setTimeout(() => { ['hubBtn', 'cs-auth-gate'].forEach(id => { const el = document.getElementById(id); if (el) el.remove(); }); }, 400);
     let tries = 0;
