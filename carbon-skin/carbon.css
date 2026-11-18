@@ -1,0 +1,146 @@
+/* ============================================================
+   Carbon Skin — the carbon layer on top of the AF tracker.
+   One sequential ramp (one hue, OKLCH h≈200): in the night theme
+   more carbon is LIGHTER, in the day theme it is DARKER, so the
+   heavy units always stand out from the page.
+   ============================================================ */
+:root {
+  --cz1: #0c6468; --cz2: #0b888d; --cz3: #20acb3; --cz4: #52d0d6; --cz5: #92f1f6;
+  --cz-ink: #92f1f6;           /* text accent for carbon figures */
+  --cz-glow: rgba(82, 208, 214, .35);
+}
+body.day-mode {
+  --cz1: #9adfe7; --cz2: #5abfca; --cz3: #009ca9; --cz4: #007985; --cz5: #005a64;
+  --cz-ink: #007985;
+  --cz-glow: rgba(0, 121, 133, .25);
+}
+
+/* demo strip */
+.cs-demo-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center;
+  background: linear-gradient(90deg, rgba(32,172,179,.16), rgba(68,147,248,.12));
+  border-bottom: 1px solid var(--border); color: var(--text); font-size: 12.5px; padding: 7px 14px; }
+.cs-demo-bar b { color: var(--cz-ink); }
+.cs-demo-bar button { background:none; border:1px solid var(--border); color: var(--text-dim);
+  border-radius: 6px; padding: 2px 9px; font-size: 12px; cursor: pointer; }
+#hubBtn { display: none !important; }
+
+/* KPI cards */
+.kpi-card.cz-card::before { background: linear-gradient(180deg, var(--cz5), var(--cz2)); width: 3px; }
+.kpi-card.cz-card .kpi-value { color: var(--cz-ink); }
+.kpi-card.cz-card .kpi-value small { font-size: 15px; font-weight: 600; margin-left: 3px; color: var(--text-dim); }
+.kpi-card.cz-hero { background:
+  radial-gradient(120% 140% at 100% 0%, rgba(32,172,179,.22), transparent 55%), var(--panel); }
+.kpi-card.cz-hero .kpi-value { font-size: 34px; }
+.cz-bar { height: 6px; border-radius: 3px; background: var(--panel-2); margin-top: 10px; overflow: hidden; position: relative; }
+.cz-bar i { position:absolute; left:0; top:0; bottom:0; background: linear-gradient(90deg, var(--cz2), var(--cz5)); border-radius: 3px; }
+.cz-bar u { position:absolute; top:-3px; bottom:-3px; width:2px; background: var(--text-dim); text-decoration:none; }
+.cz-down { color: var(--green); font-weight: 650; }
+.cz-up { color: var(--orange); font-weight: 650; }
+@media (max-width: 560px) {
+  .kpi-card.cz-hero { grid-column: 1 / -1; }
+}
+@media (min-width: 1100px) {
+  .kpi-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+}
+
+/* plan: the Carbon lens */
+.plan-wrap.lens-carbon .plan-marker { color: #04181a; border-color: rgba(255,255,255,.55); font-weight: 750; }
+body.day-mode .plan-wrap.lens-carbon .plan-marker { color: #fff; border-color: rgba(0,0,0,.25); }
+.plan-wrap.lens-carbon .plan-marker.cz1 { background: var(--cz1) !important; color:#e6fbfc; }
+.plan-wrap.lens-carbon .plan-marker.cz2 { background: var(--cz2) !important; color:#e6fbfc; }
+.plan-wrap.lens-carbon .plan-marker.cz3 { background: var(--cz3) !important; }
+.plan-wrap.lens-carbon .plan-marker.cz4 { background: var(--cz4) !important; }
+.plan-wrap.lens-carbon .plan-marker.cz5 { background: var(--cz5) !important; box-shadow: 0 0 0 4px var(--cz-glow), 0 0 14px var(--cz-glow); }
+body.day-mode .plan-wrap.lens-carbon .plan-marker.cz1, body.day-mode .plan-wrap.lens-carbon .plan-marker.cz2 { color:#003a40; }
+.plan-wrap.lens-carbon .plan-marker.cz-open { background: var(--bg) !important; color: var(--text-dim);
+  border: 1.5px dashed var(--text-dim) !important; opacity: 1; }
+.plan-wrap.lens-carbon .plan-marker.cz-issue { outline: 2px solid var(--red); outline-offset: 2px; }
+.plan-wrap.lens-carbon .plan-marker.cz-new { animation: czPulse 1.4s ease-out 2; }
+@keyframes czPulse { 0% { box-shadow: 0 0 0 0 var(--cz-glow); } 100% { box-shadow: 0 0 0 18px rgba(0,0,0,0); } }
+.lens-btn.cz-lens.active { background: linear-gradient(90deg, var(--cz3), var(--cz4)); color: #04181a; border-color: transparent; }
+.cz-key { display:inline-flex; align-items:center; gap:6px; margin-left: 6px; font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+.cz-key i { display:inline-block; width: 14px; height: 8px; border-radius: 2px; }
+.cz-key .open { width: 10px; height: 10px; border-radius: 50%; border: 1.5px dashed var(--text-dim); }
+
+/* the booking sheet */
+.cz-sheet-ov { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 300; display: none; align-items: flex-end; justify-content: center; backdrop-filter: blur(3px); }
+.cz-sheet-ov.show { display: flex; }
+.cz-sheet { width: 100%; max-width: 460px; background: var(--panel); border: 1px solid var(--border); border-bottom: 0;
+  border-radius: 16px 16px 0 0; padding: 10px 20px calc(20px + env(safe-area-inset-bottom)); box-shadow: 0 -12px 40px rgba(0,0,0,.45);
+  animation: czUp .22s ease-out; }
+@media (min-width: 700px) { .cz-sheet-ov { align-items: center; } .cz-sheet { border-radius: 16px; border-bottom: 1px solid var(--border); } }
+@keyframes czUp { from { transform: translateY(30px); opacity: .4; } to { transform: none; opacity: 1; } }
+.cz-grab { width: 38px; height: 4px; border-radius: 2px; background: var(--border); margin: 0 auto 12px; }
+.cz-sh-head { display:flex; align-items:center; gap: 10px; }
+.cz-sh-id { font-size: 20px; font-weight: 750; letter-spacing: -.01em; }
+.cz-sh-sub { font-size: 12px; color: var(--text-dim); }
+.cz-pill { margin-left:auto; font-size: 11.5px; font-weight: 650; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-dim); white-space: nowrap; }
+.cz-pill.installed { color: var(--green); border-color: rgba(63,185,80,.45); background: rgba(63,185,80,.1); }
+.cz-pill.issue { color: var(--red); border-color: rgba(248,81,73,.45); background: rgba(248,81,73,.1); }
+.cz-pill.in-progress { color: var(--yellow); border-color: rgba(210,153,34,.45); background: rgba(210,153,34,.1); }
+.cz-big { margin: 16px 0 4px; display:flex; align-items: baseline; gap: 6px; }
+.cz-big b { font-size: 44px; font-weight: 780; letter-spacing: -.03em; color: var(--cz-ink); line-height: 1; }
+.cz-big span { font-size: 14px; color: var(--text-dim); font-weight: 600; }
+.cz-facts { display:grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0; }
+.cz-facts div { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+.cz-facts label { display:block; font-size: 10.5px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .5px; }
+.cz-facts b { font-size: 15px; }
+.cz-parts { margin: 4px 0 14px; }
+.cz-part { display:grid; grid-template-columns: 1fr 64px; gap: 10px; align-items:center; font-size: 12.5px; margin: 6px 0; }
+.cz-part .cz-bar { margin: 4px 0 0; height: 5px; }
+.cz-part em { font-style: normal; text-align: right; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.cz-src { font-size: 11px; color: var(--text-dim); margin-bottom: 14px; }
+.cz-actions { display:flex; gap: 8px; }
+.cz-actions .btn { flex: 1; justify-content: center; padding: 12px; font-size: 14px; font-weight: 650; border-radius: 10px; }
+.cz-book { background: linear-gradient(90deg, var(--cz3), var(--cz4)) !important; color: #04181a !important; border: 0 !important; }
+body.day-mode .cz-book { color: #fff !important; }
+
+/* ledger section */
+#czLedger .section-title::before { content: ''; }
+.cz-grid { display:grid; grid-template-columns: 1.15fr 1fr; gap: 18px; }
+@media (max-width: 820px) { .cz-grid { grid-template-columns: 1fr; } }
+.cz-card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.cz-card h4 { font-size: 12px; font-weight: 650; color: var(--text-dim); text-transform: uppercase; letter-spacing: .5px; margin: 0 0 10px; display:flex; justify-content: space-between; }
+.cz-days { display:flex; align-items:flex-end; gap: 3px; height: 120px; }
+.cz-days div { flex: 1; background: linear-gradient(180deg, var(--cz5), var(--cz2)); border-radius: 3px 3px 0 0; min-height: 2px; position: relative; }
+.cz-days div.zero { background: var(--panel-2); }
+.cz-days div.today { box-shadow: 0 0 0 2px var(--cz-glow); }
+.cz-axis { display:flex; justify-content: space-between; font-size: 10.5px; color: var(--text-dim); margin-top: 6px; }
+.cz-row { display:grid; grid-template-columns: 112px 1fr 64px; gap: 10px; align-items: center; margin: 9px 0; font-size: 13px; }
+.cz-row .cz-bar { margin: 0; height: 8px; }
+.cz-row em { font-style:normal; text-align:right; font-variant-numeric: tabular-nums; font-weight: 650; }
+.cz-row small { display:block; color: var(--text-dim); font-size: 11px; }
+.cz-elev-pick { display:flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.cz-elev svg { width: 100%; height: auto; display:block; }
+.cz-elev .cz-op { cursor: pointer; }
+.cz-elev .cz-op:hover .cz-lite { filter: brightness(1.15); }
+.cz-elev .cz-frame { fill: #8b949e; }
+body.day-mode .cz-elev .cz-frame { fill: #6e7781; }
+.cz-elev .cz-lite.open { fill: var(--panel); stroke: var(--text-dim); stroke-width: 1; stroke-dasharray: 4 3; }
+.cz-elev .cz-lite.door { opacity: .92; }
+.cz-elev .cz-tag path { fill: var(--panel-2); stroke: var(--text-dim); stroke-width: 1; }
+.cz-elev .cz-tag text { fill: var(--text); font-size: 11px; font-weight: 700; text-anchor: middle; }
+.cz-elev .cz-kg { fill: var(--text); font-size: 12px; font-weight: 700; text-anchor: middle; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; }
+.cz-elev .cz-sel { fill: none; stroke: var(--text); stroke-width: 3; }
+.cz-today li { list-style:none; display:flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.cz-today li:last-child { border-bottom: 0; }
+.cz-today ul { margin: 0; padding: 0; }
+.cz-today b { color: var(--cz-ink); font-variant-numeric: tabular-nums; }
+.cz-note { font-size: 12px; color: var(--text-dim); margin-top: 10px; line-height: 1.5; }
+.unit-cell .cz-kgtag { display:block; font-size: 10.5px; color: var(--cz-ink); font-weight: 650; margin-top: 2px; }
+
+/* plan: in the Carbon lens the elevation keys step back */
+.plan-wrap.lens-carbon .elev-key { display: none; }
+/* phone header: one tidy row */
+@media (max-width: 760px) {
+  .lang-btn { white-space: nowrap; padding: 5px 8px; }
+  .header-actions .btn-primary { order: -1; }
+}
+
+@media (max-width: 640px) { .plan-viewport.cz-tall { height: 58vh; min-height: 420px; } }
+@media (max-width: 640px) {
+  .plan-wrap.lens-carbon .plan-marker { width: 27px; height: 27px; font-size: 10.5px; }
+  .plan-wrap.lens-carbon .plan-marker.door { border-radius: 7px; }
+}
+/* in the Carbon lens the plan is for booking, not for editing it: the editor tools step aside */
+#planSection:has(#planWrap.lens-carbon) .plan-toolbar { display: none; }

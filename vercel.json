@@ -10,7 +10,7 @@
       ]
     },
     {
-      "source": "/(design|assistant|send|mn|followup|todo)/(.*)",
+      "source": "/(design|assistant|send|mn|followup|todo|carbon-skin)/(.*)",
       "headers": [
         {
           "key": "Cache-Control",
