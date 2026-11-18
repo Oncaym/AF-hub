@@ -1,8 +1,8 @@
 {
-  "_about": "Added under the daily Discord digest (report/discord-digest.js) until 'until' (New York date). Leo 2026-10-19: the bot asks the design team for this week's trial feedback. Empty text or a past date = nothing added.",
-  "until": "2026-10-23",
+  "_about": "Added under the daily Discord digest (report/discord-digest.js) until 'until' (New York date). 2026-11-18 (Leo): one-time post, AC3 SF shop drawings returned AAN — which sheets to revise. Empty text or a past date = nothing added.",
+  "until": "2026-11-18",
   "boards": [
     "ac3"
   ],
-  "text": "🔑 **Him, Spark, DY: you can now add and close comments on the board.** First time: open the link below → type your @advfacade.com email → **First time here / forgot password** → set a password from the email → sign in.\n\n📝 **Trial feedback this week — please answer in this channel by Fri, Oct 23** (one line each is fine)\n1. **Design Board**: put this week's review comments on it. What was easy, what got in the way?\n2. **🔍 Check DXF** (Drawings → 🔍 Check DXF): run it on one sheet set you're working on. Which findings were real mistakes, which were false alarms, and what did it miss?\n3. **One thing** that would make you use the board every day instead of only Discord."
+  "text": "📐 **SF shop drawings came back Approved as Noted** (Dattner + Monadnock markups). **12 sheets need changes:**\nAC3-010 · 011 · 100 · 103A · 108 · 112 · 116 · 117A · 119 · 120 · 516 · 520\nEach change is one card on the board, in the reviewer's own words, with the PDF page. Put your name on the cards you take. The other 66 sheets are marked Approved.\nMarkup PDF: 3. Submittal \\ 1. Transmittal \\ 1. In \\ 2. Approved \\ 1. Shop Drawing \\ 2. SF bulletin 2"
 }
