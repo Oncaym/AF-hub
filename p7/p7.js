@@ -28,7 +28,7 @@
    ========================================================================== */
 (function () {
   'use strict';
-  var BUILD = 'p7·2026-11-19a';
+  var BUILD = 'p7·2026-11-19b';
   var P = window.PROJECT || {};
   var NAV = P.p7nav || { stations: [] };
   var GEO = P.p7geo || {};
@@ -376,6 +376,10 @@
         var cls = 'p7-pc p7-k-' + u.kind + ' ' + pieceClass(u) + (view === 'material' ? ' p7-mat' : '') + (only && lineOf(u) !== only ? ' p7-dim' : '');
         if (u.kind === 'frame' || u.kind === 'canopy') {
           html.push('<div class="' + cls + '"' + st + ' data-key="' + esc(u.key) + '"><b class="p7-tag" data-key="' + esc(u.key) + '">' + esc(label(u)) + '</b></div>');
+        } else if (g.poly && u.kind === 'porc') {
+          var P = g.poly, c0 = [(P[0][0] + P[3][0]) / 2, (P[0][1] + P[3][1]) / 2], c1 = [(P[1][0] + P[2][0]) / 2, (P[1][1] + P[2][1]) / 2];
+          svgPolys.push('<polyline class="' + cls + '" data-key="' + esc(u.key) + '" vector-effect="non-scaling-stroke" points="' + c0.join(',') + ' ' + c1.join(',') + '"><title>' +
+            esc(u.id + ' · ' + (u.note || '') + ' · ' + SL(u.stage)) + '</title></polyline>');
         } else if (g.poly) {
           svgPolys.push('<polygon class="' + cls + '" data-key="' + esc(u.key) + '" points="' + g.poly.map(function (p) { return p[0] + ',' + p[1]; }).join(' ') + '"' +
             (view === 'material' ? ' style="--mat:' + matBg + '"' : '') + '><title>' + esc(u.id + ' · ' + (u.note || '') + ' · ' + SL(u.stage)) + '</title></polygon>');
@@ -847,11 +851,10 @@
       '.p7-only{display:inline-flex;align-items:center;gap:4px;margin-right:8px;padding:1px 8px;border-radius:10px;background:#58a6ff;color:#fff;font-weight:600;cursor:pointer}',
       '#p7Sf tr.p7-sf-r{cursor:pointer}', '#p7Sf tr.p7-sf-r:hover td{background:rgba(127,127,127,.12)}', '#p7Sf tr.p7-sf-r.on td{background:rgba(88,166,255,.22)}',
       '#p7Layer .p7-roofl-porc{font-size:9px;padding:1px 4px;opacity:.9}',
-      '#p7Layer .p7-svg polygon.p7-k-porc{opacity:.9;stroke:#f2a65a;stroke-width:2.5px;vector-effect:non-scaling-stroke}',
+      '#p7Layer .p7-svg polyline.p7-k-porc{fill:none;stroke:rgba(242,166,90,.75);stroke-width:12px;stroke-linecap:butt;pointer-events:stroke;cursor:pointer}',
+      '#p7Layer .p7-svg polyline.p7-k-porc.p7-st-site{stroke:rgba(255,255,255,.85)}', '#p7Layer .p7-svg polyline.p7-k-porc.p7-st-installed{stroke:rgba(46,160,67,.85)}',
+      '#p7Layer .p7-svg polyline.p7-k-porc.p7-issue{stroke:rgba(248,81,73,.85)}', '#p7Layer .p7-svg polyline.p7-k-porc.p7-sel{stroke:rgba(88,166,255,.9)}',
       '#p7Layer .p7-k-louver{outline:1px solid #f4b8b8}',
-      '#p7Layer.p7-filter .p7-pc:not(.p7-dim):not(.p7-k-frame):not(.p7-k-canopy){outline:1.5px solid #ffd33d;box-shadow:0 0 0 2px rgba(255,211,61,.3);opacity:1}',
-      '#p7Layer.p7-filter .p7-svg polygon:not(.p7-dim){stroke:#ffd33d;stroke-width:1.5px;vector-effect:non-scaling-stroke;opacity:1}',
-      '#p7Layer.p7-filter .p7-svg .p7-plan:not(.p7-dim){filter:drop-shadow(0 0 3px #ffd33d)}',
       '#p7Layer .p7-svg .p7-plan-enc{fill:none;stroke:rgba(90,180,220,.7);stroke-width:12;stroke-linejoin:round}',
       '#p7Layer .p7-svg .p7-plan-mp{fill:none;stroke:rgba(160,120,220,.72);stroke-width:12;stroke-linejoin:round}',
       '#p7Layer .p7-svg .p7-plan-ws{fill:none;stroke:rgba(240,90,130,.72);stroke-width:12;stroke-linecap:round;stroke-linejoin:round}',
