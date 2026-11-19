@@ -241,7 +241,7 @@ for fk,(doc,pg,clip,sheet,nm,hs) in KEYS.items():
 #   enc = elevator hoistway enclosure (closed band)     mp = EMR exterior metal panel (KGS-A-601/602)
 #   ws  = windscreen with porcelain enamel panels on BOTH control-area long walls (A-402 / A-404 note 9)
 #         + porcelain enamel wall panels around the control-area rooms (A-402 note 13, A-404 note 14)
-# Points are PDF pt on the Final-2 sheets (1/8" = 1'-0"), taken off the wall vectors.
+# Points are PDF pt on the Final-2 sheets (1/8" = 1'-0"), on the wall centre lines (vectors, re-snapped 11-19).
 # (k, pts[, 'closed' | 'open']) — ws is an open line unless marked closed; enc / mp are closed unless marked open.
 PLANS={
  'P134':(28,R(1150,620,1600,1150),'KGS-A-134',{'en':'EL-536 Mezzanine plan (A-134)','zh':'EL-536 夹层平面 (A-134)'},
@@ -256,7 +256,7 @@ PLANS={
          ('ws', [(1232.2,1189.0),(1272.0,1189.0)]),
          ('ws', [(1561.8,1189.0),(1601.6,1189.0)]),
          # Cleaner's 025 north + east = wall type 1A, 18 ga metal panel on girts (A-410, A-603) (Leo 11-19)
-         ('mp', [(1494.0,1082.0),(1568.0,1082.0),(1568.0,1165.0)],'open')]),
+         ('mp', [(1494.0,1086.5),(1565.0,1086.5),(1565.0,1164.5)],'open')]),
  'P135':(29,R(650,430,1050,950),'KGS-A-135',{'en':'EL-535 Mezzanine plan (A-135)','zh':'EL-535 夹层平面 (A-135)'},
         [('enc',[(811.0,611.0),(907.5,611.0),(907.5,720.6),(811.0,720.6)]),
          ('mp', [(795.0,724.0),(906.0,724.0),(906.0,875.0),(795.0,875.0)])]),
@@ -266,8 +266,8 @@ PLANS={
          ('ws', [(959.5,443.0),(959.5,592.0)]),                         # east long wall
          # wall type 1 / 1A = metal panel on girts (A-408, A-409): Cleaner's 021 west + south,
          # Refuse 023 / EPR 022 east, EPR 022 south (Leo 11-19)
-         ('mp', [(712.0,326.0),(712.0,443.0),(789.0,443.0)],'open'),
-         ('mp', [(1037.5,326.0),(1037.5,443.0),(959.5,443.0)],'open')]),
+         ('mp', [(715.0,335.0),(715.0,440.5),(791.0,440.5)],'open'),
+         ('mp', [(1034.5,335.0),(1034.5,440.5),(958.0,440.5)],'open')]),
 }
 PLAN={}
 for fk,(pg,clip,sheet,nm,shapes) in PLANS.items():
@@ -279,15 +279,15 @@ for fk,(pg,clip,sheet,nm,shapes) in PLANS.items():
 # left out); heights 7'-6" at 290B (dimension next to note 13 on A-402) and 9'-6" at 290A (A-404,
 # windscreen height; the room wall has no own dimension). Drawn as bands on the A-139 / A-140 key plans.
 PORC=[ # id, zone, floor, (p0, p1) on the key plan, length ft, height ft, where
- ('EPR 024 N',      'EL-536','P139',((1421.8,1082.0),(1494.0,1082.0)), 8.25,7.5,'A-407 (wall type 2)'),
- ('EPR 024 W',      'EL-536','P139',((1421.8,1084.2),(1448.6,1166.7)), 9.8, 7.5,'A-407 (wall type 2, slanted)'),
- ('EPR 024 S',      'EL-536','P139',((1459.0,1165.0),(1494.0,1165.0)), 4.03,7.5,'A-407 (wall type 2, door left out)'),
- ("Cleaner's 025 S",'EL-536','P139',((1525.0,1165.0),(1568.0,1165.0)), 4.64,7.5,'A-410 (wall type 2A, door left out)'),
- ("Cleaner's 021 N",'EL-535','P140',((712.0,326.0),(789.0,326.0)),     8.83,9.5,'A-409 (wall type 2A)'),
- ("Cleaner's 021 E",'EL-535','P140',((789.0,326.0),(789.0,404.0)),     8.67,9.5,'A-409 (wall type 2A, door left out)'),
- ('Refuse 023 N',   'EL-535','P140',((959.5,326.0),(1037.5,326.0)),   8.94,9.5,'A-408 (wall type 2A)'),
- ('Refuse 023 W',   'EL-535','P140',((959.5,326.0),(959.5,397.0)),    5.72,9.5,'A-408 (wall type 2A)'),
- ('EPR 022 W',      'EL-535','P140',((959.5,397.0),(959.5,409.0)),    1.64,9.5,'A-408 (wall type 2, above door D06)'),
+ ('EPR 024 N',      'EL-536','P139',((1425.0,1086.5),(1494.0,1086.5)), 8.25,7.5,'A-407 (wall type 2)'),
+ ('EPR 024 W',      'EL-536','P139',((1425.0,1086.5),(1450.4,1164.5)), 9.8, 7.5,'A-407 (wall type 2, slanted)'),
+ ('EPR 024 S',      'EL-536','P139',((1459.0,1164.5),(1494.0,1164.5)), 4.03,7.5,'A-407 (wall type 2, door left out)'),
+ ("Cleaner's 025 S",'EL-536','P139',((1525.0,1164.5),(1565.0,1164.5)), 4.64,7.5,'A-410 (wall type 2A, door left out)'),
+ ("Cleaner's 021 N",'EL-535','P140',((715.0,335.0),(791.0,335.0)),     8.83,9.5,'A-409 (wall type 2A)'),
+ ("Cleaner's 021 E",'EL-535','P140',((791.0,335.0),(791.0,402.0)),     8.67,9.5,'A-409 (wall type 2A, door left out)'),
+ ('Refuse 023 N',   'EL-535','P140',((958.0,335.0),(1034.5,335.0)),   8.94,9.5,'A-408 (wall type 2A)'),
+ ('Refuse 023 W',   'EL-535','P140',((958.0,335.0),(958.0,387.0)),    5.72,9.5,'A-408 (wall type 2A)'),
+ ('EPR 022 W',      'EL-535','P140',((958.0,387.0),(958.0,402.0)),    1.64,9.5,'A-408 (wall type 2, above door D06)'),
 ]
 FLOOR_CLIP={k:(v[1]) for k,v in PLANS.items()}
 def band_poly(p0,p1,half=3.0):
@@ -311,15 +311,15 @@ LVS=[ # key, LV#, zone, floor, (x, y) on the key plan, wall, source
  ('LV-03', 3,'EL-536','P134',(1385.2,1044.2),'south','A-405 RCP'),
  ('LV-05', 5,'EL-535','P135',(795.0,750.0),'west','A-406 RCP'),
  ('LV-04', 4,'EL-535','P135',(795.0,857.0),'west','A-406 RCP'),
- ('LV-07', 7,'EL-536','P139',(1429.0,1082.0),'north','A-407 RCP'),
- ('LV-06', 6,'EL-536','P139',(1469.0,1165.0),'south','A-407 RCP'),
- ('LV-09', 9,'EL-536','P139',(1510.0,1082.0),'north','A-410 RCP'),
- ('LV-08', 8,'EL-536','P139',(1568.0,1152.0),'east','A-410 RCP'),
- ('LV-10',10,'EL-535','P140',(712.0,342.0),'west','A-409 RCP'),
- ('LV-11',11,'EL-535','P140',(712.0,434.0),'west','A-409 RCP'),
- ('LV-12',12,'EL-535','P140',(1037.5,334.0),'east','A-408 RCP'),
- ('LV-13',13,'EL-535','P140',(1037.5,402.0),'east','A-408 RCP'),
- ('LV-14',14,'EL-535','P140',(1037.5,419.0),'east','A-408 RCP'),
+ ('LV-07', 7,'EL-536','P139',(1432.0,1086.5),'north','A-407 RCP'),
+ ('LV-06', 6,'EL-536','P139',(1470.0,1164.5),'south','A-407 RCP'),
+ ('LV-09', 9,'EL-536','P139',(1510.0,1086.5),'north','A-410 RCP'),
+ ('LV-08', 8,'EL-536','P139',(1565.0,1150.0),'east','A-410 RCP'),
+ ('LV-10',10,'EL-535','P140',(715.0,350.0),'west','A-409 RCP'),
+ ('LV-11',11,'EL-535','P140',(715.0,430.0),'west','A-409 RCP'),
+ ('LV-12',12,'EL-535','P140',(1034.5,341.0),'east','A-408 RCP'),
+ ('LV-13',13,'EL-535','P140',(1034.5,393.0),'east','A-408 RCP'),
+ ('LV-14',14,'EL-535','P140',(1034.5,411.0),'east','A-408 RCP'),
 ]
 for key,n,zone,fk,(x,y),wall,src in LVS:
     clip=FLOOR_CLIP[fk]; w_in,h_in=LVSIZE[n]; sf=round(w_in*h_in/144,1); hs=6.0
