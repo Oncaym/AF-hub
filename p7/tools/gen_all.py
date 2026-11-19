@@ -23,7 +23,8 @@ def norm(clip,r):
 def normpoly(clip,pts):
     return [[round((x-clip.x0)/clip.width*100,3),round((y-clip.y0)/clip.height*100,3)] for x,y in pts]
 TYPE={'frame':'Frame','glass':'Glass','band':'Metal Panel','panel':'Metal Panel','louver':'Louver','cp':'Control Panel',
-      'com':'Composite Panel','canopy':'Glass Canopy','corner':'Corner Panel','angle':'Steel Corner Angle','roof':'Standing Seam Roof'}
+      'com':'Composite Panel','canopy':'Glass Canopy','corner':'Corner Panel','angle':'Steel Corner Angle','roof':'Standing Seam Roof',
+      'porc':'Porcelain Enamel Panel'}
 def piece(pid,kind,zone,floor,geos,ppf,sub=None,extra=None):
     # geos: list of (floorkey, clip, rect)
     r0=geos[0][2]
@@ -241,7 +242,7 @@ for fk,(doc,pg,clip,sheet,nm,hs) in KEYS.items():
 #   ws  = windscreen with porcelain enamel panels on BOTH control-area long walls (A-402 / A-404 note 9)
 #         + porcelain enamel wall panels around the control-area rooms (A-402 note 13, A-404 note 14)
 # Points are PDF pt on the Final-2 sheets (1/8" = 1'-0"), taken off the wall vectors.
-# (k, pts[, 'closed']) — ws is an open line unless marked closed; enc / mp are always closed.
+# (k, pts[, 'closed' | 'open']) — ws is an open line unless marked closed; enc / mp are closed unless marked open.
 PLANS={
  'P134':(28,R(1150,620,1600,1150),'KGS-A-134',{'en':'EL-536 Mezzanine plan (A-134)','zh':'EL-536 夹层平面 (A-134)'},
         [('enc',[(1263.8,786.3),(1354.4,761.3),(1393.8,871.9),(1300.0,901.3)]),
@@ -250,26 +251,84 @@ PLANS={
         [('enc',[(1206.7,748.7),(1291.3,726.7),(1318.0,822.0),(1235.3,848.7)]),
          ('ws', [(1168.1,869.4),(1263.4,1162.7)]),                     # long wall = A-402 elev. 1 'South' (34'-2½")
          ('ws', [(1323.4,818.0),(1408.1,1078.0)]),                     # long wall = A-402 elev. 3 'North' (30'-10½")
-         ('ws', [(1421.8,1084.2),(1568.0,1081.8),(1568.0,1164.5),(1448.6,1166.7)],'closed'),  # EPR 024 + cleaner's 025
          # new pieces tying into the existing windscreen at the edge (black on A-139, grey = existing);
          # the proposal colours them too, and everything in the proposal is current scope (Leo 11-17)
          ('ws', [(1232.2,1189.0),(1272.0,1189.0)]),
-         ('ws', [(1561.8,1189.0),(1601.6,1189.0)])]),
+         ('ws', [(1561.8,1189.0),(1601.6,1189.0)]),
+         # Cleaner's 025 north + east = wall type 1A, 18 ga metal panel on girts (A-410, A-603) (Leo 11-19)
+         ('mp', [(1494.0,1082.0),(1568.0,1082.0),(1568.0,1165.0)],'open')]),
  'P135':(29,R(650,430,1050,950),'KGS-A-135',{'en':'EL-535 Mezzanine plan (A-135)','zh':'EL-535 夹层平面 (A-135)'},
         [('enc',[(811.0,611.0),(907.5,611.0),(907.5,720.6),(811.0,720.6)]),
          ('mp', [(795.0,724.0),(906.0,724.0),(906.0,875.0),(795.0,875.0)])]),
  'P140':(34,R(650,200,1250,750),'KGS-A-140',{'en':'EL-535 Control Area R290A plan (A-140)','zh':'EL-535 控制区 R290A 平面 (A-140)'},
         [('enc',[(803.6,591.4),(896.4,591.4),(896.4,697.9),(803.6,697.9)]),
-         ('ws', [(712.0,313.5),(712.0,443.0),(789.0,443.0),(789.0,592.0)]),     # cleaner's 021 + west wall (up to the edge)
-         ('ws', [(1037.5,313.5),(1037.5,443.0),(959.5,443.0),(959.5,592.0)])]), # refuse 023 / elec. 022 + east wall
+         ('ws', [(789.0,443.0),(789.0,592.0)]),                         # west long wall
+         ('ws', [(959.5,443.0),(959.5,592.0)]),                         # east long wall
+         # wall type 1 / 1A = metal panel on girts (A-408, A-409): Cleaner's 021 west + south,
+         # Refuse 023 / EPR 022 east, EPR 022 south (Leo 11-19)
+         ('mp', [(712.0,326.0),(712.0,443.0),(789.0,443.0)],'open'),
+         ('mp', [(1037.5,326.0),(1037.5,443.0),(959.5,443.0)],'open')]),
 }
 PLAN={}
 for fk,(pg,clip,sheet,nm,shapes) in PLANS.items():
     add_floor(fk,nm,KB,pg,clip,sheet,dpi=150)
-    PLAN[fk]=[dict(k=s[0],pts=normpoly(clip,s[1]),open=(s[0]=='ws' and len(s)<3)) for s in shapes]
+    PLAN[fk]=[dict(k=s[0],pts=normpoly(clip,s[1]),open=(s[0]=='ws' and len(s)<3) or (len(s)>2 and s[2]=='open')) for s in shapes]
+# ---------------- Interior porcelain enamel wall panels (09 78 10) + station louvers LV-x (Leo 11-19)
+# Porcelain = walls tagged wall type 2 / 2A on the enlarged room plans KGS-A-407..410 (A-603: porcelain
+# enamel wall panel system on one side). Lengths are the outer face on those 1/2" plans (door openings
+# left out); heights 7'-6" at 290B (dimension next to note 13 on A-402) and 9'-6" at 290A (A-404,
+# windscreen height; the room wall has no own dimension). Drawn as bands on the A-139 / A-140 key plans.
+PORC=[ # id, zone, floor, (p0, p1) on the key plan, length ft, height ft, where
+ ('EPR 024 N',      'EL-536','P139',((1421.8,1082.0),(1494.0,1082.0)), 8.25,7.5,'A-407 (wall type 2)'),
+ ('EPR 024 W',      'EL-536','P139',((1421.8,1084.2),(1448.6,1166.7)), 9.8, 7.5,'A-407 (wall type 2, slanted)'),
+ ('EPR 024 S',      'EL-536','P139',((1459.0,1165.0),(1494.0,1165.0)), 4.03,7.5,'A-407 (wall type 2, door left out)'),
+ ("Cleaner's 025 S",'EL-536','P139',((1525.0,1165.0),(1568.0,1165.0)), 4.64,7.5,'A-410 (wall type 2A, door left out)'),
+ ("Cleaner's 021 N",'EL-535','P140',((712.0,326.0),(789.0,326.0)),     8.83,9.5,'A-409 (wall type 2A)'),
+ ("Cleaner's 021 E",'EL-535','P140',((789.0,326.0),(789.0,404.0)),     8.67,9.5,'A-409 (wall type 2A, door left out)'),
+ ('Refuse 023 N',   'EL-535','P140',((959.5,326.0),(1037.5,326.0)),   8.94,9.5,'A-408 (wall type 2A)'),
+ ('Refuse 023 W',   'EL-535','P140',((959.5,326.0),(959.5,397.0)),    5.72,9.5,'A-408 (wall type 2A)'),
+ ('EPR 022 W',      'EL-535','P140',((959.5,397.0),(959.5,409.0)),    1.64,9.5,'A-408 (wall type 2, above door D06)'),
+]
+FLOOR_CLIP={k:(v[1]) for k,v in PLANS.items()}
+def band_poly(p0,p1,half=3.0):
+    (x0,y0),(x1,y1)=p0,p1; L=math.hypot(x1-x0,y1-y0); nx,ny=-(y1-y0)/L*half,(x1-x0)/L*half
+    return [(x0+nx,y0+ny),(x1+nx,y1+ny),(x1-nx,y1-ny),(x0-nx,y0-ny)]
+for i,(pid,zone,fk,(p0,p1),ln,ht,src) in enumerate(PORC,1):
+    clip=FLOOR_CLIP[fk]; P=band_poly(p0,p1); xs=[x for x,y in P]; ys=[y for x,y in P]
+    sf=round(ln*ht,1)
+    PIECES.append(dict(key=f'PE-{i:02d}',id=pid,type=TYPE['porc'],kind='porc',zone=zone,level=fk,status='pending',date='',louver='na',
+        sub='',w=round(ln*12,1),h=round(ht*12,1),sf=sf,
+        geo=[dict(f=fk,poly=normpoly(clip,P),**norm(clip,R(min(xs),min(ys),max(xs),max(ys))))],
+        note=f"Porcelain enamel wall panel · {ln}' x {ht}' · {sf} sf · {src}"))
+# Station louvers from the KGS-A-604 schedule, placed from the LV tags on the RCPs of A-405..A-410
+LVSIZE={1:(36,24),2:(36,24),3:(54,26),4:(30,48),5:(60,24),6:(16,12),7:(16,12),8:(16,12),9:(16,12),
+        10:(16,12),11:(16,12),12:(16,12),13:(16,12),14:(16,12),15:(18,18),16:(18,18)}
+LVROOM={1:'EMR 536',2:'EMR 536',3:'EMR 536',4:'EMR 535',5:'EMR 535',6:'EPR 024',7:'EPR 024',8:"Cleaner's 025",
+        9:"Cleaner's 025",10:"Cleaner's 021",11:"Cleaner's 021",12:'Refuse 023',13:'EPR 022',14:'EPR 022'}
+LVS=[ # key, LV#, zone, floor, (x, y) on the key plan, wall, source
+ ('LV-01W',1,'EL-536','P134',(1309.3,933.5),'west','A-405 RCP'),
+ ('LV-01E',1,'EL-536','P134',(1407.3,913.1),'east','A-405 RCP'),
+ ('LV-03', 3,'EL-536','P134',(1385.2,1044.2),'south','A-405 RCP'),
+ ('LV-05', 5,'EL-535','P135',(795.0,750.0),'west','A-406 RCP'),
+ ('LV-04', 4,'EL-535','P135',(795.0,857.0),'west','A-406 RCP'),
+ ('LV-07', 7,'EL-536','P139',(1429.0,1082.0),'north','A-407 RCP'),
+ ('LV-06', 6,'EL-536','P139',(1469.0,1165.0),'south','A-407 RCP'),
+ ('LV-09', 9,'EL-536','P139',(1510.0,1082.0),'north','A-410 RCP'),
+ ('LV-08', 8,'EL-536','P139',(1568.0,1152.0),'east','A-410 RCP'),
+ ('LV-10',10,'EL-535','P140',(712.0,342.0),'west','A-409 RCP'),
+ ('LV-11',11,'EL-535','P140',(712.0,434.0),'west','A-409 RCP'),
+ ('LV-12',12,'EL-535','P140',(1037.5,334.0),'east','A-408 RCP'),
+ ('LV-13',13,'EL-535','P140',(1037.5,402.0),'east','A-408 RCP'),
+ ('LV-14',14,'EL-535','P140',(1037.5,419.0),'east','A-408 RCP'),
+]
+for key,n,zone,fk,(x,y),wall,src in LVS:
+    clip=FLOOR_CLIP[fk]; w_in,h_in=LVSIZE[n]; sf=round(w_in*h_in/144,1); hs=6.0
+    PIECES.append(dict(key=f'KB-{key}',id=f'LV-{n}',type='Louver',kind='louver',zone=zone,level=fk,status='pending',date='',louver='na',
+        sub='',w=w_in,h=h_in,sf=sf,geo=[dict(f=fk,**norm(clip,R(x-hs,y-hs,x+hs,y+hs)))],
+        note=f'LV-{n} · {LVROOM[n]} {wall} wall · {w_in}" x {h_in}" · {sf} sf · KGS-A-604, {src}'))
 # Control-area windscreen sf, both long walls: length x 9'-6" (gross; height dimensioned on A-402 elev. 3
 # and A-404 elev. 4). 290B lengths are dimensioned; 290A has no dimension, so grid 23-26 is scaled
-# off A-404 (1/4" = 1'-0", 18 pt/ft). Room wall panels (notes 13/14) are coloured but not measured yet.
+# off A-404 (1/4" = 1'-0", 18 pt/ft). Room porcelain walls are pieces (PORC above).
 WSA={'P139':dict(src='KGS-A-402',rows=[
         dict(en='South wall',zh='南墙',w_ft=round(3+4/12+3*(10+3.5/12),2),h_ft=9.5,ref="KGS-A-402 elev. 1 · 3'-4\" + 3 × 10'-3½\""),
         dict(en='North wall',zh='北墙',w_ft=round(3*(10+3.5/12),2),h_ft=9.5,ref="KGS-A-402 elev. 3 · 3 × 10'-3½\""),

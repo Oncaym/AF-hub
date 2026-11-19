@@ -11,7 +11,7 @@
    Final Design-2 A-drawings (A37811_DU2C Kingsbridge / DU1C 167th St,
    submitted for permit 10/12/2026) is its own unit, cut automatically
    from the PDF vectors:
-     494 pieces = 250 glass, 68 frame, 64 corner, 52 band, 16 angle, 11 panel, 11 roof, 10 louver, 6 cp, 4 canopy, 2 com.
+     517 pieces = 250 glass, 68 frame, 64 corner, 52 band, 24 louver, 16 angle, 11 panel, 11 roof, 9 porc, 6 cp, 4 canopy, 2 com.
    Naming: frame 535S-1 (numbered top-down) · inside it -G1 glass /
    -L1 louver / -M1 metal panel (left→right, then top→bottom) ·
    bands 535S-H1 · control panel 535S-CP1 · stud-wall composite
@@ -525,7 +525,30 @@ const SEED = [
   {"key":"R-EL536","id":"R-EL536","type":"Standing Seam Roof","kind":"roof","zone":"KB Roofs","level":"KBRW","status":"pending","date":"","louver":"na","sub":"EL-536 roof","sf":146,"panelsTotal":49,"note":"EL-536 roof · ≈146 sf plan · ≈49 panels @ 12\" (estimate)","stage":"","issue":false,"panelsDone":0},
   {"key":"R-KBW-CA","id":"R-KBW-CA","type":"Standing Seam Roof","kind":"roof","zone":"KB Roofs","level":"KBRW","status":"pending","date":"","louver":"na","sub":"Control area roof (west)","sf":964,"panelsTotal":142,"note":"Control area roof (west) · ≈964 sf plan · ≈142 panels @ 12\" (estimate)","stage":"","issue":false,"panelsDone":0},
   {"key":"R-EL534","id":"R-EL534","type":"Standing Seam Roof","kind":"roof","zone":"167 Roofs","level":"R534","status":"pending","date":"","louver":"na","sub":"EL-534 roof","sf":111,"panelsTotal":42,"note":"EL-534 roof · ≈111 sf plan · ≈42 panels @ 12\" (estimate)","stage":"","issue":false,"panelsDone":0},
-  {"key":"R-EL533","id":"R-EL533","type":"Standing Seam Roof","kind":"roof","zone":"167 Roofs","level":"R533","status":"pending","date":"","louver":"na","sub":"EL-533 roof","sf":111,"panelsTotal":42,"note":"EL-533 roof · ≈111 sf plan · ≈42 panels @ 12\" (estimate)","stage":"","issue":false,"panelsDone":0}
+  {"key":"R-EL533","id":"R-EL533","type":"Standing Seam Roof","kind":"roof","zone":"167 Roofs","level":"R533","status":"pending","date":"","louver":"na","sub":"EL-533 roof","sf":111,"panelsTotal":42,"note":"EL-533 roof · ≈111 sf plan · ≈42 panels @ 12\" (estimate)","stage":"","issue":false,"panelsDone":0},
+  {"key":"PE-01","id":"EPR 024 N","type":"Porcelain Enamel Panel","kind":"porc","zone":"EL-536","level":"P139","status":"pending","date":"","louver":"na","sub":"","sf":61.9,"w":99.0,"h":90.0,"note":"Porcelain enamel wall panel · 8.25' x 7.5' · 61.9 sf · A-407 (wall type 2)","stage":"","issue":false},
+  {"key":"PE-02","id":"EPR 024 W","type":"Porcelain Enamel Panel","kind":"porc","zone":"EL-536","level":"P139","status":"pending","date":"","louver":"na","sub":"","sf":73.5,"w":117.6,"h":90.0,"note":"Porcelain enamel wall panel · 9.8' x 7.5' · 73.5 sf · A-407 (wall type 2, slanted)","stage":"","issue":false},
+  {"key":"PE-03","id":"EPR 024 S","type":"Porcelain Enamel Panel","kind":"porc","zone":"EL-536","level":"P139","status":"pending","date":"","louver":"na","sub":"","sf":30.2,"w":48.4,"h":90.0,"note":"Porcelain enamel wall panel · 4.03' x 7.5' · 30.2 sf · A-407 (wall type 2, door left out)","stage":"","issue":false},
+  {"key":"PE-04","id":"Cleaner's 025 S","type":"Porcelain Enamel Panel","kind":"porc","zone":"EL-536","level":"P139","status":"pending","date":"","louver":"na","sub":"","sf":34.8,"w":55.7,"h":90.0,"note":"Porcelain enamel wall panel · 4.64' x 7.5' · 34.8 sf · A-410 (wall type 2A, door left out)","stage":"","issue":false},
+  {"key":"PE-05","id":"Cleaner's 021 N","type":"Porcelain Enamel Panel","kind":"porc","zone":"EL-535","level":"P140","status":"pending","date":"","louver":"na","sub":"","sf":83.9,"w":106.0,"h":114.0,"note":"Porcelain enamel wall panel · 8.83' x 9.5' · 83.9 sf · A-409 (wall type 2A)","stage":"","issue":false},
+  {"key":"PE-06","id":"Cleaner's 021 E","type":"Porcelain Enamel Panel","kind":"porc","zone":"EL-535","level":"P140","status":"pending","date":"","louver":"na","sub":"","sf":82.4,"w":104.0,"h":114.0,"note":"Porcelain enamel wall panel · 8.67' x 9.5' · 82.4 sf · A-409 (wall type 2A, door left out)","stage":"","issue":false},
+  {"key":"PE-07","id":"Refuse 023 N","type":"Porcelain Enamel Panel","kind":"porc","zone":"EL-535","level":"P140","status":"pending","date":"","louver":"na","sub":"","sf":84.9,"w":107.3,"h":114.0,"note":"Porcelain enamel wall panel · 8.94' x 9.5' · 84.9 sf · A-408 (wall type 2A)","stage":"","issue":false},
+  {"key":"PE-08","id":"Refuse 023 W","type":"Porcelain Enamel Panel","kind":"porc","zone":"EL-535","level":"P140","status":"pending","date":"","louver":"na","sub":"","sf":54.3,"w":68.6,"h":114.0,"note":"Porcelain enamel wall panel · 5.72' x 9.5' · 54.3 sf · A-408 (wall type 2A)","stage":"","issue":false},
+  {"key":"PE-09","id":"EPR 022 W","type":"Porcelain Enamel Panel","kind":"porc","zone":"EL-535","level":"P140","status":"pending","date":"","louver":"na","sub":"","sf":15.6,"w":19.7,"h":114.0,"note":"Porcelain enamel wall panel · 1.64' x 9.5' · 15.6 sf · A-408 (wall type 2, above door D06)","stage":"","issue":false},
+  {"key":"KB-LV-01W","id":"LV-1","type":"Louver","kind":"louver","zone":"EL-536","level":"P134","status":"pending","date":"","louver":"yes","sub":"","sf":6.0,"w":36,"h":24,"note":"LV-1 · EMR 536 west wall · 36\" x 24\" · 6.0 sf · KGS-A-604, A-405 RCP","stage":"","issue":false},
+  {"key":"KB-LV-01E","id":"LV-1","type":"Louver","kind":"louver","zone":"EL-536","level":"P134","status":"pending","date":"","louver":"yes","sub":"","sf":6.0,"w":36,"h":24,"note":"LV-1 · EMR 536 east wall · 36\" x 24\" · 6.0 sf · KGS-A-604, A-405 RCP","stage":"","issue":false},
+  {"key":"KB-LV-03","id":"LV-3","type":"Louver","kind":"louver","zone":"EL-536","level":"P134","status":"pending","date":"","louver":"yes","sub":"","sf":9.8,"w":54,"h":26,"note":"LV-3 · EMR 536 south wall · 54\" x 26\" · 9.8 sf · KGS-A-604, A-405 RCP","stage":"","issue":false},
+  {"key":"KB-LV-05","id":"LV-5","type":"Louver","kind":"louver","zone":"EL-535","level":"P135","status":"pending","date":"","louver":"yes","sub":"","sf":10.0,"w":60,"h":24,"note":"LV-5 · EMR 535 west wall · 60\" x 24\" · 10.0 sf · KGS-A-604, A-406 RCP","stage":"","issue":false},
+  {"key":"KB-LV-04","id":"LV-4","type":"Louver","kind":"louver","zone":"EL-535","level":"P135","status":"pending","date":"","louver":"yes","sub":"","sf":10.0,"w":30,"h":48,"note":"LV-4 · EMR 535 west wall · 30\" x 48\" · 10.0 sf · KGS-A-604, A-406 RCP","stage":"","issue":false},
+  {"key":"KB-LV-07","id":"LV-7","type":"Louver","kind":"louver","zone":"EL-536","level":"P139","status":"pending","date":"","louver":"yes","sub":"","sf":1.3,"w":16,"h":12,"note":"LV-7 · EPR 024 north wall · 16\" x 12\" · 1.3 sf · KGS-A-604, A-407 RCP","stage":"","issue":false},
+  {"key":"KB-LV-06","id":"LV-6","type":"Louver","kind":"louver","zone":"EL-536","level":"P139","status":"pending","date":"","louver":"yes","sub":"","sf":1.3,"w":16,"h":12,"note":"LV-6 · EPR 024 south wall · 16\" x 12\" · 1.3 sf · KGS-A-604, A-407 RCP","stage":"","issue":false},
+  {"key":"KB-LV-09","id":"LV-9","type":"Louver","kind":"louver","zone":"EL-536","level":"P139","status":"pending","date":"","louver":"yes","sub":"","sf":1.3,"w":16,"h":12,"note":"LV-9 · Cleaner's 025 north wall · 16\" x 12\" · 1.3 sf · KGS-A-604, A-410 RCP","stage":"","issue":false},
+  {"key":"KB-LV-08","id":"LV-8","type":"Louver","kind":"louver","zone":"EL-536","level":"P139","status":"pending","date":"","louver":"yes","sub":"","sf":1.3,"w":16,"h":12,"note":"LV-8 · Cleaner's 025 east wall · 16\" x 12\" · 1.3 sf · KGS-A-604, A-410 RCP","stage":"","issue":false},
+  {"key":"KB-LV-10","id":"LV-10","type":"Louver","kind":"louver","zone":"EL-535","level":"P140","status":"pending","date":"","louver":"yes","sub":"","sf":1.3,"w":16,"h":12,"note":"LV-10 · Cleaner's 021 west wall · 16\" x 12\" · 1.3 sf · KGS-A-604, A-409 RCP","stage":"","issue":false},
+  {"key":"KB-LV-11","id":"LV-11","type":"Louver","kind":"louver","zone":"EL-535","level":"P140","status":"pending","date":"","louver":"yes","sub":"","sf":1.3,"w":16,"h":12,"note":"LV-11 · Cleaner's 021 west wall · 16\" x 12\" · 1.3 sf · KGS-A-604, A-409 RCP","stage":"","issue":false},
+  {"key":"KB-LV-12","id":"LV-12","type":"Louver","kind":"louver","zone":"EL-535","level":"P140","status":"pending","date":"","louver":"yes","sub":"","sf":1.3,"w":16,"h":12,"note":"LV-12 · Refuse 023 east wall · 16\" x 12\" · 1.3 sf · KGS-A-604, A-408 RCP","stage":"","issue":false},
+  {"key":"KB-LV-13","id":"LV-13","type":"Louver","kind":"louver","zone":"EL-535","level":"P140","status":"pending","date":"","louver":"yes","sub":"","sf":1.3,"w":16,"h":12,"note":"LV-13 · EPR 022 east wall · 16\" x 12\" · 1.3 sf · KGS-A-604, A-408 RCP","stage":"","issue":false},
+  {"key":"KB-LV-14","id":"LV-14","type":"Louver","kind":"louver","zone":"EL-535","level":"P140","status":"pending","date":"","louver":"yes","sub":"","sf":1.3,"w":16,"h":12,"note":"LV-14 · EPR 022 east wall · 16\" x 12\" · 1.3 sf · KGS-A-604, A-408 RCP","stage":"","issue":false}
 ];
 const SEED_FIELDS = ['key','id','type','kind','zone','level','sub','sf','w','h','panelsTotal','frame','note','louver'];
 /* AF submittals as of 11-13, from Y:\Forte _A-37811 Package #7\3. Submittal\OUT\2. PD & Sample (see migration p7-submittals-1-4) */
@@ -642,7 +665,7 @@ return {
   p7hot: {"KBKEY":[{"group":"EL535","x":38.333,"y":66.438,"w":7.778,"h":12.329},{"group":"EL536","x":45.556,"y":19.178,"w":7.222,"h":12.329},{"group":"KBR","x":36.667,"y":78.767,"w":10.0,"h":11.644,"floor":"KBRE"},{"group":"KBR","x":42.222,"y":6.849,"w":6.667,"h":12.055,"floor":"KBRW"}],"167KEY":[{"group":"EL534","x":54.828,"y":27.895,"w":6.897,"h":10.526},{"group":"EL533","x":55.517,"y":65.263,"w":6.897,"h":10.526}]},
   /* KB plans coloured by scope (no pieces): enc = elevator enclosure, mp = EMR exterior metal panel,
      ws = control-area windscreen / porcelain wall; pts in percent of the sheet */
-  p7plan: {"P134":[{"k":"enc","pts":[[25.289,31.377],[45.422,26.66],[54.178,47.528],[33.333,53.075]],"open":false},{"k":"mp","pts":[[33.067,53.415],[54.178,47.887],[65.689,76.415],[44.733,82.075]],"open":false}],"P139":[{"k":"enc","pts":[[10.309,15.185],[25.691,11.8],[30.545,26.462],[15.509,30.569]],"open":false},{"k":"ws","pts":[[3.291,33.754],[20.618,78.877]],"open":true},{"k":"ws","pts":[[31.527,25.846],[46.927,65.846]],"open":true},{"k":"ws","pts":[[49.418,66.8],[76.0,66.431],[76.0,79.154],[54.291,79.492]],"open":false},{"k":"ws","pts":[[14.945,82.923],[22.182,82.923]],"open":true},{"k":"ws","pts":[[74.873,82.923],[82.109,82.923]],"open":true}],"P135":[{"k":"enc","pts":[[40.25,34.808],[64.375,34.808],[64.375,55.885],[40.25,55.885]],"open":false},{"k":"mp","pts":[[36.25,56.538],[64.0,56.538],[64.0,85.577],[36.25,85.577]],"open":false}],"P140":[{"k":"enc","pts":[[25.6,71.164],[41.067,71.164],[41.067,90.527],[25.6,90.527]],"open":false},{"k":"ws","pts":[[10.333,20.636],[10.333,44.182],[23.167,44.182],[23.167,71.273]],"open":true},{"k":"ws","pts":[[64.583,20.636],[64.583,44.182],[51.583,44.182],[51.583,71.273]],"open":true}]},
+  p7plan: {"P134":[{"k":"enc","pts":[[25.289,31.377],[45.422,26.66],[54.178,47.528],[33.333,53.075]],"open":false},{"k":"mp","pts":[[33.067,53.415],[54.178,47.887],[65.689,76.415],[44.733,82.075]],"open":false}],"P139":[{"k":"enc","pts":[[10.309,15.185],[25.691,11.8],[30.545,26.462],[15.509,30.569]],"open":false},{"k":"ws","pts":[[3.291,33.754],[20.618,78.877]],"open":true},{"k":"ws","pts":[[31.527,25.846],[46.927,65.846]],"open":true},{"k":"ws","pts":[[14.945,82.923],[22.182,82.923]],"open":true},{"k":"ws","pts":[[74.873,82.923],[82.109,82.923]],"open":true},{"k":"mp","pts":[[62.545,66.462],[76.0,66.462],[76.0,79.231]],"open":true}],"P135":[{"k":"enc","pts":[[40.25,34.808],[64.375,34.808],[64.375,55.885],[40.25,55.885]],"open":false},{"k":"mp","pts":[[36.25,56.538],[64.0,56.538],[64.0,85.577],[36.25,85.577]],"open":false}],"P140":[{"k":"enc","pts":[[25.6,71.164],[41.067,71.164],[41.067,90.527],[25.6,90.527]],"open":false},{"k":"ws","pts":[[23.167,44.182],[23.167,71.273]],"open":true},{"k":"ws","pts":[[51.583,44.182],[51.583,71.273]],"open":true},{"k":"mp","pts":[[10.333,22.909],[10.333,44.182],[23.167,44.182]],"open":true},{"k":"mp","pts":[[64.583,22.909],[64.583,44.182],[51.583,44.182]],"open":true}]},
   /* control-area windscreen sf off KGS-A-545 (not tracked as pieces) */
   p7ws: {"P139":{"src":"KGS-A-402","rows":[{"en":"South wall","zh":"南墙","w_ft":34.21,"h_ft":9.5,"ref":"KGS-A-402 elev. 1 · 3'-4\" + 3 × 10'-3½\"","sf":325.0},{"en":"North wall","zh":"北墙","w_ft":30.88,"h_ft":9.5,"ref":"KGS-A-402 elev. 3 · 3 × 10'-3½\"","sf":293.4},{"en":"2 tie-ins to existing","zh":"接现有 2 段","w_ft":8.84,"h_ft":9.5,"ref":"KGS-A-139 scaled 1/8\" · height assumed 9'-6\"","sf":84.0}],"sf":702.4},"P140":{"src":"KGS-A-404","rows":[{"en":"North wall","zh":"北墙","w_ft":15.54,"h_ft":9.5,"ref":"KGS-A-404 elev. 2 · grid 23–26, scaled","sf":147.6},{"en":"South wall","zh":"南墙","w_ft":15.54,"h_ft":9.5,"ref":"KGS-A-404 elev. 4 · grid 26–23, scaled","sf":147.6}],"sf":295.2}},
   /* piece geometry, percent of the sheet: [{f: floorKey, x, y, w, h, poly?}] */
@@ -1140,7 +1163,30 @@ return {
     "R-EL536":[{"f":"KBRW","poly":[[60.455,54.516],[67.727,52.097],[70.0,61.29],[62.727,63.71]],"x":60.455,"y":52.097,"w":9.545,"h":11.613}],
     "R-KBW-CA":[{"f":"KBRW","poly":[[56.742,61.492],[65.606,90.766],[66.288,90.806],[66.667,91.25],[87.462,91.25],[87.652,91.129],[87.841,90.645],[88.523,90.484],[88.485,82.218],[87.992,82.097],[87.652,81.774],[76.78,81.815],[76.477,81.613],[70.682,62.419],[70.303,62.379],[64.167,64.435],[63.333,64.597],[62.992,63.75],[62.652,63.629],[61.591,59.194],[61.098,57.823],[60.038,58.669],[60.0,61.331],[56.932,61.331]],"x":56.742,"y":57.823,"w":31.78,"h":33.427}],
     "R-EL534":[{"f":"R534","x":15.852,"y":11.928,"w":49.802,"h":76.143}],
-    "R-EL533":[{"f":"R533","x":15.852,"y":11.928,"w":49.802,"h":76.143}]
+    "R-EL533":[{"f":"R533","x":15.852,"y":11.928,"w":49.802,"h":76.143}],
+    "PE-01":[{"f":"P139","poly":[[49.418,66.923],[62.545,66.923],[62.545,66.0],[49.418,66.0]],"x":49.418,"y":66.0,"w":13.127,"h":0.923}],
+    "PE-02":[{"f":"P139","poly":[[48.899,66.943],[53.772,79.635],[54.81,79.35],[49.937,66.657]],"x":48.899,"y":66.657,"w":5.91,"h":12.977}],
+    "PE-03":[{"f":"P139","poly":[[56.182,79.692],[62.545,79.692],[62.545,78.769],[56.182,78.769]],"x":56.182,"y":78.769,"w":6.364,"h":0.923}],
+    "PE-04":[{"f":"P139","poly":[[68.182,79.692],[76.0,79.692],[76.0,78.769],[68.182,78.769]],"x":68.182,"y":78.769,"w":7.818,"h":0.923}],
+    "PE-05":[{"f":"P140","poly":[[10.333,23.455],[23.167,23.455],[23.167,22.364],[10.333,22.364]],"x":10.333,"y":22.364,"w":12.833,"h":1.091}],
+    "PE-06":[{"f":"P140","poly":[[22.667,22.909],[22.667,37.091],[23.667,37.091],[23.667,22.909]],"x":22.667,"y":22.909,"w":1.0,"h":14.182}],
+    "PE-07":[{"f":"P140","poly":[[51.583,23.455],[64.583,23.455],[64.583,22.364],[51.583,22.364]],"x":51.583,"y":22.364,"w":13.0,"h":1.091}],
+    "PE-08":[{"f":"P140","poly":[[51.083,22.909],[51.083,35.818],[52.083,35.818],[52.083,22.909]],"x":51.083,"y":22.909,"w":1.0,"h":12.909}],
+    "PE-09":[{"f":"P140","poly":[[51.083,35.818],[51.083,38.0],[52.083,38.0],[52.083,35.818]],"x":51.083,"y":35.818,"w":1.0,"h":2.182}],
+    "KB-LV-01W":[{"f":"P134","x":34.067,"y":58.019,"w":2.667,"h":2.264}],
+    "KB-LV-01E":[{"f":"P134","x":55.844,"y":54.17,"w":2.667,"h":2.264}],
+    "KB-LV-03":[{"f":"P134","x":50.933,"y":78.906,"w":2.667,"h":2.264}],
+    "KB-LV-05":[{"f":"P135","x":34.75,"y":60.385,"w":3.0,"h":2.308}],
+    "KB-LV-04":[{"f":"P135","x":34.75,"y":80.962,"w":3.0,"h":2.308}],
+    "KB-LV-07":[{"f":"P139","x":49.636,"y":65.538,"w":2.182,"h":1.846}],
+    "KB-LV-06":[{"f":"P139","x":56.909,"y":78.308,"w":2.182,"h":1.846}],
+    "KB-LV-09":[{"f":"P139","x":64.364,"y":65.538,"w":2.182,"h":1.846}],
+    "KB-LV-08":[{"f":"P139","x":74.909,"y":76.308,"w":2.182,"h":1.846}],
+    "KB-LV-10":[{"f":"P140","x":9.333,"y":24.727,"w":2.0,"h":2.182}],
+    "KB-LV-11":[{"f":"P140","x":9.333,"y":41.455,"w":2.0,"h":2.182}],
+    "KB-LV-12":[{"f":"P140","x":63.583,"y":23.273,"w":2.0,"h":2.182}],
+    "KB-LV-13":[{"f":"P140","x":63.583,"y":35.636,"w":2.0,"h":2.182}],
+    "KB-LV-14":[{"f":"P140","x":63.583,"y":38.727,"w":2.0,"h":2.182}]
   },
 
   seedUnits: SEED,

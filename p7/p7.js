@@ -28,7 +28,7 @@
    ========================================================================== */
 (function () {
   'use strict';
-  var BUILD = 'p7·2026-11-17b';
+  var BUILD = 'p7·2026-11-19a';
   var P = window.PROJECT || {};
   var NAV = P.p7nav || { stations: [] };
   var GEO = P.p7geo || {};
@@ -38,8 +38,8 @@
   var WS = P.p7ws || {};
   var PLAN_LG = {
     enc: { c: '#5ab4dc', en: 'Elevator enclosure', zh: '电梯围护' },
-    mp:  { c: '#a078dc', en: 'EMR exterior metal panel', zh: 'EMR 外墙金属板' },
-    ws:  { c: '#f05a82', en: 'Windscreen / porcelain enamel wall panel', zh: 'Windscreen / 搪瓷墙板' }
+    mp:  { c: '#a078dc', en: 'Exterior metal panel (EMR; room walls type 1/1A)', zh: '外墙金属板（EMR；房间 1/1A 墙）' },
+    ws:  { c: '#f05a82', en: 'Windscreen', zh: 'Windscreen' }
   };
 
   var STAGES = ['', 'ordered', 'shop', 'site', 'installed'];
@@ -50,14 +50,14 @@
   var KIND_LABEL = {
     frame: 'Frame', glass: 'Glass', band: 'Metal panel (band)', panel: 'Metal panel', louver: 'Louver',
     cp: 'St. Stl. control panel', com: 'Composite metal panel', canopy: 'Glass canopy',
-    corner: 'Corner panel', angle: 'Steel corner angle', roof: 'Standing seam roof'
+    corner: 'Corner panel', angle: 'Steel corner angle', roof: 'Standing seam roof', porc: 'Porcelain enamel panel'
   };
   /* proposal legend colours (Proposal Ver #4, p.8) — material view */
   var MAT = {   /* frame / canopy are outlines only — never filled */
     glass: '#bfe6ee', 'GL-2': '#bfe6ee', 'GL-02': '#bfe6ee', 'GL-3': '#8fa4e8', 'GL-03': '#8fa4e8',
     'GL-04': '#a8e0b8', 'GL-05': '#c7a6ec',
     band: '#dccbe8', panel: '#dccbe8', cp: '#cfc3e6', com: '#f6c3cf', louver: '#f4b8b8',
-    corner: '#f8dca0', angle: '#97a3af', canopy: '#a9a5e0', roof: '#d9d9d9', frame: '#d33'
+    corner: '#f8dca0', angle: '#97a3af', canopy: '#a9a5e0', roof: '#d9d9d9', frame: '#d33', porc: '#f2a65a'
   };
   var CARD_LINES = [
     { k: 'glass',  label: 'Glazing',               kinds: ['glass'] },
@@ -67,6 +67,7 @@
     { k: 'corner', label: 'Corner metal panel',    kinds: ['corner'] },
     { k: 'angle',  label: 'Steel corner angle',    kinds: ['angle'], unit: 'lf' },   /* granite / stone base, Leo 11-13 */
     { k: 'louver', label: 'Louver',                kinds: ['louver'] },
+    { k: 'porc',   label: 'Porcelain enamel panel', kinds: ['porc'] },   /* 09 78 10, control-area rooms (Leo 11-19) */
     { k: 'cp',     label: 'St. Stl. control panel',kinds: ['cp'] },
     { k: 'canopy', label: 'Glass canopy',          kinds: ['canopy'] },
     { k: 'roof',   label: 'Standing seam roof',    kinds: ['roof'] }
@@ -197,7 +198,7 @@
         var f = floorMeta(k); var fname = f ? (nm(f.short) || nm(f.name) || k) : k;
         var n = countFloor(k);
         h += '<button class="p7-chip small' + (k === lvl() ? ' on' : '') + '" onclick="P7nav.goFloor(\'' + k + '\')">' + esc(fname) +
-             (PLAN[k] ? '' : ' <em>' + n.done + '/' + n.tot + '</em>') + '</button>';
+             (PLAN[k] && !n.tot ? '' : ' <em>' + n.done + '/' + n.tot + '</em>') + '</button>';
       });
       var fm = floorMeta(lvl());
       if (fm && fm.sheet) h += '<span class="p7-sheet">' + esc(fm.sheet) + '</span>';
@@ -227,7 +228,7 @@
   }
   function sfRows(rows) {
     return rows.map(function (r) {
-      return '<tr><td><i class="p7-dot" style="background:' + (MAT[(CARD_LINES.find(function (c) { return c.k === r.k; }) || { kinds: [''] }).kinds[0]] || '#ccc') + '"></i>' + esc(r.label) + '</td>' +
+      return '<tr class="p7-sf-r' + (only === r.k ? ' on' : '') + '" onclick="P7.only(\'' + r.k + '\')" title="' + (lang() === 'zh' ? '只看这个材料（再点一次恢复）' : 'Show only this material (click again for all)') + '"><td><i class="p7-dot" style="background:' + (MAT[(CARD_LINES.find(function (c) { return c.k === r.k; }) || { kinds: [''] }).kinds[0]] || '#ccc') + '"></i>' + esc(r.label) + '</td>' +
         '<td class="num"' + (r.k === 'roof' ? ' title="' + r.pD + ' / ' + r.pT + ' panels"' : '') + '>' + fmt(r.i) + ' / ' + fmt(r.t) + ' ' + r.unit + '</td></tr>';
     }).join('');
   }
@@ -250,13 +251,12 @@
         var gl = g ? all.filter(function (u) { return (g.zones || []).indexOf(u.zone) >= 0; }) : [];
         h += '<div class="p7-sf-t">' + esc(g ? nm(g.name) : '') + (zh ? '（全部立面）' : ' (all elevations)') + '</div><table>' + sfRows(sumBy(gl));
         if (WS[k]) {
-          h += '<tr class="p7-sf-x"><td><i class="p7-dot" style="background:' + PLAN_LG.ws.c + '"></i>' + 'Windscreen' + '</td><td class="num">≈ ' + fmt(WS[k].sf) + ' sf</td></tr>';
+          h += '<tr class="p7-sf-x p7-sf-r' + (only === 'ws' ? ' on' : '') + '" onclick="P7.only(\'ws\')"><td><i class="p7-dot" style="background:' + PLAN_LG.ws.c + '"></i>' + 'Windscreen' + '</td><td class="num">≈ ' + fmt(WS[k].sf) + ' sf</td></tr>';
           WS[k].rows.forEach(function (r) {
             h += '<tr class="p7-sf-src"><td>' + esc(r[lang()] || r.en) + ' · ' + esc(r.ref) + ' · ' + fmt(r.w_ft) + "' × " + fmt(r.h_ft) + "'</td><td class=\"num\">" + fmt(r.sf) + '</td></tr>';
           });
-          h += '<tr class="p7-sf-x"><td><i class="p7-dot" style="background:' + PLAN_LG.ws.c + '"></i>' + (zh ? '房间搪瓷墙板' : 'Room wall panels') + '</td><td class="num">' + (zh ? '待量' : 'TBD') + '</td></tr>';
         }
-        if (PLAN[k].some(function (s) { return s.k === 'mp'; })) h += '<tr class="p7-sf-x"><td><i class="p7-dot" style="background:' + PLAN_LG.mp.c + '"></i>' + (zh ? 'EMR 金属板' : 'EMR metal panel') + '</td><td class="num">' + (zh ? '待量' : 'TBD') + '</td></tr>';
+        if (PLAN[k].some(function (s) { return s.k === 'mp'; })) h += '<tr class="p7-sf-x p7-sf-r' + (only === 'mp' ? ' on' : '') + '" onclick="P7.only(\'mp\')"><td><i class="p7-dot" style="background:' + PLAN_LG.mp.c + '"></i>' + (zh ? '外墙金属板' : 'Ext. metal panel') + '</td><td class="num">' + (zh ? '待量' : 'TBD') + '</td></tr>';
         h += '</table>';
       } else if (!isKey) {
         var on = units().filter(function (u) { return inBaseline(u) && (GEO[u.key] || []).some(function (x) { return x.f === k; }); });
@@ -267,23 +267,36 @@
     }
     el.innerHTML = h;
   }
+  /* "show only one material" (Leo 11-19): click a legend item or an sf row; the rest fades out */
+  var only = null;
+  var MAT_LINE = { band: 'metal', panel: 'metal', com: 'com', corner: 'corner', angle: 'angle', louver: 'louver', porc: 'porc', cp: 'cp', canopy: 'canopy', roof: 'roof', frame: 'frame' };
+  function onlyLabel(k) { return PLAN_LG[k] ? nm(PLAN_LG[k]) : lineLabel(k); }
+  function onlyChip() {
+    if (!only) return '';
+    return '<span class="p7-only" onclick="P7.only(null)" title="' + (lang() === 'zh' ? '显示全部' : 'Show all') + '">' + (lang() === 'zh' ? '只看：' : 'Only: ') + esc(onlyLabel(only)) + ' ✕</span>';
+  }
+  function setOnly(k) { only = (!k || only === k) ? null : k; paintNav(); renderOverlay(); }
   function legendHtml() {
     if (PLAN[lvl()]) {
       var ks = {}; PLAN[lvl()].forEach(function (s) { ks[s.k] = 1; });
-      return Object.keys(PLAN_LG).filter(function (k) { return ks[k]; }).map(function (k) {
-        return '<span class="p7-lg"><i style="background:' + PLAN_LG[k].c + ';opacity:.75"></i>' + esc(PLAN_LG[k][lang()] || PLAN_LG[k].en) + '</span>';
-      }).join('') + '<span class="p7-hint">' + (lang() === 'zh' ? '颜色只表示范围（照 proposal 的 Overall Item View），状态在立面上改' : 'Colour shows scope only (like the proposal\'s Overall Item View) — update status on the elevations') + '</span>';
+      var pk = {}; units().forEach(function (u) { if (inBaseline(u) && (GEO[u.key] || []).some(function (x) { return x.f === lvl(); })) pk[lineOf(u)] = 1; });
+      return onlyChip() + Object.keys(PLAN_LG).filter(function (k) { return ks[k]; }).map(function (k) {
+        return '<span class="p7-lg p7-lgc' + (only === k ? ' on' : '') + '" onclick="P7.only(\'' + k + '\')"><i style="background:' + PLAN_LG[k].c + ';opacity:.75"></i>' + esc(PLAN_LG[k][lang()] || PLAN_LG[k].en) + '</span>';
+      }).join('') + CARD_LINES.filter(function (c) { return pk[c.k]; }).map(function (c) {
+        return '<span class="p7-lg p7-lgc' + (only === c.k ? ' on' : '') + '" onclick="P7.only(\'' + c.k + '\')"><i style="background:' + MAT[c.kinds[0]] + '"></i>' + esc(c.label) + '</span>';
+      }).join('') + '<span class="p7-hint">' + (lang() === 'zh' ? '范围色照 proposal；搪瓷墙板、LV 百叶是件，点它改状态；点图例或面积表只看一种材料' : 'Scope colours as in the proposal; porcelain walls and LV louvers are pieces — click to update; click a legend item or sf row to show one material') + '</span>';
     }
     if (view === 'material') {
       var st = stationById(cur.station), zs = {}, gl = {};
       st.groups.forEach(function (g) { (g.zones || []).forEach(function (z) { zs[z] = 1; }); });
       units().forEach(function (u) { if (u.kind === 'glass' && zs[u.zone] && u.sub) gl[u.sub] = 1; });
       return Object.keys(gl).sort().map(function (t) { return [t, 'Glass ' + t]; }).concat([['band', 'Metal panel'], ['com', 'Composite'], ['corner', 'Corner panel'], ['angle', 'Steel corner angle'],
-              ['louver', 'Louver'], ['cp', 'Control panel'], ['canopy', 'Glass canopy'], ['roof', 'Roof']]).map(function (x) {
-        return '<span class="p7-lg"><i style="background:' + MAT[x[0]] + '"></i>' + esc(x[1]) + '</span>';
-      }).join('');
+              ['louver', 'Louver'], ['porc', 'Porcelain panel'], ['cp', 'Control panel'], ['canopy', 'Glass canopy'], ['roof', 'Roof']]).map(function (x) {
+        var lk = MAT_LINE[x[0]] || 'glass';
+        return '<span class="p7-lg p7-lgc' + (only === lk ? ' on' : '') + '" onclick="P7.only(\'' + lk + '\')"><i style="background:' + MAT[x[0]] + '"></i>' + esc(x[1]) + '</span>';
+      }).join('') + onlyChip();
     }
-    return STAGES.map(function (s) {
+    return onlyChip() + STAGES.map(function (s) {
       return '<span class="p7-lg"><i class="p7-st-' + (s || 'none') + '">' + esc(SL(s)).slice(0, 2) + '</i>' + esc(SL(s)) + '</span>';
     }).join('') + '<span class="p7-lg"><i class="p7-st-none p7-issue-sw"></i>' + (lang() === 'zh' ? '问题' : 'Issue') + '</span>' +
       '<span class="p7-hint">' + (lang() === 'zh' ? '点一件改状态 · Shift/Ctrl 点多选 · 点框编号选整个框' : 'Click a piece · Shift/Ctrl-click to multi-select · click a frame tag for the whole frame') + '</span>';
@@ -330,7 +343,7 @@
   }
   function label(u) {
     var id = u.id || u.key;
-    if (u.kind === 'roof') return id;
+    if (u.kind === 'roof' || u.kind === 'porc' || /^LV-/.test(id)) return id;
     if (u.kind === 'frame') return id;
     if (u.kind === 'corner' || u.kind === 'angle') return id.replace(/^\d+-/, '');
     return id.replace(/^\d+[A-Z]-(\d+-)?/, '');
@@ -360,14 +373,14 @@
         var box = 'left:' + g.x + '%;top:' + g.y + '%;width:' + g.w + '%;height:' + g.h + '%';
         var matBg = MAT[u.sub] || MAT[u.kind] || '#ddd';
         var st = view === 'material' ? ' style="' + box + ';--mat:' + matBg + '"' : ' style="' + box + '"';
-        var cls = 'p7-pc p7-k-' + u.kind + ' ' + pieceClass(u) + (view === 'material' ? ' p7-mat' : '');
+        var cls = 'p7-pc p7-k-' + u.kind + ' ' + pieceClass(u) + (view === 'material' ? ' p7-mat' : '') + (only && lineOf(u) !== only ? ' p7-dim' : '');
         if (u.kind === 'frame' || u.kind === 'canopy') {
           html.push('<div class="' + cls + '"' + st + ' data-key="' + esc(u.key) + '"><b class="p7-tag" data-key="' + esc(u.key) + '">' + esc(label(u)) + '</b></div>');
-        } else if (u.kind === 'roof' && g.poly) {
+        } else if (g.poly) {
           svgPolys.push('<polygon class="' + cls + '" data-key="' + esc(u.key) + '" points="' + g.poly.map(function (p) { return p[0] + ',' + p[1]; }).join(' ') + '"' +
-            (view === 'material' ? ' style="--mat:' + matBg + '"' : '') + '/>');
-          if (!gi) html.push('<div class="p7-roofl ' + pieceClass(u) + '" style="left:' + (g.x + g.w / 2) + '%;top:' + (g.y + g.h / 2) + '%" data-key="' + esc(u.key) + '">' +
-            esc(label(u)) + '<em>' + (u.panelsDone || 0) + '/' + (u.panelsTotal || 0) + '</em></div>');
+            (view === 'material' ? ' style="--mat:' + matBg + '"' : '') + '><title>' + esc(u.id + ' · ' + (u.note || '') + ' · ' + SL(u.stage)) + '</title></polygon>');
+          if (!gi && u.kind === 'roof') html.push('<div class="p7-roofl p7-roofl-' + u.kind + ' ' + pieceClass(u) + (only && lineOf(u) !== only ? ' p7-dim' : '') + '" style="left:' + (g.x + g.w / 2) + '%;top:' + (g.y + g.h / 2) + '%" data-key="' + esc(u.key) + '">' +
+            esc(label(u)) + (u.kind === 'roof' ? '<em>' + (u.panelsDone || 0) + '/' + (u.panelsTotal || 0) + '</em>' : '') + '</div>');
         } else {
           html.push('<div class="' + cls + '"' + st + ' data-key="' + esc(u.key) + '" title="' + esc(u.id + ' · ' + (u.note || '') + ' · ' + SL(u.stage)) + '"><span>' + esc(label(u)) +
             (u.kind === 'roof' ? '<em>' + (u.panelsDone || 0) + '/' + (u.panelsTotal || 0) + '</em>' : '') + '</span></div>');
@@ -377,10 +390,11 @@
     (PLAN[k] || []).forEach(function (sh) {
       var pts = sh.pts.map(function (q) { return q[0] + ',' + q[1]; }).join(' ');
       var tag = sh.open ? 'polyline' : 'polygon';
-      svgPolys.unshift('<' + tag + ' class="p7-plan p7-plan-' + sh.k + '" vector-effect="non-scaling-stroke" points="' + pts + '"/>');
+      svgPolys.unshift('<' + tag + ' class="p7-plan p7-plan-' + sh.k + (only && only !== sh.k ? ' p7-dim' : '') + '" vector-effect="non-scaling-stroke" points="' + pts + '"/>');
     });
     var svg = svgPolys.length ? '<svg class="p7-svg" viewBox="0 0 100 100" preserveAspectRatio="none">' + svgPolys.join('') + '</svg>' : '';
     L.innerHTML = svg + html.join('');
+    L.classList.toggle('p7-filter', !!only);
     document.body.classList.add('p7-on');
   }
   function onLayerClick(ev, t0) {
@@ -519,7 +533,7 @@
     if (typeof openUnit === 'function') openUnit(k);
   }
   window.P7 = { pick: pick, save: save, closeEd: closeEd, selectFrame: selectFrame, build: BUILD, more: more, openEditor: openEditor, sfToggle: sfToggle,
-    setView: function (v) { view = v; paintNav(); renderOverlay(); }, renderOverlay: renderOverlay, refresh: refresh };
+    setView: function (v) { view = v; paintNav(); renderOverlay(); }, renderOverlay: renderOverlay, refresh: refresh, only: setOnly };
 
   // ----------------------------------------------------------------- cards
   function cardsHost() {
@@ -828,6 +842,16 @@
       '.p7-hide{display:none!important}',
       /* plan scope colours */
       '#p7Layer .p7-svg .p7-plan{pointer-events:none;cursor:default;opacity:1}',
+      '#p7Layer .p7-dim{opacity:.07!important;pointer-events:none!important}', '#p7Layer .p7-svg .p7-dim{opacity:.05!important}',
+      '.p7-lgc{cursor:pointer;border-radius:4px;padding:1px 3px}', '.p7-lgc:hover{background:rgba(127,127,127,.15)}', '.p7-lgc.on{outline:2px solid #58a6ff}',
+      '.p7-only{display:inline-flex;align-items:center;gap:4px;margin-right:8px;padding:1px 8px;border-radius:10px;background:#58a6ff;color:#fff;font-weight:600;cursor:pointer}',
+      '#p7Sf tr.p7-sf-r{cursor:pointer}', '#p7Sf tr.p7-sf-r:hover td{background:rgba(127,127,127,.12)}', '#p7Sf tr.p7-sf-r.on td{background:rgba(88,166,255,.22)}',
+      '#p7Layer .p7-roofl-porc{font-size:9px;padding:1px 4px;opacity:.9}',
+      '#p7Layer .p7-svg polygon.p7-k-porc{opacity:.9;stroke:#f2a65a;stroke-width:2.5px;vector-effect:non-scaling-stroke}',
+      '#p7Layer .p7-k-louver{outline:1px solid #f4b8b8}',
+      '#p7Layer.p7-filter .p7-pc:not(.p7-dim):not(.p7-k-frame):not(.p7-k-canopy){outline:1.5px solid #ffd33d;box-shadow:0 0 0 2px rgba(255,211,61,.3);opacity:1}',
+      '#p7Layer.p7-filter .p7-svg polygon:not(.p7-dim){stroke:#ffd33d;stroke-width:1.5px;vector-effect:non-scaling-stroke;opacity:1}',
+      '#p7Layer.p7-filter .p7-svg .p7-plan:not(.p7-dim){filter:drop-shadow(0 0 3px #ffd33d)}',
       '#p7Layer .p7-svg .p7-plan-enc{fill:none;stroke:rgba(90,180,220,.7);stroke-width:12;stroke-linejoin:round}',
       '#p7Layer .p7-svg .p7-plan-mp{fill:none;stroke:rgba(160,120,220,.72);stroke-width:12;stroke-linejoin:round}',
       '#p7Layer .p7-svg .p7-plan-ws{fill:none;stroke:rgba(240,90,130,.72);stroke-width:12;stroke-linecap:round;stroke-linejoin:round}',
