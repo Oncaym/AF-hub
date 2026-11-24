@@ -303,7 +303,9 @@
   };
   const LIST = 'todo/leo-jaesik/items';
   const REMIND_AT = [[8, 30], [13, 0]];   // weekdays, while the page is open
-  const PUSH_TO = ['leo'];   // whose devices ring when the other person acts (same list as api/todo-push.mjs; Leo 11-02: only him for now)
+  const PUSH_TO = ['leo', 'jaesik'];   // whose devices ring when the other person acts on a task (same list as api/todo-push.mjs;
+                                       // Jaesik only for a new task or one handed to him, Leo 11-24 — the server decides)
+  const NUDGE_TO = ['leo'];   // who also gets the 2-hour "still waiting for Got it" (report/todo-remind.mjs)
   const PUSH_DB = 'todo/leo-jaesik/push';
   const PUSH_DEVICES = ['leo', 'jaesik'];   // who can turn on 🔔 (Jaesik: for Leo's answers to his calls, Leo 11-06)
   const BASE = 'todo/leo-jaesik';
@@ -833,8 +835,8 @@
   const homeScreen = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
   const canPush = () => 'serviceWorker' in navigator && 'PushManager' in window && !!window.Notification;
   const pushMine = () => PUSH_DEVICES.includes(me);
-  const pushWhat = () => me === CALLER && !PUSH_TO.includes(me) ? name(CALLEE) + ' answers your call'
-    : name(other) + ' gives you a task, leaves a note or closes one' + (me === CALLEE ? ', or calls you to his office' : '');
+  const pushWhat = () => me === CALLER ? name(CALLEE) + ' gives you a task or hands one to you, or answers your call'
+    : name(other) + ' gives you a task or hands one to you, leaves a note, closes one' + (me === CALLEE ? ', or calls you to his office' : '');
   const b64u = buf => btoa(String.fromCharCode.apply(null, new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const unb64u = s => Uint8Array.from(atob(String(s).replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
   const sidOf = async endpoint => b64u(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(endpoint))).slice(0, 24);
@@ -881,7 +883,7 @@
     if (!pushMine()) { b.textContent = remindOn() && window.Notification && Notification.permission === 'granted' ? '🔔 Reminders on' : '🔔 Remind me'; return; }
     const on = !!(window.Notification && Notification.permission === 'granted' && await pushSub().catch(() => null));
     b.textContent = on ? '🔔 On' : '🔔 Notify me';
-    b.title = on ? 'This device rings when ' + pushWhat() + (PUSH_TO.includes(me) ? ', and every 2 hours until you tap Got it' : '') + '. Tap to turn it off.'
+    b.title = on ? 'This device rings when ' + pushWhat() + (NUDGE_TO.includes(me) ? ', and every 2 hours until you tap Got it' : '') + '. Tap to turn it off.'
       : 'Ring this device, even with the page closed, when ' + pushWhat();
   }
   // on every visit: keep this device's entry fresh (and the worker up to date)

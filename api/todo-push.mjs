@@ -4,7 +4,8 @@
    GET  /api/todo-push            → { key }  the public key a browser subscribes with
    POST /api/todo-push { token, ids: [taskId…] }
         Called by the page right after someone adds, hands over, notes or closes a task.
-        Rings the other person's devices — today only Leo's (Leo 11-02: "先只给我").
+        Rings the other person's devices: Leo's for everything Jaesik does (Leo 11-02); Jaesik's only
+        for a new task for him or one handed to him (Leo 11-24).
    POST /api/todo-push { token, test: deviceId }   → a test notice to that one device
    POST /api/todo-push { token, call: 'ring' }     → 📣 Jaesik's "come to my office": rings Leo now
         (his page asks again every minute until Leo answers, at most 10 times)
@@ -24,8 +25,11 @@ import { vapidKeys, sendPush } from './_webpush.mjs';
 
 const HUB_DB = 'https://af-hub-8f188-default-rtdb.firebaseio.com';
 const LIST = 'todo/leo-jaesik';
-const PEOPLE = { leo: { name: 'Leo', email: 'leosun@advfacade.com' }, jaesik: { name: 'Jaesik', email: 'jchang@advfacade.com' } };
-export const PUSH_TO = ['leo'];          // whose devices ring (add 'jaesik' when he wants it too)
+export const PEOPLE = { leo: { name: 'Leo', email: 'leosun@advfacade.com' }, jaesik: { name: 'Jaesik', email: 'jchang@advfacade.com' } };
+export const PUSH_TO = ['leo', 'jaesik']; // whose devices ring when the other person acts on a task
+// …and for what (Leo 11-02 for himself; Leo 11-24 for Jaesik: only a new task for him or one handed to him —
+// a note rings him when it comes with "Note + give to Jaesik")
+export const RINGS = { leo: ['new', 'turn', 'note', 'close', 'reopen'], jaesik: ['new', 'turn', 'reopen'] };
 const FRESH = 15 * 60 * 1000;
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const ID = /^[-A-Za-z0-9_]{1,40}$/;
@@ -75,20 +79,33 @@ function whoIs(token) {
 export function describe(id, it, actor, to, now) {
   if (!it || !it.what) return null;
   const who = PEOPLE[actor].name, url = '/todo/#t=' + id;
+  const ok = kind => (RINGS[to] || []).includes(kind);
   const log = Object.values(it.log || {}).filter(e => e && e.at).sort((a, b) => a.at - b.at);
   const last = log[log.length - 1];
   if (last && last.at >= (it.at || 0)) {
     if (last.by !== actor || now - last.at > FRESH) return null;
     const said = last.text ? '\n' + who + ': ' + short(last.text, 300) : '';
-    if (last.act === 'turn' && last.turn === to) return { title: '▶ Your turn — from ' + who, body: label(it) + dueWord(it.due) + said, tag: 'todo-' + id, url, sticky: true };
-    if (last.act === 'close') return { title: '✅ ' + who + ' closed a task', body: label(it) + said, tag: 'todo-' + id, url };
-    if (last.act === 'reopen') return it.to === to && !it.done ? { title: '↩ ' + who + ' reopened it — your turn', body: label(it), tag: 'todo-' + id, url, sticky: true } : null;
-    if (last.text) return { title: '💬 ' + who + ' left a note', body: label(it) + said, tag: 'todo-' + id, url };
+    if (last.act === 'turn' && last.turn === to) return !ok('turn') ? null : { title: '▶ Your turn — from ' + who, body: label(it) + dueWord(it.due) + said, tag: 'todo-' + id, url, sticky: true };
+    if (last.act === 'close') return !ok('close') ? null : { title: '✅ ' + who + ' closed a task', body: label(it) + said, tag: 'todo-' + id, url };
+    if (last.act === 'reopen') return it.to === to && !it.done && ok('reopen') ? { title: '↩ ' + who + ' reopened it — your turn', body: label(it), tag: 'todo-' + id, url, sticky: true } : null;
+    if (last.text) return !ok('note') ? null : { title: '💬 ' + who + ' left a note', body: label(it) + said, tag: 'todo-' + id, url };
     return null;
   }
   // a new task: only one meant for `to`, written by the caller (a task you write for yourself is seen at once)
-  if (it.to !== to || it.seen || it.done || it.by !== actor || now - (it.at || 0) > FRESH) return null;
+  if (!ok('new') || it.to !== to || it.seen || it.done || it.by !== actor || now - (it.at || 0) > FRESH) return null;
   return { title: '📥 New from ' + who, body: label(it) + dueWord(it.due) + (it.note ? '\n' + short(it.note, 200) : ''), tag: 'todo-' + id, url, sticky: true };
+}
+
+/** What rings `k`'s devices, in words (for the test notice). */
+export function ringsWhat(k) {
+  const o = PEOPLE[k === 'leo' ? 'jaesik' : 'leo'].name, r = RINGS[k] || [];
+  const parts = [];
+  if (r.includes('new') || r.includes('turn')) parts.push(o + ' gives you a task or hands one to you');
+  if (r.includes('note')) parts.push('leaves a note');
+  if (r.includes('close')) parts.push('closes one');
+  if (k === CALLEE) parts.push('calls you to his office');
+  if (k === CALLER) parts.push('answers your call');
+  return parts.length > 1 ? parts.slice(0, -1).join(', ') + ', or ' + parts[parts.length - 1] : parts[0] || 'something changes';
 }
 
 /** Several at once (a handwritten page) → one notice. */
@@ -159,9 +176,7 @@ export default async function handler(req, res) {
     if (test) {   // "is this device on?" — only your own device
       const s = ID.test(String(test)) && (devices[actor] || {})[test];
       if (!s) return res.status(404).json({ error: 'This device is not saved yet. Tap 🔔 again.' });
-      const body = actor === CALLER && !PUSH_TO.includes(actor)
-        ? 'This device will ring when ' + PEOPLE[CALLEE].name + ' answers your call.'
-        : 'This device will ring when ' + PEOPLE[actor === 'leo' ? 'jaesik' : 'leo'].name + ' gives you a task, leaves a note or closes one' + (actor === CALLEE ? ', or calls you to his office.' : '.');
+      const body = 'This device will ring when ' + ringsWhat(actor) + '.';
       const r = await ring(actor, { title: '🔔 To-do notifications are on', body, tag: 'todo-test', url: '/todo/' }, 600);
       return res.status(200).json(r);
     }

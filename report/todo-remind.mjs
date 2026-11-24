@@ -19,7 +19,7 @@ import { pathToFileURL } from 'node:url';
 import { vapidKeys, sendPush } from '../api/_webpush.mjs';
 
 const LIST = 'todo/leo-jaesik';
-const PUSH_TO = ['leo'];                 // same as api/todo-push.mjs
+const PUSH_TO = ['leo'];                 // who gets the 2-hour repeat (Leo 11-24: not Jaesik — his devices ring once)
 const EVERY = 105 * 60 * 1000;           // "every 2 hours", with room for GitHub starting late
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const short = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
