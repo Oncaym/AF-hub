@@ -256,7 +256,10 @@ PLANS={
          ('ws', [(1232.2,1189.0),(1272.0,1189.0)]),
          ('ws', [(1561.8,1189.0),(1601.6,1189.0)]),
          # Cleaner's 025 north + east = wall type 1A, 18 ga metal panel on girts (A-410, A-603) (Leo 11-19)
-         ('mp', [(1494.0,1086.5),(1565.0,1086.5),(1565.0,1164.5)],'open')]),
+         ('mp', [(1494.0,1086.5),(1565.0,1086.5),(1565.0,1164.5)],'open'),
+         # EPR 024 north wall = exterior metal panel, not porcelain: interior porcelain enamel panel
+         # only where the control area faces the platform (Leo 11-24)
+         ('mp', [(1425.0,1086.5),(1494.0,1086.5)],'open')]),
  'P135':(29,R(650,430,1050,950),'KGS-A-135',{'en':'EL-535 Mezzanine plan (A-135)','zh':'EL-535 夹层平面 (A-135)'},
         [('enc',[(811.0,611.0),(907.5,611.0),(907.5,720.6),(811.0,720.6)]),
          ('mp', [(795.0,724.0),(906.0,724.0),(906.0,875.0),(795.0,875.0)])]),
@@ -293,7 +296,9 @@ FLOOR_CLIP={k:(v[1]) for k,v in PLANS.items()}
 def band_poly(p0,p1,half=3.0):
     (x0,y0),(x1,y1)=p0,p1; L=math.hypot(x1-x0,y1-y0); nx,ny=-(y1-y0)/L*half,(x1-x0)/L*half
     return [(x0+nx,y0+ny),(x1+nx,y1+ny),(x1-nx,y1-ny),(x0-nx,y0-ny)]
+PORC_DROP={'EPR 024 N'}   # Leo 11-24: metal panel, not porcelain. Kept in PORC so PE-xx keys don't shift.
 for i,(pid,zone,fk,(p0,p1),ln,ht,src) in enumerate(PORC,1):
+    if pid in PORC_DROP: continue
     clip=FLOOR_CLIP[fk]; P=band_poly(p0,p1); xs=[x for x,y in P]; ys=[y for x,y in P]
     sf=round(ln*ht,1)
     PIECES.append(dict(key=f'PE-{i:02d}',id=pid,type=TYPE['porc'],kind='porc',zone=zone,level=fk,status='pending',date='',louver='na',

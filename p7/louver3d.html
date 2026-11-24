@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P7 KB Louvers LV-1 to LV-14 · 3D Locations</title>
+<style>
+  :root { --bg:#f4f3ef; --ink:#1d1d1b; --mute:#6b6a64; --line:#d9d7cf; --card:#ffffff;
+          --in:#2f6fd6; --ex:#d2453a; --warn:#e8870e; --sel:#13a36e; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--ink);
+    font:13px/1.4 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+  #app { position:fixed; inset:0; display:flex; }
+  #view { position:relative; flex:1; min-width:0; overflow:hidden; }
+  #view canvas { display:block; }
+  #labels { position:absolute; inset:0; pointer-events:none; }
+  #side { width:400px; max-width:46vw; border-left:1px solid var(--line); background:var(--card);
+    display:flex; flex-direction:column; min-height:0; }
+  header { padding:12px 14px 8px; border-bottom:1px solid var(--line); }
+  h1 { font-size:15px; margin:0 0 2px; font-weight:650; }
+  .sub { color:var(--mute); font-size:12px; }
+  #tablewrap { overflow:auto; flex:1; min-height:120px; }
+  table { border-collapse:collapse; width:100%; font-size:12px; }
+  th, td { padding:5px 6px; border-bottom:1px solid #eeede8; text-align:left; vertical-align:top; }
+  th { position:sticky; top:0; background:#fafaf7; color:var(--mute); font-weight:600; z-index:1; }
+  tr.row { cursor:pointer; }
+  tr.row:hover { background:#f6f5f0; }
+  tr.row.on { background:#e6f6ef; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:5px; vertical-align:0; }
+  #card { border-top:1px solid var(--line); padding:10px 14px 12px; background:#fcfcfa; max-height:46%; overflow:auto; }
+  #card h2 { font-size:15px; margin:0 0 6px; }
+  #card dl { display:grid; grid-template-columns:78px 1fr; gap:3px 8px; margin:0; }
+  #card dt { color:var(--mute); }
+  #card dd { margin:0; }
+  .note { margin-top:6px; padding:6px 8px; border-radius:6px; background:#fff4e5; color:#7a4a00; font-size:12px; }
+  .warn { color:var(--warn); font-weight:700; }
+  #tools { position:absolute; left:10px; top:10px; display:flex; flex-wrap:wrap; gap:6px; max-width:calc(100% - 20px); }
+  .btn { border:1px solid var(--line); background:rgba(255,255,255,.92); border-radius:7px; padding:5px 9px;
+    font:inherit; color:var(--ink); cursor:pointer; }
+  .btn:hover { background:#fff; border-color:#bdbab0; }
+  .btn.on { background:#1d1d1b; color:#fff; border-color:#1d1d1b; }
+  #legend { position:absolute; left:10px; bottom:10px; background:rgba(255,255,255,.92); border:1px solid var(--line);
+    border-radius:8px; padding:7px 9px; font-size:12px; line-height:1.6; }
+  #help { position:absolute; right:10px; bottom:10px; color:var(--mute); font-size:11px; background:rgba(255,255,255,.8);
+    padding:3px 7px; border-radius:6px; }
+  .lab { font-size:11px; font-weight:650; padding:1px 5px; border-radius:4px; color:#fff; white-space:nowrap;
+    pointer-events:auto; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,.25); }
+  .lab.sel { outline:2px solid var(--sel); outline-offset:1px; }
+  .rlab { font-size:11px; color:#333; background:rgba(255,255,255,.85); padding:0 4px; border-radius:3px; white-space:nowrap; }
+  .glab { font-size:10px; color:#555; border:1px solid #888; background:#fff; border-radius:50%; min-width:20px; height:20px;
+    line-height:18px; text-align:center; padding:0 2px; }
+  .zlab { font-size:11px; color:#444; font-weight:600; background:rgba(244,243,239,.9); padding:1px 6px; border-radius:4px; white-space:nowrap; }
+  .nlab { font-size:14px; font-weight:800; color:#1d1d1b; }
+  @media (max-width: 760px) {
+    #app { flex-direction:column; }
+    #side { width:100%; max-width:none; height:44%; border-left:0; border-top:1px solid var(--line); }
+    #legend { display:none; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="view">
+    <div id="labels"></div>
+    <div id="tools">
+      <button class="btn" data-v="all">Overview</button>
+      <button class="btn" data-v="west">West 290B</button>
+      <button class="btn" data-v="east">East 290A</button>
+      <button class="btn" data-v="top">Top</button>
+      <button class="btn on" id="tGrid">Grids</button>
+      <button class="btn on" id="tRef">Station ref.</button>
+      <button class="btn on" id="tLab">Labels</button>
+    </div>
+    <div id="legend">
+      <div><span class="dot" style="background:var(--in)"></span>Intake</div>
+      <div><span class="dot" style="background:var(--ex)"></span>Exhaust</div>
+      <div style="color:var(--mute)">North = sheet right (A-139 north arrow)</div>
+    </div>
+    <div id="help">Drag to rotate · right-drag to pan · scroll to zoom · click a louver for details</div>
+  </div>
+  <aside id="side">
+    <header>
+      <a href="index.html" style="float:right;font-size:12px;color:#2f6fd6;text-decoration:none">← P7 tracker</a><h1>P7 Kingsbridge Rd Louvers LV-1 to LV-14</h1>
+      <div class="sub">Simple model for checking locations · ft-in · A.F.F. = above room floor · <span class="warn">!</span> = see note</div>
+    </header>
+    <div id="tablewrap"><table><thead><tr><th>LV</th><th>Room</th><th>Wall</th><th>Along wall (to center)</th><th>Sill / Head</th></tr></thead><tbody id="tb"></tbody></table></div>
+    <div id="card"><div class="sub">Click a louver in the model or a row above.</div></div>
+  </aside>
+</div>
+<script src="three.bundle.js"></script>
+<script>
+const DATA = {"rooms":[{"id":"EMR536","name":"EMR 536 (019)","poly":[[-0.982,-59.62],[8.708,-62.769],[13.8,-47.097],[4.109,-43.949]],"floor":0.521,"floorEL":245.52083333333334,"ceil":9.5,"src":"A-134 (p28) inside wall face; A-405 (p49)","dims":"10'-2\" x 16'-6\" (A-405 dim 10'-1\")"},{"id":"EPR024","name":"EPR 024","poly":[[19.878,-34.522],[26.667,-34.522],[26.667,-26.5],[22.489,-26.5]],"floor":13.5,"floorEL":258.5,"ceil":9.0,"src":"A-139 (p33); A-407 (p51)","dims":"top wall 6'-10\", W7 wall 8'-0\", bottom wall 4'-2\" (A-407)"},{"id":"CL025","name":"Cleaner 025","poly":[[27.583,-34.678],[34.583,-34.678],[34.583,-26.344],[27.583,-26.344]],"floor":13.417,"floorEL":258.4166666666667,"ceil":9.5,"src":"Size A-410 (p54); located per A-139 (p33)","dims":"7'-0\" x 8'-4\" (A-410)"},{"id":"EMR535","name":"EMR 535 (020)","poly":[[-38.878,80.589],[-27.911,80.589],[-27.911,96.033],[-33.756,96.033],[-33.756,102.4],[-38.878,102.4]],"floor":0.521,"floorEL":245.52083333333334,"ceil":9.5,"src":"A-135 (p29) inside wall face; A-406 (p50)","dims":"10'-11\" wide, E2 wall 21'-10\" long; lower part 5'-1\" wide"},{"id":"CL021","name":"Cleaner 021","poly":[[-46.372,39.133],[-39.372,39.133],[-39.372,50.133],[-46.372,50.133]],"floor":13.5,"floorEL":258.5,"ceil":9.5,"src":"Size A-409 (p53); located per A-140 (p34)","dims":"7'-0\" x 11'-0\" (A-409)"},{"id":"RF023","name":"Refuse 023","poly":[[-19.911,38.944],[-11.889,38.944],[-11.889,44.2],[-19.911,44.2]],"floor":13.417,"floorEL":258.4166666666667,"ceil":9.5,"src":"A-140 (p34); A-408 (p52)","dims":"approx. 8'-0\" x 5'-3\" (scaled A-408 plan; its text dims 6'-11½\" / 4'-4\" do not match the drawing)"},{"id":"EPR022","name":"EPR 022","poly":[[-19.911,44.878],[-12.056,44.878],[-12.056,50.156],[-19.911,50.156]],"floor":13.417,"floorEL":258.4166666666667,"ceil":9.5,"src":"A-140 (p34); A-408 (p52)","dims":"approx. 7'-10\" x 5'-3\" (scaled A-408 plan)"}],"lvs":[{"id":"LV-1/2 (W2 wall)","room":"EMR536","roomName":"EMR 536 (019)","kind":"Intake","w":36,"h":24,"wall":"Side wall on W2 line|grid 5 end wall","c":[-0.268,-57.423],"n":[-0.9511,0.309],"u":[0.309,0.9511],"sill":7.333333333333333,"head":9.333333333333334,"y0":7.854,"y1":9.854,"floorEL":245.52083333333334,"pos":"2'-3.5\" from grid 5 end wall","src":"A-405 (p49) elev. 3, scaled; RCP 2 dim 1'-2\" to edge; A-604","note":"A-405 tags both louvers \"LV-1\"; per A-604 one of them is LV-2. The drawing does not say which is which.","flag":""},{"id":"LV-1/2 (W5 wall)","room":"EMR536","roomName":"EMR 536 (019)","kind":"Intake","w":36,"h":24,"wall":"Side wall on W5 line|grid 5 end wall","c":[9.688,-59.754],"n":[0.9511,-0.309],"u":[0.309,0.9511],"sill":7.333333333333333,"head":9.333333333333334,"y0":7.854,"y1":9.854,"floorEL":245.52083333333334,"pos":"3'-2\" from grid 5 end wall","src":"A-405 (p49) elev. 5, scaled; RCP 2 dim 1'-10\" to edge; A-604","note":"Same as above.","flag":""},{"id":"LV-3","room":"EMR536","roomName":"EMR 536 (019)","kind":"Exhaust","w":54,"h":26,"wall":"Grid 7 end wall|W5 wall","c":[8.331,-45.321],"n":[0.3089,0.9511],"u":[-0.9511,0.3089],"sill":7.083333333333333,"head":9.25,"y0":7.604,"y1":9.771,"floorEL":245.52083333333334,"pos":"5'-9\" from W5 wall","src":"A-405 (p49) elev. 6, scaled (RCP dim 5'-9\"); A-604","note":"","flag":""},{"id":"LV-4","room":"EMR535","roomName":"EMR 535 (020)","kind":"Intake","w":30,"h":48,"wall":"Wall on E2 line|grid 28 end wall","c":[-38.878,100.48],"n":[-1.0,-0.0],"u":[0.0,-1.0],"sill":5.25,"head":9.25,"y0":5.771,"y1":9.771,"floorEL":245.52083333333334,"pos":"1'-11\" from grid 28 end wall","src":"A-406 (p50) elev. 3: 8\" to edge, sill 5'-3\" A.F.F.; A-604","note":"Elev. 3 note \"align louver with ext. metal panel\" -> exterior wall.","flag":""},{"id":"LV-5","room":"EMR535","roomName":"EMR 535 (020)","kind":"Exhaust","w":60,"h":24,"wall":"Wall on E2 line|grid 27 end wall","c":[-38.878,84.149],"n":[-1.0,0.0],"u":[0.0,1.0],"sill":7.333333333333333,"head":9.333333333333334,"y0":7.854,"y1":9.854,"floorEL":245.52083333333334,"pos":"3'-6.5\" from grid 27 end wall","src":"A-406 (p50) elev. 3, scaled; A-604","note":"Elevation shows it only about 26\" wide (with exhaust fan). Modeled 60\" wide per A-604.","flag":"size"},{"id":"LV-6","room":"EPR024","roomName":"EPR 024","kind":"Intake","w":16,"h":12,"wall":"Bottom wall (above door D08)|W7 wall","c":[24.75,-26.5],"n":[0.0,1.0],"u":[-1.0,0.0],"sill":8.0,"head":9.0,"y0":21.5,"y1":22.5,"floorEL":258.5,"pos":"1'-11\" from W7 wall","src":"A-407 (p51) elev. 3: 1'-11\" / 3'-1\" to center; A-604","note":"","flag":""},{"id":"LV-7","room":"EPR024","roomName":"EPR 024","kind":"Exhaust","w":16,"h":12,"wall":"Top wall|W7 wall","c":[23.584,-34.522],"n":[-0.0,-1.0],"u":[-1.0,0.0],"sill":7.875,"head":8.875,"y0":21.375,"y1":22.375,"floorEL":258.5,"pos":"3'-1\" from W7 wall","src":"A-407 (p51) elev. 5: 2'-4\" / 3'-1\" to center; A-604","note":"","flag":""},{"id":"LV-8","room":"CL025","roomName":"Cleaner 025","kind":"Intake","w":16,"h":12,"wall":"Wall on W8 line (right wall)|bottom wall","c":[34.583,-27.274],"n":[1.0,0.0],"u":[0.0,-1.0],"sill":8.25,"head":9.25,"y0":21.667,"y1":22.667,"floorEL":258.4166666666667,"pos":"0'-11\" from bottom wall","src":"A-410 (p54) RCP 6, scaled (no dim); height from elev. 3, scaled; A-604","note":"Elev. 3 scales the center about 1'-9\" from the bottom wall, 10\" off from the RCP.","flag":""},{"id":"LV-9","room":"CL025","roomName":"Cleaner 025","kind":"Exhaust","w":16,"h":12,"wall":"Top wall|W7 wall","c":[29.043,-34.678],"n":[0.0,-1.0],"u":[1.0,0.0],"sill":8.25,"head":9.25,"y0":21.667,"y1":22.667,"floorEL":258.4166666666667,"pos":"1'-5.5\" from W7 wall","src":"A-410 (p54) RCP 6: 1'-0\" to edge; height from elev. 2, scaled; A-604","note":"","flag":""},{"id":"LV-10","room":"CL021","roomName":"Cleaner 021","kind":"Intake","w":16,"h":12,"wall":"Wall on E1 line|top wall","c":[-46.372,40.883],"n":[-1.0,0.0],"u":[0.0,1.0],"sill":7.5,"head":8.5,"y0":21.0,"y1":22.0,"floorEL":258.5,"pos":"1'-9\" from top wall","src":"A-409 (p53) RCP 6: 1'-2\" to edge; elev. 5: bottom 7'-6\" A.F.F.; A-604","note":"","flag":""},{"id":"LV-11","room":"CL021","roomName":"Cleaner 021","kind":"Exhaust","w":16,"h":12,"wall":"Bottom wall|E1 wall","c":[-45.372,50.133],"n":[-0.0,1.0],"u":[1.0,0.0],"sill":7.5,"head":8.5,"y0":21.0,"y1":22.0,"floorEL":258.5,"pos":"1'-0\" from E1 wall","src":"A-409 (p53) RCP 6 dim 8\"; elev. 4: bottom 7'-6\" A.F.F.; A-604","note":"RCP shows it at the E1 end; elev. 4 (normal viewing direction) puts it at the E2 end. Drawing conflict - modeled per RCP. Hub currently has it on the E1 wall, which is wrong.","flag":"conflict"},{"id":"LV-12","room":"RF023","roomName":"Refuse 023","kind":"Intake","w":16,"h":12,"wall":"Wall on E7 line|top wall (door D07)","c":[-11.889,39.652],"n":[1.0,-0.0],"u":[0.0,1.0],"sill":8.166666666666666,"head":9.166666666666666,"y0":21.584,"y1":22.584,"floorEL":258.4166666666667,"pos":"0'-8.5\" from top wall (door D07)","src":"A-408 (p52) elev. 2: 0'-8\", top 0'-5\" below ceiling; A-604","note":"","flag":""},{"id":"LV-13","room":"EPR022","roomName":"EPR 022","kind":"Intake","w":16,"h":12,"wall":"Wall on E7 line|top wall (shared with 023)","c":[-12.056,46.418],"n":[1.0,-0.0],"u":[0.0,1.0],"sill":8.0,"head":9.0,"y0":21.417,"y1":22.417,"floorEL":258.4166666666667,"pos":"1'-6.5\" from top wall (shared with 023)","src":"A-408 (p52) elev. 7: 2'-2\" to far edge, bottom 8'-0\" A.F.F.; A-604","note":"","flag":""},{"id":"LV-14","room":"EPR022","roomName":"EPR 022","kind":"Exhaust","w":16,"h":12,"wall":"Bottom wall|E6 wall","c":[-18.081,50.156],"n":[-0.0,1.0],"u":[1.0,0.0],"sill":8.0,"head":9.0,"y0":21.417,"y1":22.417,"floorEL":258.4166666666667,"pos":"1'-10\" from E6 wall","src":"A-408 (p52) elev. 8 (tagged \"MOD 12\", drawn 16x12), 1'-1\" to edge; A-202 exterior elevation; A-604","note":"Confirmed by Leo 11-24 (option A). The \"LV-14\" on A-408 elev. 10 (E7 wall, side view) sits exactly at LV-13 - it is LV-13 mislabeled.","flag":""}],"grids":[{"n":"E1","a":[-46.9,34.867],"b":[-46.9,107.089],"lab":"a"},{"n":"E2","a":[-38.9,34.867],"b":[-38.9,107.089],"lab":"a"},{"n":"E3","a":[-36.567,34.867],"b":[-36.567,107.089],"lab":"a"},{"n":"E4","a":[-29.233,34.867],"b":[-29.233,107.089],"lab":"a"},{"n":"E5","a":[-27.9,34.867],"b":[-27.9,107.089],"lab":"a"},{"n":"E6","a":[-19.9,34.867],"b":[-19.9,107.089],"lab":"a"},{"n":"E7","a":[-11.9,34.867],"b":[-11.9,107.089],"lab":"a"},{"n":"20","a":[-49.922,39.089],"b":[-8.811,39.089],"lab":"a"},{"n":"21","a":[-49.922,44.633],"b":[-8.811,44.633],"lab":"a"},{"n":"22","a":[-49.922,47.511],"b":[-8.811,47.511],"lab":"a"},{"n":"23","a":[-49.922,50.178],"b":[-8.811,50.178],"lab":"a"},{"n":"24","a":[-49.922,56.178],"b":[-8.811,56.178],"lab":"a"},{"n":"25","a":[-49.922,62.178],"b":[-8.811,62.178],"lab":"a"},{"n":"26","a":[-49.922,67.711],"b":[-8.811,67.711],"lab":"a"},{"n":"27","a":[-49.922,78.922],"b":[-8.811,78.922],"lab":"a"},{"n":"28","a":[-49.922,100.089],"b":[-8.811,100.089],"lab":"a"},{"n":"W2","a":[-11.107,-94.265],"b":[7.434,-37.201],"lab":"a"},{"n":"W3","a":[-9.756,-94.704],"b":[8.785,-37.64],"lab":"a"},{"n":"W4","a":[-8.65,-95.063],"b":[9.891,-38.0],"lab":"a"},{"n":"W5","a":[-3.18,-96.841],"b":[15.361,-39.777],"lab":"a"},{"n":"W6","a":[5.934,-99.802],"b":[24.475,-42.738],"lab":"a"},{"n":"W7","a":[27.089,-40.0],"b":[27.089,-22.222],"lab":"a"},{"n":"W8","a":[34.678,-40.0],"b":[34.678,-22.222],"lab":"a"},{"n":"3","a":[-15.175,-87.624],"b":[10.186,-95.864],"lab":"a"},{"n":"4","a":[-9.537,-70.27],"b":[15.825,-78.511],"lab":"a"},{"n":"5","a":[-6.07,-59.602],"b":[19.291,-67.843],"lab":"a"},{"n":"6","a":[-2.893,-49.825],"b":[22.468,-58.065],"lab":"a"},{"n":"7","a":[0.287,-40.036],"b":[25.649,-48.276],"lab":"a"},{"n":"8","a":[3.468,-30.245],"b":[28.83,-38.486],"lab":"a"},{"n":"9","a":[4.493,-27.091],"b":[29.855,-35.332],"lab":"a"},{"n":"10","a":[16.667,-34.678],"b":[58.889,-34.678],"lab":"b"},{"n":"11","a":[16.667,-30.511],"b":[58.889,-30.511],"lab":"b"},{"n":"12","a":[16.667,-26.344],"b":[58.889,-26.344],"lab":"b"}],"ref":{"platW":[[-61.111,-26.233],[77.778,-12.611]],"platE":[[-61.111,25.389],[77.778,39.011]],"tracks":[[[-61.111,-6.239],[77.778,-6.239]],[[-61.111,6.383],[77.778,6.383]],[[-61.111,19.011],[77.778,19.011]]],"el536":[[-4.073,-71.432],[4.381,-74.179],[7.815,-63.612],[-0.639,-60.865]],"el535":[[-38.256,68.2],[-29.367,68.2],[-29.367,78.422],[-38.256,78.422]],"rowsLab":{"A":[78.889,-22.9],"B":[78.889,-12.611],"C":[78.889,0.133],"D":[78.889,12.633],"E":[78.889,25.389],"F":[78.889,35.678]}},"levels":{"platform":13.5,"emr":0.5208333333333428,"canopy":23.5},"datum":245.0};
+(function(){
+const { THREE, OrbitControls, CSS2DRenderer, CSS2DObject } = window;
+const view = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0xf4f3ef);
+view.prepend(renderer.domElement);
+const labelR = new CSS2DRenderer({ element: document.getElementById('labels') });
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 2000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.12; controls.maxPolarAngle = Math.PI * 0.495;
+scene.add(new THREE.HemisphereLight(0xffffff, 0xb9b6aa, 1.0));
+const sun = new THREE.DirectionalLight(0xffffff, 1.3); sun.position.set(40, 90, 60); scene.add(sun);
+
+const ft = (s) => { const v = Math.abs(s), f = Math.floor(v + 1e-9); let i = Math.round((v - f) * 24) / 2; let F = f; if (i >= 12) { F++; i -= 12; } return (s < 0 ? '-' : '') + F + "'-" + i + '"'; };
+const EL = (y) => { const v = y + DATA.datum; const f = Math.floor(v); return f + "'-" + (Math.round((v - f) * 12 * 4) / 4) + '"'; };
+
+const G = { grid: new THREE.Group(), ref: new THREE.Group(), rooms: new THREE.Group(), lv: new THREE.Group() };
+Object.values(G).forEach(g => scene.add(g));
+const allLabels = [];
+function label(text, cls, pos, parent, color) {
+  const el = document.createElement('div'); el.className = cls; el.textContent = text;
+  if (color) el.style.background = color;
+  const o = new CSS2DObject(el); o.position.copy(pos); (parent || scene).add(o); allLabels.push(o); return o;
+}
+
+// ---- rooms: floor slab + translucent walls + edge lines
+const wallMat = new THREE.MeshStandardMaterial({ color:0xd8d3c4, transparent:true, opacity:0.32, side:THREE.DoubleSide, depthWrite:false });
+const floorMat = new THREE.MeshStandardMaterial({ color:0xbdb6a3, side:THREE.DoubleSide });
+const edgeMat = new THREE.LineBasicMaterial({ color:0x55524a });
+const roomCentre = {};
+DATA.rooms.forEach(r => {
+  const P = r.poly, y0 = r.floor, y1 = r.floor + r.ceil;
+  const shape = new THREE.Shape(P.map(p => new THREE.Vector2(p[0], -p[1])));
+  const fl = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth:0.35, bevelEnabled:false }), floorMat);
+  fl.rotation.x = -Math.PI / 2; fl.position.y = y0 - 0.35; G.rooms.add(fl);
+  const pos = [], idx = [];
+  P.forEach((p, i) => { const q = P[(i + 1) % P.length]; const b = pos.length / 3;
+    pos.push(p[0], y0, p[1], q[0], y0, q[1], q[0], y1, q[1], p[0], y1, p[1]); idx.push(b, b+1, b+2, b, b+2, b+3); });
+  const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); wg.setIndex(idx); wg.computeVertexNormals();
+  G.rooms.add(new THREE.Mesh(wg, wallMat));
+  const lp = [];
+  P.forEach((p, i) => { const q = P[(i + 1) % P.length];
+    lp.push(p[0], y0, p[1], q[0], y0, q[1], p[0], y1, p[1], q[0], y1, q[1], p[0], y0, p[1], p[0], y1, p[1]); });
+  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
+  G.rooms.add(new THREE.LineSegments(lg, edgeMat));
+  const cx = P.reduce((a, p) => a + p[0], 0) / P.length, cz = P.reduce((a, p) => a + p[1], 0) / P.length;
+  roomCentre[r.id] = new THREE.Vector3(cx, y0, cz);
+  label(r.name, 'rlab', new THREE.Vector3(cx, y1 + 0.6, cz), G.rooms);
+});
+
+// ---- louvers
+const COL = { in:0x2f6fd6, ex:0xd2453a, warn:0xe8870e };
+const colOf = (l) => l.flag === 'lv14' ? COL.warn : (l.kind === 'Intake' ? COL.in : COL.ex);
+const hex = (c) => '#' + c.toString(16).padStart(6, '0');
+const lvMeshes = [], lvLabels = {};
+DATA.lvs.forEach((l, i) => {
+  const w = l.w / 12, h = l.y1 - l.y0, d = 0.9;
+  const isB = false;
+  const mat = new THREE.MeshStandardMaterial({ color:colOf(l), emissive:0x000000, transparent:isB, opacity:isB ? 0.55 : 1 });
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w + (isB ? 0.5 : 0), h + (isB ? 0.5 : 0), d), mat);
+  const out = isB ? 0.75 : 0.25;
+  m.position.set(l.c[0] + l.n[0] * out, (l.y0 + l.y1) / 2, l.c[1] + l.n[1] * out);
+  m.rotation.y = Math.atan2(l.n[0], l.n[1]);
+  m.userData.i = i; G.lv.add(m); lvMeshes.push(m);
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color:0x111111 }));
+  m.add(e);
+  const tag = l.id.replace(/ \(.*\)$/, '') + (l.id.indexOf('W2') >= 0 ? ' W2' : l.id.indexOf('W5') >= 0 ? ' W5' : '');
+  const lo = label(tag, 'lab', new THREE.Vector3(m.position.x + l.n[0] * (isB ? 4.5 : 1.2), l.y1 + (isB ? 3.2 : 0.9), m.position.z + l.n[1] * (isB ? 4.5 : 1.2)), G.lv, hex(colOf(l)));
+  lo.element.addEventListener('click', (ev) => { ev.stopPropagation(); select(i, true); });
+  lvLabels[i] = lo;
+});
+
+// ---- grids (dashed, at platform level) + bubbles
+const gy = DATA.levels.platform + 0.03;
+const gMat = new THREE.LineDashedMaterial({ color:0x7d7a70, dashSize:2.2, gapSize:0.8 });
+DATA.grids.forEach(g => {
+  const a = new THREE.Vector3(g.a[0], gy, g.a[1]), b = new THREE.Vector3(g.b[0], gy, g.b[1]);
+  const ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), gMat); ln.computeLineDistances(); G.grid.add(ln);
+  const end = g.lab === 'b' ? b : a; const dir = end.clone().sub(g.lab === 'b' ? a : b).normalize();
+  label(g.n, 'glab', end.clone().add(dir.multiplyScalar(1.6)), G.grid);
+});
+
+// ---- station reference (rough)
+const R = DATA.ref, Lv = DATA.levels;
+const refMat = new THREE.MeshStandardMaterial({ color:0xa9a69c, transparent:true, opacity:0.55, depthWrite:false });
+const trackMat = new THREE.MeshStandardMaterial({ color:0x4a4843 });
+function slab(p0, p1, y, t, mat) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(Math.abs(p1[0] - p0[0]), t, Math.abs(p1[1] - p0[1])), mat);
+  m.position.set((p0[0] + p1[0]) / 2, y - t / 2, (p0[1] + p1[1]) / 2); G.ref.add(m); return m;
+}
+slab(R.platW[0], R.platW[1], Lv.platform - 0.02, 1.0, refMat);
+slab(R.platE[0], R.platE[1], Lv.platform - 0.02, 1.0, refMat);
+R.tracks.forEach(t => slab([t[0][0], t[0][1] - 2.4], [t[1][0], t[1][1] + 2.4], Lv.platform - 3.6, 0.6, trackMat));
+function prism(poly, y0, y1, mat) {
+  const sh = new THREE.Shape(poly.map(p => new THREE.Vector2(p[0], -p[1])));
+  const m = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth:y1 - y0, bevelEnabled:false }), mat);
+  m.rotation.x = -Math.PI / 2; m.position.y = y0; G.ref.add(m);
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color:0x77746b })); m.add(e);
+  return m;
+}
+const elMat = new THREE.MeshStandardMaterial({ color:0x9b978b, transparent:true, opacity:0.35, depthWrite:false });
+[['EL-536 elevator (rough)', R.el536], ['EL-535 elevator (rough)', R.el535]].forEach(([n, p]) => {
+  prism(p, Lv.emr - 0.5, Lv.platform + 12, elMat);
+  const cx = p.reduce((a, q) => a + q[0], 0) / 4, cz = p.reduce((a, q) => a + q[1], 0) / 4;
+  label(n, 'rlab', new THREE.Vector3(cx, Lv.platform + 12.8, cz), G.ref);
+});
+Object.entries(R.rowsLab).forEach(([k, p]) => label(k, 'glab', new THREE.Vector3(p[0] + 2, Lv.platform, p[1]), G.ref));
+const midW = (R.platW[0][1] + R.platW[1][1]) / 2, midE = (R.platE[0][1] + R.platE[1][1]) / 2;
+label('West platform (southbound) EL 258\'-6"', 'zlab', new THREE.Vector3(R.platW[1][0] - 25, Lv.platform + 0.5, midW), G.ref);
+label('East platform (northbound) EL 258\'-6"', 'zlab', new THREE.Vector3(R.platE[1][0] - 25, Lv.platform + 0.5, midE), G.ref);
+label('Tracks (3)', 'zlab', new THREE.Vector3(R.platW[1][0] - 25, Lv.platform - 3, (midW + midE) / 2), G.ref);
+// north arrow: page-right
+(function(){
+  const o = new THREE.Vector3(R.platW[1][0] - 8, Lv.platform + 0.2, R.platE[1][1] + 20);
+  const arr = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), o, 9, 0x1d1d1b, 2.6, 1.6); scene.add(arr);
+  label('N', 'nlab', o.clone().add(new THREE.Vector3(11, 0, 0)), scene);
+})();
+// side tags
+label('West 290B · W. Kingsbridge Rd', 'zlab', new THREE.Vector3(12, Lv.platform + 15, -48), scene);
+label('East 290A · E. Kingsbridge Rd', 'zlab', new THREE.Vector3(-30, Lv.platform + 15, 62), scene);
+label('EMR level EL 245\'-6¼"', 'zlab', new THREE.Vector3(-8, Lv.emr + 2, -66), scene);
+label('EMR level EL 245\'-6¼"', 'zlab', new THREE.Vector3(-34, Lv.emr + 11, 104), scene);
+
+// ---- table + card
+const tb = document.getElementById('tb');
+DATA.lvs.forEach((l, i) => {
+  const tr = document.createElement('tr'); tr.className = 'row'; tr.dataset.i = i;
+  const flag = l.flag ? ' <span class="warn">!</span>' : '';
+  tr.innerHTML = `<td><span class="dot" style="background:${hex(colOf(l))}"></span>${l.id}${flag}</td><td>${l.roomName}</td><td>${l.wall.split('|')[0]}</td><td>${l.pos}</td><td>${ft(l.sill)} / ${ft(l.head)}</td>`;
+  tr.addEventListener('click', () => select(i, true)); tb.appendChild(tr);
+});
+let cur = -1;
+function select(i, fly) {
+  if (cur >= 0) { lvMeshes[cur].material.emissive.setHex(0); lvLabels[cur].element.classList.remove('sel'); }
+  cur = i; const l = DATA.lvs[i], m = lvMeshes[i];
+  m.material.emissive.setHex(0x1a6b4a); lvLabels[i].element.classList.add('sel');
+  document.querySelectorAll('tr.row').forEach(r => r.classList.toggle('on', +r.dataset.i === i));
+  const tr = tb.querySelector(`tr[data-i="${i}"]`); if (tr) tr.scrollIntoView({ block:'nearest' });
+  const r = DATA.rooms.find(x => x.id === l.room);
+  document.getElementById('card').innerHTML = `<h2><span class="dot" style="background:${hex(colOf(l))}"></span>${l.id}</h2>
+    <dl><dt>Room</dt><dd>${l.roomName} (floor EL ${EL(r.floor)}, ceiling ${ft(r.ceil)})</dd>
+    <dt>Type</dt><dd>${l.kind} · ${l.w}" W x ${l.h}" H (A-604)</dd>
+    <dt>Wall</dt><dd>${l.wall.split('|')[0]}</dd>
+    <dt>Along wall</dt><dd>Center ${l.pos}</dd>
+    <dt>Height</dt><dd>Sill ${ft(l.sill)} / head ${ft(l.head)} A.F.F. (EL ${EL(l.y0)} to ${EL(l.y1)})</dd>
+    <dt>Source</dt><dd>${l.src}</dd>
+    <dt>Room size</dt><dd>${r.dims}<br><span class="sub">${r.src}</span></dd></dl>
+    ${l.note ? `<div class="note">${l.note}</div>` : ''}`;
+  if (fly) flyTo(l);
+}
+function flyTo(l) {
+  const c = new THREE.Vector3(l.c[0], (l.y0 + l.y1) / 2, l.c[1]);
+  const p = c.clone().add(new THREE.Vector3(l.n[0] * 24 + l.u[0] * 8, 10, l.n[1] * 24 + l.u[1] * 8));
+  tween(p, c);
+}
+let tw = null;
+function tween(p, t, ms = 700) { tw = { p0:camera.position.clone(), t0:controls.target.clone(), p1:p, t1:t, s:performance.now(), ms }; }
+
+// ---- views
+const VIEWS = {
+  all:  [new THREE.Vector3(-150, 150, 175), new THREE.Vector3(-8, 4, 20)],
+  west: [new THREE.Vector3(-45, 55, -110), new THREE.Vector3(12, 6, -42)],
+  east: [new THREE.Vector3(-95, 60, 135), new THREE.Vector3(-28, 6, 62)],
+  top:  [new THREE.Vector3(-6, 300, 20.01), new THREE.Vector3(-6, 0, 20)],
+};
+document.querySelectorAll('[data-v]').forEach(b => b.addEventListener('click', () => { const v = VIEWS[b.dataset.v]; tween(v[0].clone(), v[1].clone()); }));
+function toggle(id, grp) { const b = document.getElementById(id); b.addEventListener('click', () => { b.classList.toggle('on'); grp.visible = b.classList.contains('on'); syncLabels(); }); }
+toggle('tGrid', G.grid); toggle('tRef', G.ref);
+let showLab = true;
+document.getElementById('tLab').addEventListener('click', (e) => { showLab = !showLab; e.currentTarget.classList.toggle('on', showLab); syncLabels(); });
+function syncLabels() { allLabels.forEach(o => { let vis = showLab || o.element.classList.contains('lab'); let p = o.parent; while (p) { if (p.visible === false) vis = false; p = p.parent; } o.element.style.display = vis ? '' : 'none'; }); }
+
+// ---- picking
+const ray = new THREE.Raycaster(), mv = new THREE.Vector2(); let down = null;
+renderer.domElement.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  mv.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(mv, camera); const hit = ray.intersectObjects(lvMeshes, false)[0];
+  if (hit) select(hit.object.userData.i, false);
+});
+
+function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); labelR.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+window.addEventListener('resize', resize); resize();
+camera.position.copy(VIEWS.all[0]); controls.target.copy(VIEWS.all[1]); controls.update();
+(function loop(now) {
+  if (tw) { const k = Math.min(1, (now - tw.s) / tw.ms), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    camera.position.lerpVectors(tw.p0, tw.p1, e); controls.target.lerpVectors(tw.t0, tw.t1, e); if (k >= 1) tw = null; }
+  controls.update(); renderer.render(scene, camera); labelR.render(scene, camera); requestAnimationFrame(loop);
+})(performance.now());
+window.__ready = true;
+})();
+</script>
+</body>
+</html>
